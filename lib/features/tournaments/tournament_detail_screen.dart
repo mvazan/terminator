@@ -131,8 +131,11 @@ class _TournamentDetailScreenState
                 checked: showWhoIsIn,
                 child: const Text('Zobrazit, kdo je přihlášený'),
               ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                  value: 'duplicate',
+                  child: Text('Duplikovat jako nový turnaj')),
               if (!archived) ...[
-                const PopupMenuDivider(),
                 const PopupMenuItem(
                     value: 'edit', child: Text('Upravit turnaj')),
                 const PopupMenuItem(
@@ -222,6 +225,10 @@ class _TournamentDetailScreenState
     switch (action) {
       case 'toggle_who_is_in':
         await ref.read(showWhoIsInProvider.notifier).toggle();
+      case 'duplicate':
+        await Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) =>
+                TournamentEditScreen(duplicateFrom: tournament)));
       case 'edit':
         await Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => TournamentEditScreen(existing: tournament)));

@@ -11,10 +11,16 @@ import '../../scrape/scraper.dart';
 /// Slots come either from the organizer's reservation page (recognized URL →
 /// scraped automatically, incl. occupancy) or from manual patterns: any
 /// number of day groups (pick weekdays, type times like "16 17:30 19").
+///
+/// [duplicateFrom] pre-fills every field (name, venue, kind, contacts, URL)
+/// from a past tournament — typically an archived one, "next season" — but
+/// the dates are left blank and nothing else (slots, votes, orders, rosters)
+/// carries over: this is a brand-new tournament, just saving retyping.
 class TournamentEditScreen extends StatefulWidget {
-  const TournamentEditScreen({super.key, this.existing});
+  const TournamentEditScreen({super.key, this.existing, this.duplicateFrom});
 
   final Tournament? existing;
+  final Tournament? duplicateFrom;
 
   @override
   State<TournamentEditScreen> createState() => _TournamentEditScreenState();
@@ -29,16 +35,18 @@ class _GroupDraft {
 }
 
 class _TournamentEditScreenState extends State<TournamentEditScreen> {
-  late final _name = TextEditingController(text: widget.existing?.name);
-  late final _venue = TextEditingController(text: widget.existing?.venue);
-  late final _email =
-      TextEditingController(text: widget.existing?.contactEmail);
-  late final _phone =
-      TextEditingController(text: widget.existing?.contactPhone);
-  late final _url = TextEditingController(text: widget.existing?.sourceUrl);
-  late final _notes = TextEditingController(text: widget.existing?.notes);
+  // Prefill source: editing an existing tournament copies everything
+  // including dates; duplicating copies settings only, dates start blank.
+  Tournament? get _prefill => widget.existing ?? widget.duplicateFrom;
+
+  late final _name = TextEditingController(text: _prefill?.name);
+  late final _venue = TextEditingController(text: _prefill?.venue);
+  late final _email = TextEditingController(text: _prefill?.contactEmail);
+  late final _phone = TextEditingController(text: _prefill?.contactPhone);
+  late final _url = TextEditingController(text: _prefill?.sourceUrl);
+  late final _notes = TextEditingController(text: _prefill?.notes);
   late final _minPlayers =
-      TextEditingController(text: '${widget.existing?.minPlayers ?? 2}');
+      TextEditingController(text: '${_prefill?.minPlayers ?? 2}');
   late TournamentKind _kind;
 
   Day? _startsOn;
@@ -55,10 +63,12 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
   @override
   void initState() {
     super.initState();
-    _kind = TournamentKind.tryParse(widget.existing?.kind ?? '') ??
+    _kind = TournamentKind.tryParse(_prefill?.kind ?? '') ??
         TournamentKind.dvojice;
-    _startsOn = widget.existing?.startsOn;
-    _endsOn = widget.existing?.endsOn;
+    if (widget.existing != null) {
+      _startsOn = widget.existing!.startsOn;
+      _endsOn = widget.existing!.endsOn;
+    }
     _url.addListener(() => setState(() {}));
   }
 
@@ -165,7 +175,11 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEdit ? 'Upravit turnaj' : 'Nový turnaj'),
+        title: Text(_isEdit
+            ? 'Upravit turnaj'
+            : (widget.duplicateFrom != null
+                ? 'Nová sezóna — ${widget.duplicateFrom!.name}'
+                : 'Nový turnaj')),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
