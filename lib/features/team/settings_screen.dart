@@ -79,11 +79,21 @@ const _kindLabels = {
   ),
 };
 
-class _NotificationKindTile extends StatelessWidget {
+class _NotificationKindTile extends StatefulWidget {
   const _NotificationKindTile({required this.kind, required this.pref});
 
   final NotificationKind kind;
   final NotificationPref pref;
+
+  @override
+  State<_NotificationKindTile> createState() => _NotificationKindTileState();
+}
+
+class _NotificationKindTileState extends State<_NotificationKindTile> {
+  bool _saving = false;
+
+  NotificationKind get kind => widget.kind;
+  NotificationPref get pref => widget.pref;
 
   String _statusLabel() {
     final now = DateTime.now();
@@ -110,25 +120,39 @@ class _NotificationKindTile extends StatelessWidget {
           color: active ? null : Theme.of(context).disabledColor),
       title: Text(title),
       subtitle: Text('$subtitle · ${_statusLabel()}'),
-      trailing: PopupMenuButton<String>(
-        icon: Icon(
-          !pref.enabled
-              ? Icons.notifications_off_outlined
-              : (active
-                  ? Icons.notifications_active_outlined
-                  : Icons.snooze),
-        ),
-        onSelected: (choice) => _apply(context, choice),
-        itemBuilder: (_) => const [
-          PopupMenuItem(value: 'on', child: Text('Zapnout')),
-          PopupMenuItem(value: 'mute1', child: Text('Ztlumit na 1 h')),
-          PopupMenuItem(value: 'mute3', child: Text('Ztlumit na 3 h')),
-          PopupMenuItem(value: 'mute6', child: Text('Ztlumit na 6 h')),
-          PopupMenuItem(value: 'mute12', child: Text('Ztlumit na 12 h')),
-          PopupMenuItem(value: 'custom', child: Text('Ztlumit na… (vlastní)')),
-          PopupMenuItem(value: 'off', child: Text('Vypnout')),
-        ],
-      ),
+      trailing: _saving
+          ? const SizedBox(
+              width: 24,
+              height: 24,
+              child: Padding(
+                padding: EdgeInsets.all(2),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          : PopupMenuButton<String>(
+              icon: Icon(
+                !pref.enabled
+                    ? Icons.notifications_off_outlined
+                    : (active
+                        ? Icons.notifications_active_outlined
+                        : Icons.snooze),
+              ),
+              onSelected: (choice) => _apply(context, choice),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'on', child: Text('Zapnout')),
+                PopupMenuItem(
+                    value: 'mute1', child: Text('Ztlumit na 1 h')),
+                PopupMenuItem(
+                    value: 'mute3', child: Text('Ztlumit na 3 h')),
+                PopupMenuItem(
+                    value: 'mute6', child: Text('Ztlumit na 6 h')),
+                PopupMenuItem(
+                    value: 'mute12', child: Text('Ztlumit na 12 h')),
+                PopupMenuItem(
+                    value: 'custom', child: Text('Ztlumit na… (vlastní)')),
+                PopupMenuItem(value: 'off', child: Text('Vypnout')),
+              ],
+            ),
     );
   }
 
@@ -159,12 +183,17 @@ class _NotificationKindTile extends StatelessWidget {
           enabled: true, mutedUntil: DateTime.now().add(duration));
 
   Future<void> _save(BuildContext context,
-      {required bool enabled, DateTime? mutedUntil}) {
-    return tryAction(
-      context,
-      () => Api.setNotificationPref(kind,
-          enabled: enabled, mutedUntil: mutedUntil),
-    );
+      {required bool enabled, DateTime? mutedUntil}) async {
+    setState(() => _saving = true);
+    try {
+      await tryAction(
+        context,
+        () => Api.setNotificationPref(kind,
+            enabled: enabled, mutedUntil: mutedUntil),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<double?> _askCustomHours(BuildContext context) {
