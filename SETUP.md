@@ -13,8 +13,9 @@ database awake. Step 9 builds the APK for the team.
 
 ## 2. Database schema
 
-1. Dashboard → **SQL Editor** → paste the whole
-   [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) → **Run**.
+1. Dashboard → **SQL Editor** → paste and **Run** each file from
+   [`supabase/migrations/`](supabase/migrations/) **in order**
+   (`0001_init.sql`, then `0002_notification_prefs.sql`).
 2. Set the team invite code (pick your own secret word):
 
    ```sql

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/ui.dart';
 import '../../data/providers.dart';
 import '../../domain/models.dart';
+import 'settings_screen.dart';
 
 /// Team overview: my profile, pending approvals (anyone can approve — the
 /// everyone-equal rule), member list, sign-out.
@@ -18,7 +19,18 @@ class TeamScreen extends ConsumerWidget {
     final approved = [for (final m in members) if (m.isApproved) m];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Tým')),
+      appBar: AppBar(
+        title: const Text('Tým'),
+        actions: [
+          IconButton(
+            tooltip: 'Nastavení',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
+          ),
+        ],
+      ),
       body: ListView(
         children: [
           if (me != null)

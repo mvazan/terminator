@@ -121,6 +121,22 @@ final myMutesProvider = StreamProvider<Set<String>>((ref) {
 String muteKey(String tournamentId, Day? day) =>
     '$tournamentId|${day?.toSql() ?? ''}';
 
+/// The caller's notification preferences by kind (kinds without a stored row
+/// are simply absent — treat as enabled via [NotificationPref.fallback]).
+final myNotificationPrefsProvider =
+    StreamProvider<Map<NotificationKind, NotificationPref>>((ref) {
+  final uid = currentUserId;
+  if (uid == null) return Stream.value(const {});
+  return _db
+      .from('notification_prefs')
+      .stream(primaryKey: ['user_id', 'kind'])
+      .eq('user_id', uid)
+      .map((rows) => {
+            for (final row in rows.map(NotificationPref.fromJson))
+              row.kind: row,
+          });
+});
+
 // ---------------------------------------------------------------------------
 // Actions (writes)
 // ---------------------------------------------------------------------------
@@ -265,6 +281,21 @@ class Api {
         'day': day?.toSql(),
         'user_id': currentUserId!,
         'body': body,
+      });
+
+  /// enabled=true + mutedUntil=null  -> back to normal (row upserted anyway,
+  /// which is fine — it equals the default).
+  static Future<void> setNotificationPref(
+    NotificationKind kind, {
+    required bool enabled,
+    DateTime? mutedUntil,
+  }) =>
+      _db.from('notification_prefs').upsert({
+        'user_id': currentUserId!,
+        'kind': kind.sqlName,
+        'enabled': enabled,
+        'muted_until': mutedUntil?.toUtc().toIso8601String(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
       });
 
   static Future<void> setMuted(String tournamentId, Day? day, bool muted) async {

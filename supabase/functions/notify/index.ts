@@ -138,18 +138,46 @@ async function sendToTokens(
   }));
 }
 
-/** All approved members' tokens, minus excluded user ids. */
+type NotificationKind =
+  | "new_member"
+  | "new_tournament"
+  | "proposal"
+  | "order"
+  | "chat"
+  | "threshold";
+
+/**
+ * All approved members' tokens for one notification kind, minus excluded
+ * user ids and minus everyone whose notification_prefs row disables the kind
+ * or mutes it until a future timestamp (missing row = enabled).
+ */
 async function teamTokens(
+  kind: NotificationKind,
   exclude: (string | null | undefined)[] = [],
 ): Promise<{ userId: string; token: string }[]> {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, fcm_token")
-    .eq("status", "approved")
-    .not("fcm_token", "is", null);
-  if (error) throw error;
+  const [profilesResult, prefsResult] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, fcm_token")
+      .eq("status", "approved")
+      .not("fcm_token", "is", null),
+    supabase
+      .from("notification_prefs")
+      .select("user_id, enabled, muted_until")
+      .eq("kind", kind),
+  ]);
+  if (profilesResult.error) throw profilesResult.error;
+  if (prefsResult.error) throw prefsResult.error;
+
+  const now = Date.now();
   const excluded = new Set(exclude.filter(Boolean));
-  return (data ?? [])
+  for (const pref of prefsResult.data ?? []) {
+    const muted = pref.muted_until !== null &&
+      Date.parse(pref.muted_until) > now;
+    if (!pref.enabled || muted) excluded.add(pref.user_id);
+  }
+
+  return (profilesResult.data ?? [])
     .filter((p) => !excluded.has(p.id))
     .map((p) => ({ userId: p.id, token: p.fcm_token as string }));
 }
@@ -189,7 +217,7 @@ async function handle(payload: WebhookPayload) {
     case "profiles": {
       if (payload.type !== "INSERT" || record.status !== "pending") return;
       await sendToTokens(
-        await teamTokens([record.id as string]),
+        await teamTokens("new_member", [record.id as string]),
         "Nový člen čeká na schválení",
         `${record.display_name} se chce přidat. Schval ho v záložce Tým.`,
       );
@@ -199,7 +227,7 @@ async function handle(payload: WebhookPayload) {
     case "tournaments": {
       if (payload.type !== "INSERT") return;
       await sendToTokens(
-        await teamTokens([record.created_by as string]),
+        await teamTokens("new_tournament", [record.created_by as string]),
         "Nový turnaj 🎳",
         `${record.name} — odklikej si termíny!`,
       );
@@ -212,7 +240,7 @@ async function handle(payload: WebhookPayload) {
       const name = await tournamentName(record.tournament_id);
       if (payload.type === "INSERT" && status === "proposed") {
         await sendToTokens(
-          await teamTokens([record.created_by as string]),
+          await teamTokens("proposal", [record.created_by as string]),
           `Návrh: ${name}`,
           "Beru / Nemůžu / Radši jiný den — hlasuj v aplikaci.",
         );
@@ -221,7 +249,7 @@ async function handle(payload: WebhookPayload) {
         (payload.type === "INSERT" || oldStatus === "proposed")
       ) {
         await sendToTokens(
-          await teamTokens([record.created_by as string]),
+          await teamTokens("order", [record.created_by as string]),
           `Objednáno: ${name}`,
           "Termín je objednaný — přidej se, dokud je místo!",
         );
@@ -230,7 +258,7 @@ async function handle(payload: WebhookPayload) {
         oldStatus !== "cancelled"
       ) {
         await sendToTokens(
-          await teamTokens([]),
+          await teamTokens("order", []),
           `Zrušeno: ${name}`,
           "Návrh/objednávka byla zrušena.",
         );
@@ -259,7 +287,7 @@ async function handle(payload: WebhookPayload) {
         ? `${name}`
         : `${name} — ${dayLabel(day)}`;
       await sendToTokens(
-        await teamTokens([
+        await teamTokens("chat", [
           record.user_id as string,
           ...(mutes ?? []).map((m) => m.user_id as string),
         ]),
@@ -296,7 +324,7 @@ async function handle(payload: WebhookPayload) {
       if (!flipped || flipped.length === 0) return;
 
       await sendToTokens(
-        await teamTokens([]),
+        await teamTokens("threshold", []),
         `${tournament.name}: dá se objednat!`,
         `${dayLabel(slot.date)} ${timeLabel(slot.time)} už má ${count} hráčů ` +
           `(min. ${tournament.min_players}). Navrhni objednávku!`,

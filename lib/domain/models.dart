@@ -303,6 +303,62 @@ class RosterEntry {
       );
 }
 
+/// Kinds of push notifications a member can tune in settings.
+/// SQL names must match the notification_prefs.kind check constraint and the
+/// kind strings used by the notify Edge Function.
+enum NotificationKind {
+  newMember('new_member'),
+  newTournament('new_tournament'),
+  proposal('proposal'),
+  order('order'),
+  chat('chat'),
+  threshold('threshold');
+
+  const NotificationKind(this.sqlName);
+
+  final String sqlName;
+
+  static NotificationKind? tryParse(String value) {
+    for (final kind in values) {
+      if (kind.sqlName == value) return kind;
+    }
+    return null;
+  }
+}
+
+/// A member's preference for one notification kind.
+/// No stored row means "enabled" — [NotificationPref.fallback].
+class NotificationPref {
+  const NotificationPref({
+    required this.kind,
+    required this.enabled,
+    this.mutedUntil,
+  });
+
+  final NotificationKind kind;
+  final bool enabled;
+  final DateTime? mutedUntil;
+
+  static NotificationPref fallback(NotificationKind kind) =>
+      NotificationPref(kind: kind, enabled: true);
+
+  bool isMutedAt(DateTime now) =>
+      mutedUntil != null && mutedUntil!.isAfter(now);
+
+  /// Will a notification of this kind reach the user at [now]?
+  bool isActiveAt(DateTime now) => enabled && !isMutedAt(now);
+
+  factory NotificationPref.fromJson(Map<String, dynamic> json) =>
+      NotificationPref(
+        kind: NotificationKind.tryParse(json['kind'] as String) ??
+            NotificationKind.chat,
+        enabled: json['enabled'] as bool,
+        mutedUntil: json['muted_until'] == null
+            ? null
+            : DateTime.parse(json['muted_until'] as String),
+      );
+}
+
 class ChatMessage {
   const ChatMessage({
     required this.id,
