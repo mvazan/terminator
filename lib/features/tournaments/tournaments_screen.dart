@@ -85,25 +85,48 @@ class _TournamentTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = tournament;
+    final scheme = Theme.of(context).colorScheme;
     final String status;
+    Color chipColor = scheme.surfaceContainerHighest;
+    Color chipText = scheme.onSurfaceVariant;
     if (t.isArchived) {
       status = 'archiv';
     } else if (t.endsOn.isBefore(now)) {
       status = 'odehráno';
     } else if (!t.startsOn.isAfter(now)) {
       status = 'běží';
+      chipColor = scheme.primaryContainer;
+      chipText = scheme.onPrimaryContainer;
     } else {
       status = 'za ${t.startsOn.differenceInDays(now)} dní';
+      chipColor = scheme.secondaryContainer;
+      chipText = scheme.onSecondaryContainer;
     }
 
-    return ListTile(
-      title: Text(t.name),
-      subtitle: Text(
-          '${t.timelineLabel} · ${rangeLabel(t.startsOn, t.endsOn)}'),
-      trailing: Chip(label: Text(status)),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => TournamentDetailScreen(tournamentId: t.id),
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      child: ListTile(
+        leading: DateBadge(t.startsOn),
+        title: Text(t.name,
+            style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(
+            '${t.timelineLabel} · ${rangeLabel(t.startsOn, t.endsOn)}'),
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: chipColor,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(status,
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: chipText)),
+        ),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => TournamentDetailScreen(tournamentId: t.id),
+          ),
         ),
       ),
     );

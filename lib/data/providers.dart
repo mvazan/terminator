@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../domain/models.dart';
+import '../scrape/scraper.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
@@ -192,6 +193,47 @@ class Api {
 
   static Future<void> archiveTournament(String id) => updateTournament(
       id, {'archived_at': DateTime.now().toUtc().toIso8601String()});
+
+  /// How long scraped occupancy stays fresh before an automatic re-sync.
+  static const scrapeTtl = Duration(minutes: 30);
+
+  static bool scrapeIsStale(Tournament t) =>
+      t.scrapedAt == null ||
+      DateTime.now().toUtc().difference(t.scrapedAt!.toUtc()) > scrapeTtl;
+
+  /// Downloads the tournament's reservation page and upserts the slot grid
+  /// with venue occupancy. Returns the number of starts found; throws with a
+  /// human message when the page is unusable. No-op for unrecognized URLs.
+  static Future<int> syncFromWeb({
+    required String tournamentId,
+    required String sourceUrl,
+  }) async {
+    final scraper = ScraperRegistry.forUrl(sourceUrl);
+    if (scraper == null) return 0;
+
+    final venueSlots = await scraper.fetch(Uri.parse(sourceUrl));
+    if (venueSlots.isEmpty) {
+      throw Exception('stránka neobsahuje rezervační tabulku');
+    }
+
+    await _db.from('slots').upsert(
+      [
+        for (final v in venueSlots)
+          {
+            'tournament_id': tournamentId,
+            'date': v.date.toSql(),
+            'time': v.time.toSql(),
+            'venue_capacity': v.capacity,
+            'venue_occupied': v.occupied,
+          },
+      ],
+      onConflict: 'tournament_id,date,time',
+    );
+    await _db.from('tournaments').update({
+      'scraped_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', tournamentId);
+    return venueSlots.length;
+  }
 
   static Future<void> addSlot(String tournamentId, Day date, HourMinute time) =>
       _db.from('slots').insert({

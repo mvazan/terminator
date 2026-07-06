@@ -48,3 +48,43 @@ String memberName(List<Profile> members, String userId) {
 
 String rosterEntryName(RosterEntry entry, List<Profile> members) =>
     entry.isGuest ? '${entry.guestName} *' : memberName(members, entry.userId!);
+
+/// Rounded calendar-leaf date badge used in list items.
+class DateBadge extends StatelessWidget {
+  const DateBadge(this.day, {super.key});
+
+  final Day day;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: scheme.primaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            '${day.day}.${day.month}.',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              color: scheme.onPrimaryContainer,
+            ),
+          ),
+          Text(
+            _weekdaysShort[day.weekday - 1],
+            style: TextStyle(
+              fontSize: 11,
+              color: scheme.onPrimaryContainer.withValues(alpha: 0.8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

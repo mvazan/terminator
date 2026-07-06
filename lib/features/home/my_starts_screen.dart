@@ -66,10 +66,11 @@ class MyStartsScreen extends ConsumerWidget {
                   margin:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   child: ListTile(
+                    leading: DateBadge(start.slot.date),
                     title: Text(
-                      '${dayLabel(start.slot.date)} '
-                      '${start.slot.time.display()} — '
+                      '${start.slot.time.display()} · '
                       '${start.tournament.timelineLabel}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     subtitle: Text([
                       start.tournament.name,

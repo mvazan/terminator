@@ -19,7 +19,10 @@ Tournament makeTournament({
       endsOn: endsOn,
       minPlayers: minPlayers,
       maxPlayers: maxPlayers,
-      orderingContact: 'organizer@example.com',
+      orderingContact: '',
+      contactEmail: 'organizer@example.com',
+      contactPhone: '',
+      sourceUrl: '',
       notes: '',
       createdBy: 'u1',
     );

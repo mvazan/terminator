@@ -128,8 +128,12 @@ class Tournament {
     required this.minPlayers,
     required this.maxPlayers,
     required this.orderingContact,
+    required this.contactEmail,
+    required this.contactPhone,
+    required this.sourceUrl,
     required this.notes,
     required this.createdBy,
+    this.scrapedAt,
     this.archivedAt,
   });
 
@@ -141,7 +145,16 @@ class Tournament {
   final Day endsOn;
   final int minPlayers;
   final int? maxPlayers;
+
+  /// Legacy single contact field; superseded by contactEmail/contactPhone
+  /// but still displayed for tournaments created before the split.
   final String orderingContact;
+  final String contactEmail;
+  final String contactPhone;
+
+  /// Organizer's reservation page (scraping source). Empty = manual slots.
+  final String sourceUrl;
+  final DateTime? scrapedAt;
   final String notes;
   final String createdBy;
   final DateTime? archivedAt;
@@ -161,6 +174,12 @@ class Tournament {
         minPlayers: json['min_players'] as int,
         maxPlayers: json['max_players'] as int?,
         orderingContact: json['ordering_contact'] as String? ?? '',
+        contactEmail: json['contact_email'] as String? ?? '',
+        contactPhone: json['contact_phone'] as String? ?? '',
+        sourceUrl: json['source_url'] as String? ?? '',
+        scrapedAt: json['scraped_at'] == null
+            ? null
+            : DateTime.parse(json['scraped_at'] as String),
         notes: json['notes'] as String? ?? '',
         createdBy: json['created_by'] as String,
         archivedAt: json['archived_at'] == null
@@ -175,6 +194,8 @@ class Slot {
     required this.tournamentId,
     required this.date,
     required this.time,
+    this.venueCapacity,
+    this.venueOccupied,
   });
 
   final String id;
@@ -182,11 +203,22 @@ class Slot {
   final Day date;
   final HourMinute time;
 
+  /// Lanes at the venue for this start / already booked there — known only
+  /// for scraped tournaments (null = manual slot, no occupancy info).
+  final int? venueCapacity;
+  final int? venueOccupied;
+
+  bool get hasVenueInfo => venueCapacity != null && venueOccupied != null;
+  int? get venueFree => hasVenueInfo ? venueCapacity! - venueOccupied! : null;
+  bool get venueFull => hasVenueInfo && venueOccupied! >= venueCapacity!;
+
   factory Slot.fromJson(Map<String, dynamic> json) => Slot(
         id: json['id'] as String,
         tournamentId: json['tournament_id'] as String,
         date: Day.parse(json['date'] as String),
         time: HourMinute.parse(json['time'] as String),
+        venueCapacity: json['venue_capacity'] as int?,
+        venueOccupied: json['venue_occupied'] as int?,
       );
 }
 

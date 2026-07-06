@@ -15,6 +15,8 @@ class SlotCell extends StatelessWidget {
     required this.mine,
     required this.onTap,
     this.onLongPress,
+    this.venueFree,
+    this.venueCapacity,
   });
 
   final HourMinute time;
@@ -27,43 +29,67 @@ class SlotCell extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
+  /// Free/total lanes at the venue (scraped); null = no occupancy info.
+  final int? venueFree;
+  final int? venueCapacity;
+
+  bool get _venueFull => venueFree != null && venueFree! <= 0;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return InkWell(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       onTap: onTap,
       onLongPress: onLongPress,
-      child: Container(
-        width: 76,
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          color: Color.lerp(
-              scheme.surfaceContainerHighest, scheme.primaryContainer,
-              intensity),
-          border: Border.all(
-            color: isOrderable ? scheme.primary : scheme.outlineVariant,
-            width: isOrderable ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          children: [
-            Text(time.display(),
-                style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 2),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (mine)
-                  const Padding(
-                    padding: EdgeInsets.only(right: 2),
-                    child: Icon(Icons.check_circle, size: 14),
-                  ),
-                Text('$count', style: Theme.of(context).textTheme.bodySmall),
-              ],
+      child: Opacity(
+        opacity: _venueFull ? 0.55 : 1,
+        child: Container(
+          width: 80,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: Color.lerp(
+                scheme.surfaceContainerHighest, scheme.primaryContainer,
+                intensity),
+            border: Border.all(
+              color: _venueFull
+                  ? scheme.error
+                  : (isOrderable ? scheme.primary : scheme.outlineVariant),
+              width: isOrderable && !_venueFull ? 2 : 1,
             ),
-          ],
+          ),
+          child: Column(
+            children: [
+              Text(
+                time.display(),
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      decoration:
+                          _venueFull ? TextDecoration.lineThrough : null,
+                    ),
+              ),
+              const SizedBox(height: 2),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (mine)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 2),
+                      child: Icon(Icons.check_circle, size: 14),
+                    ),
+                  Text('$count',
+                      style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+              if (venueFree != null)
+                Text(
+                  _venueFull ? 'plné' : 'volné $venueFree/$venueCapacity',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: _venueFull ? scheme.error : scheme.secondary,
+                      ),
+                ),
+            ],
+          ),
         ),
       ),
     );

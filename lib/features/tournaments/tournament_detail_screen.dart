@@ -6,24 +6,61 @@ import '../../core/ui.dart';
 import '../../data/providers.dart';
 import '../../domain/heatmap.dart';
 import '../../domain/models.dart';
+import '../../scrape/scraper.dart';
 import '../chats/chat_screen.dart';
 import 'order_card.dart';
 import 'proposal_screen.dart';
 import 'slot_cell.dart';
 import 'tournament_edit_screen.dart';
 
-class TournamentDetailScreen extends ConsumerWidget {
+class TournamentDetailScreen extends ConsumerStatefulWidget {
   const TournamentDetailScreen({super.key, required this.tournamentId});
 
   final String tournamentId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TournamentDetailScreen> createState() =>
+      _TournamentDetailScreenState();
+}
+
+class _TournamentDetailScreenState
+    extends ConsumerState<TournamentDetailScreen> {
+  String get tournamentId => widget.tournamentId;
+  bool _autoSyncDone = false;
+  bool _syncing = false;
+
+  Future<void> _sync(Tournament tournament, {bool manual = false}) async {
+    if (_syncing) return;
+    setState(() => _syncing = true);
+    try {
+      final count = await Api.syncFromWeb(
+        tournamentId: tournament.id,
+        sourceUrl: tournament.sourceUrl,
+      );
+      if (manual && mounted) {
+        snack(context, 'Obsazenost aktualizována ($count startů).');
+      }
+    } catch (e) {
+      if (manual && mounted) snack(context, 'Synchronizace selhala: $e');
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final tournaments = ref.watch(tournamentsProvider).value ?? const [];
     final tournament =
         tournaments.where((t) => t.id == tournamentId).firstOrNull;
     if (tournament == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final scrapable = ScraperRegistry.forUrl(tournament.sourceUrl) != null;
+    if (!_autoSyncDone && scrapable && Api.scrapeIsStale(tournament)) {
+      // Occupancy older than the cache TTL: refresh once per screen visit.
+      _autoSyncDone = true;
+      Future.microtask(() => _sync(tournament));
     }
 
     final slots = (ref.watch(slotsProvider).value ?? const [])
@@ -57,6 +94,19 @@ class TournamentDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(tournament.name),
         actions: [
+          if (scrapable)
+            IconButton(
+              tooltip: 'Aktualizovat obsazenost z webu',
+              icon: _syncing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync),
+              onPressed:
+                  _syncing ? null : () => _sync(tournament, manual: true),
+            ),
           IconButton(
             tooltip: 'Chat k turnaji',
             icon: const Icon(Icons.chat_bubble_outline),
@@ -153,6 +203,39 @@ class _InfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = tournament;
+    final contacts = <Widget>[
+      if (t.contactEmail.isNotEmpty)
+        ActionChip(
+          avatar: const Icon(Icons.mail_outline, size: 16),
+          label: Text(t.contactEmail),
+          onPressed: () => _launch('mailto:${t.contactEmail}'),
+        ),
+      if (t.contactPhone.isNotEmpty)
+        ActionChip(
+          avatar: const Icon(Icons.phone_outlined, size: 16),
+          label: Text(t.contactPhone),
+          onPressed: () =>
+              _launch('tel:${t.contactPhone.replaceAll(' ', '')}'),
+        ),
+      if (t.sourceUrl.isNotEmpty)
+        ActionChip(
+          avatar: const Icon(Icons.language, size: 16),
+          label: const Text('web turnaje'),
+          onPressed: () => _launch(t.sourceUrl),
+        ),
+      // Tournaments from before the e-mail/phone split.
+      if (t.contactEmail.isEmpty &&
+          t.contactPhone.isEmpty &&
+          t.orderingContact.isNotEmpty)
+        ActionChip(
+          avatar: const Icon(Icons.contact_page_outlined, size: 16),
+          label: Text(t.orderingContact),
+          onPressed: () => _launch(t.orderingContact.contains('@')
+              ? 'mailto:${t.orderingContact}'
+              : 'tel:${t.orderingContact.replaceAll(' ', '')}'),
+        ),
+    ];
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -162,16 +245,15 @@ class _InfoCard extends StatelessWidget {
             Text('${t.timelineLabel} · ${rangeLabel(t.startsOn, t.endsOn)}'),
             Text('Na start: min. ${t.minPlayers}'
                 '${t.maxPlayers != null ? ', hraje ${t.maxPlayers}' : ''}'),
-            if (t.orderingContact.isNotEmpty)
-              InkWell(
-                onTap: () => _openContact(t.orderingContact),
-                child: Text(
-                  'Objednávky: ${t.orderingContact}',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
-                    decoration: TextDecoration.underline,
-                  ),
-                ),
+            if (t.scrapedAt != null)
+              Text(
+                'Obsazenost z webu: ${_freshness(t.scrapedAt!)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            if (contacts.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Wrap(spacing: 8, runSpacing: 4, children: contacts),
               ),
             if (t.notes.isNotEmpty)
               Padding(
@@ -185,16 +267,20 @@ class _InfoCard extends StatelessWidget {
     );
   }
 
-  void _openContact(String contact) {
-    final Uri uri;
-    if (contact.contains('@')) {
-      uri = Uri.parse('mailto:$contact');
-    } else if (RegExp(r'^[+0-9 ]+$').hasMatch(contact)) {
-      uri = Uri.parse('tel:${contact.replaceAll(' ', '')}');
-    } else {
-      uri = Uri.parse(
-          contact.startsWith('http') ? contact : 'https://$contact');
-    }
+  String _freshness(DateTime scrapedAt) {
+    final age = DateTime.now().toUtc().difference(scrapedAt.toUtc());
+    if (age.inMinutes < 1) return 'právě teď';
+    if (age.inMinutes < 60) return 'před ${age.inMinutes} min';
+    if (age.inHours < 24) return 'před ${age.inHours} h';
+    return 'před ${age.inDays} dny';
+  }
+
+  void _launch(String target) {
+    final uri = Uri.parse(
+        target.contains('://') || target.startsWith('mailto:') ||
+                target.startsWith('tel:')
+            ? target
+            : 'https://$target');
     launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }
@@ -251,8 +337,12 @@ class _DayRow extends ConsumerWidget {
       intensity: heatmap.intensity(slot.id),
       isOrderable: stats?.isOrderable ?? false,
       mine: mine,
+      venueFree: slot.venueFree,
+      venueCapacity: slot.venueCapacity,
       onTap: () => Api.setAvailability(slot.id, !mine),
-      onLongPress: () => _confirmDelete(context, slot),
+      // Scraped slots are owned by the web sync — no manual deletion.
+      onLongPress:
+          slot.hasVenueInfo ? null : () => _confirmDelete(context, slot),
     );
   }
 

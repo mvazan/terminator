@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../../core/ui.dart';
 import '../../data/providers.dart';
+import '../../domain/day_groups.dart';
 import '../../domain/models.dart';
-import '../../domain/slot_generator.dart';
+import '../../scrape/scraper.dart';
 
-/// Create (or edit the metadata of) a tournament. On create, the start grid
-/// is generated from the weekday/weekend time patterns; individual slots can
-/// be added/removed later in the detail screen.
+/// Create or edit a tournament.
+///
+/// Slots come either from the organizer's reservation page (recognized URL →
+/// scraped automatically, incl. occupancy) or from manual patterns: any
+/// number of day groups (pick weekdays, type times like "16 17:30 19").
 class TournamentEditScreen extends StatefulWidget {
   const TournamentEditScreen({super.key, this.existing});
 
@@ -17,12 +20,23 @@ class TournamentEditScreen extends StatefulWidget {
   State<TournamentEditScreen> createState() => _TournamentEditScreenState();
 }
 
+class _GroupDraft {
+  _GroupDraft(this.weekdays, [String times = ''])
+      : timesController = TextEditingController(text: times);
+
+  final Set<int> weekdays;
+  final TextEditingController timesController;
+}
+
 class _TournamentEditScreenState extends State<TournamentEditScreen> {
   late final _name = TextEditingController(text: widget.existing?.name);
   late final _venue = TextEditingController(text: widget.existing?.venue);
   late final _kind = TextEditingController(text: widget.existing?.kind);
-  late final _contact =
-      TextEditingController(text: widget.existing?.orderingContact);
+  late final _email =
+      TextEditingController(text: widget.existing?.contactEmail);
+  late final _phone =
+      TextEditingController(text: widget.existing?.contactPhone);
+  late final _url = TextEditingController(text: widget.existing?.sourceUrl);
   late final _notes = TextEditingController(text: widget.existing?.notes);
   late final _minPlayers =
       TextEditingController(text: '${widget.existing?.minPlayers ?? 2}');
@@ -31,27 +45,49 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
 
   Day? _startsOn;
   Day? _endsOn;
-  final List<HourMinute> _weekdayTimes = [];
-  final List<HourMinute> _weekendTimes = [];
+  late final List<_GroupDraft> _groups = [
+    _GroupDraft({1, 2, 3, 4, 5}),
+    _GroupDraft({6, 7}),
+  ];
   bool _saving = false;
 
   bool get _isEdit => widget.existing != null;
+  TournamentScraper? get _scraper => ScraperRegistry.forUrl(_url.text);
 
   @override
   void initState() {
     super.initState();
     _startsOn = widget.existing?.startsOn;
     _endsOn = widget.existing?.endsOn;
+    _url.addListener(() => setState(() {}));
   }
 
-  int get _previewCount => (_startsOn == null || _endsOn == null)
-      ? 0
-      : generateSlots(
-          startsOn: _startsOn!,
-          endsOn: _endsOn!,
-          weekdayTimes: _weekdayTimes,
-          weekendTimes: _weekendTimes,
-        ).length;
+  List<DayGroup>? _parsedGroups({bool quiet = false}) {
+    final groups = <DayGroup>[];
+    for (final draft in _groups) {
+      final input = draft.timesController.text.trim();
+      if (input.isEmpty && draft.weekdays.isEmpty) continue;
+      final times = parseTimesInput(input);
+      if (times == null) {
+        if (!quiet) snack(context, 'Neplatné časy: „$input"');
+        return null;
+      }
+      if (times.isEmpty || draft.weekdays.isEmpty) continue;
+      groups.add(DayGroup(weekdays: draft.weekdays, times: times));
+    }
+    return groups;
+  }
+
+  int get _previewCount {
+    if (_startsOn == null || _endsOn == null) return 0;
+    final groups = _parsedGroups(quiet: true);
+    if (groups == null) return 0;
+    return generateSlotsFromGroups(
+      startsOn: _startsOn!,
+      endsOn: _endsOn!,
+      groups: groups,
+    ).length;
+  }
 
   Future<void> _pickDate({required bool start}) async {
     final initial = (start ? _startsOn : _endsOn) ?? today();
@@ -73,30 +109,23 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
     });
   }
 
-  Future<void> _addTime(List<HourMinute> list) async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: const TimeOfDay(hour: 17, minute: 0),
-    );
-    if (picked == null) return;
-    setState(() {
-      final t = HourMinute(picked.hour, picked.minute);
-      if (!list.contains(t)) list.add(t);
-      list.sort();
-    });
-  }
-
   Future<void> _save() async {
     final name = _name.text.trim();
+    final scraping = _scraper != null;
     if (name.isEmpty || _startsOn == null || _endsOn == null) {
       snack(context, 'Vyplň aspoň název a termín od–do.');
       return;
     }
-    final minPlayers = int.tryParse(_minPlayers.text) ?? 2;
-    final maxPlayers = int.tryParse(_maxPlayers.text);
-    if (!_isEdit && _weekdayTimes.isEmpty && _weekendTimes.isEmpty) {
-      snack(context, 'Přidej aspoň jeden čas startu.');
-      return;
+
+    List<DayGroup> groups = const [];
+    if (!_isEdit && !scraping) {
+      final parsed = _parsedGroups();
+      if (parsed == null) return;
+      if (parsed.isEmpty) {
+        snack(context, 'Přidej aspoň jeden čas startu (nebo web turnaje).');
+        return;
+      }
+      groups = parsed;
     }
 
     final fields = {
@@ -105,9 +134,11 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
       'kind': _kind.text.trim(),
       'starts_on': _startsOn!.toSql(),
       'ends_on': _endsOn!.toSql(),
-      'min_players': minPlayers,
-      'max_players': maxPlayers,
-      'ordering_contact': _contact.text.trim(),
+      'min_players': int.tryParse(_minPlayers.text) ?? 2,
+      'max_players': int.tryParse(_maxPlayers.text),
+      'contact_email': _email.text.trim(),
+      'contact_phone': _phone.text.trim(),
+      'source_url': _url.text.trim(),
       'notes': _notes.text.trim(),
     };
 
@@ -116,19 +147,23 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
       if (_isEdit) {
         await Api.updateTournament(widget.existing!.id, fields);
       } else {
-        final specs = generateSlots(
+        final specs = generateSlotsFromGroups(
           startsOn: _startsOn!,
           endsOn: _endsOn!,
-          weekdayTimes: _weekdayTimes,
-          weekendTimes: _weekendTimes,
+          groups: groups,
         );
-        await Api.createTournament(
+        final id = await Api.createTournament(
           tournament: {...fields, 'created_by': currentUserId},
           slotRows: [
             for (final s in specs)
               {'date': s.date.toSql(), 'time': s.time.toSql()},
           ],
         );
+        if (scraping) {
+          final count = await Api.syncFromWeb(
+              tournamentId: id, sourceUrl: _url.text.trim());
+          if (mounted) snack(context, 'Načteno $count startů z webu.');
+        }
       }
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -140,6 +175,8 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scraping = _scraper != null;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEdit ? 'Upravit turnaj' : 'Nový turnaj'),
@@ -149,24 +186,23 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
         children: [
           TextField(
             controller: _name,
-            decoration: const InputDecoration(
-                labelText: 'Název turnaje', border: OutlineInputBorder()),
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(labelText: 'Název turnaje'),
           ),
           const SizedBox(height: 12),
           Row(children: [
             Expanded(
               child: TextField(
                 controller: _venue,
-                decoration: const InputDecoration(
-                    labelText: 'Kuželna', border: OutlineInputBorder()),
+                decoration: const InputDecoration(labelText: 'Kuželna'),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: TextField(
                 controller: _kind,
-                decoration: const InputDecoration(
-                    labelText: 'Typ (dvojice…)', border: OutlineInputBorder()),
+                decoration:
+                    const InputDecoration(labelText: 'Typ (dvojice…)'),
               ),
             ),
           ]),
@@ -175,9 +211,8 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
             Expanded(
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.today),
-                label: Text(_startsOn == null
-                    ? 'Začátek'
-                    : dayLabel(_startsOn!)),
+                label:
+                    Text(_startsOn == null ? 'Začátek' : dayLabel(_startsOn!)),
                 onPressed: () => _pickDate(start: true),
               ),
             ),
@@ -196,9 +231,8 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
               child: TextField(
                 controller: _minPlayers,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                    labelText: 'Min. hráčů na start',
-                    border: OutlineInputBorder()),
+                decoration:
+                    const InputDecoration(labelText: 'Min. hráčů na start'),
               ),
             ),
             const SizedBox(width: 12),
@@ -206,49 +240,97 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
               child: TextField(
                 controller: _maxPlayers,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                    labelText: 'Hráčů na start (kapacita)',
-                    border: OutlineInputBorder()),
+                decoration:
+                    const InputDecoration(labelText: 'Hráčů na start'),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: TextField(
+                controller: _email,
+                keyboardType: TextInputType.emailAddress,
+                decoration:
+                    const InputDecoration(labelText: 'E-mail pořadatele'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                controller: _phone,
+                keyboardType: TextInputType.phone,
+                decoration:
+                    const InputDecoration(labelText: 'Telefon pořadatele'),
               ),
             ),
           ]),
           const SizedBox(height: 12),
           TextField(
-            controller: _contact,
-            decoration: const InputDecoration(
-                labelText: 'Kontakt na pořadatele (e-mail / telefon / web)',
-                border: OutlineInputBorder()),
+            controller: _url,
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            decoration: InputDecoration(
+              labelText: 'Web turnaje (rezervační stránka)',
+              helperText: scraping
+                  ? '✓ Rozpoznáno (${_scraper!.name}) — termíny a obsazenost '
+                      'se načtou z webu automaticky.'
+                  : (_url.text.trim().isEmpty
+                      ? 'Nepovinné. U kkmoravskaslavia.cz se termíny '
+                          'načtou samy.'
+                      : 'Neznámý web — termíny zadej ručně níže.'),
+              helperMaxLines: 2,
+            ),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _notes,
             maxLines: 3,
-            decoration: const InputDecoration(
-                labelText: 'Poznámky', border: OutlineInputBorder()),
+            decoration: const InputDecoration(labelText: 'Poznámky'),
           ),
-          if (!_isEdit) ...[
+          if (!_isEdit && !scraping) ...[
             const SizedBox(height: 20),
-            _TimesEditor(
-              title: 'Časy startů — všední dny (po–pá)',
-              times: _weekdayTimes,
-              onAdd: () => _addTime(_weekdayTimes),
-              onRemove: (t) => setState(() => _weekdayTimes.remove(t)),
+            Text('Časy startů',
+                style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'Vyber dny a napiš časy — třeba „16 17:30 19". '
+              'Skupin můžeš mít kolik chceš.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
-            const SizedBox(height: 12),
-            _TimesEditor(
-              title: 'Časy startů — víkend (so–ne)',
-              times: _weekendTimes,
-              onAdd: () => _addTime(_weekendTimes),
-              onRemove: (t) => setState(() => _weekendTimes.remove(t)),
+            const SizedBox(height: 8),
+            for (final (i, group) in _groups.indexed)
+              _GroupEditor(
+                key: ObjectKey(group),
+                group: group,
+                onChanged: () => setState(() {}),
+                onRemove: _groups.length > 1
+                    ? () => setState(() => _groups.removeAt(i))
+                    : null,
+              ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                icon: const Icon(Icons.add),
+                label: const Text('Přidat skupinu dnů'),
+                onPressed: () =>
+                    setState(() => _groups.add(_GroupDraft({}))),
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
             Text('Vytvoří se $_previewCount startů.',
-                style: Theme.of(context).textTheme.bodyMedium),
-          ] else
-            const Padding(
-              padding: EdgeInsets.only(top: 16),
-              child: Text('Jednotlivé starty přidáš/odebereš v detailu '
-                  'turnaje (dlouhým podržením).'),
+                style: Theme.of(context).textTheme.titleSmall),
+          ],
+          if (_isEdit)
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Text(
+                scraping
+                    ? 'Termíny a obsazenost se synchronizují z webu '
+                        '(tlačítko v detailu turnaje).'
+                    : 'Jednotlivé starty přidáš/odebereš v detailu turnaje '
+                        '(dlouhým podržením).',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             ),
           const SizedBox(height: 24),
           FilledButton(
@@ -257,49 +339,94 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
                 ? 'Ukládám…'
                 : (_isEdit ? 'Uložit změny' : 'Založit turnaj')),
           ),
+          const SizedBox(height: 32),
         ],
       ),
     );
   }
 }
 
-class _TimesEditor extends StatelessWidget {
-  const _TimesEditor({
-    required this.title,
-    required this.times,
-    required this.onAdd,
-    required this.onRemove,
+const _weekdayNames = ['po', 'út', 'st', 'čt', 'pá', 'so', 'ne'];
+
+class _GroupEditor extends StatelessWidget {
+  const _GroupEditor({
+    super.key,
+    required this.group,
+    required this.onChanged,
+    this.onRemove,
   });
 
-  final String title;
-  final List<HourMinute> times;
-  final VoidCallback onAdd;
-  final ValueChanged<HourMinute> onRemove;
+  final _GroupDraft group;
+  final VoidCallback onChanged;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
+    final parsed = parseTimesInput(group.timesController.text);
+    final input = group.timesController.text.trim();
+    final String? helper;
+    if (input.isEmpty) {
+      helper = null;
+    } else if (parsed == null) {
+      helper = 'Nerozumím — zkontroluj formát (např. „16 17:30").';
+    } else {
+      helper = '→ ${parsed.map((t) => t.display()).join(', ')}';
+    }
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (final t in times)
-              InputChip(
-                label: Text(t.display()),
-                onDeleted: () => onRemove(t),
+            Row(
+              children: [
+                Expanded(
+                  child: Wrap(
+                    spacing: 6,
+                    children: [
+                      for (var day = 1; day <= 7; day++)
+                        FilterChip(
+                          label: Text(_weekdayNames[day - 1]),
+                          visualDensity: VisualDensity.compact,
+                          selected: group.weekdays.contains(day),
+                          onSelected: (selected) {
+                            selected
+                                ? group.weekdays.add(day)
+                                : group.weekdays.remove(day);
+                            onChanged();
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+                if (onRemove != null)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                    tooltip: 'Odebrat skupinu',
+                    onPressed: onRemove,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: group.timesController,
+              keyboardType: TextInputType.datetime,
+              onChanged: (_) => onChanged(),
+              decoration: InputDecoration(
+                labelText: 'Časy startů',
+                hintText: '16 17:30 19',
+                helperText: helper,
+                errorText: input.isNotEmpty && parsed == null
+                    ? 'Neplatný formát'
+                    : null,
+                isDense: true,
               ),
-            ActionChip(
-              avatar: const Icon(Icons.add, size: 18),
-              label: const Text('přidat čas'),
-              onPressed: onAdd,
             ),
           ],
         ),
-      ],
+      ),
     );
   }
 }
