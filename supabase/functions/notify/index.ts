@@ -335,6 +335,13 @@ async function handle(payload: WebhookPayload) {
 }
 
 Deno.serve(async (request) => {
+  // Deployed with --no-verify-jwt (DB triggers can't mint JWTs); instead the
+  // triggers send a shared secret header checked against the WEBHOOK_SECRET
+  // Supabase secret. See supabase/migrations/0003_webhooks.sql.
+  const secret = Deno.env.get("WEBHOOK_SECRET");
+  if (secret && request.headers.get("x-webhook-secret") !== secret) {
+    return new Response("unauthorized", { status: 401 });
+  }
   try {
     const payload = await request.json() as WebhookPayload;
     await handle(payload);

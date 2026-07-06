@@ -25,4 +25,6 @@ jobs:
       - name: Apply migrations
         run: supabase db push
       - name: Deploy notify function
-        run: supabase functions deploy notify
+        # --no-verify-jwt: DB triggers can't send JWTs; the function checks
+        # the x-webhook-secret header against its WEBHOOK_SECRET secret.
+        run: supabase functions deploy notify --no-verify-jwt
