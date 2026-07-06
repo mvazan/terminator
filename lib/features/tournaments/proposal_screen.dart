@@ -84,7 +84,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
       appBar: AppBar(
         title: Text(widget.directlyOrdered
             ? 'Zaznamenat objednávku'
-            : 'Navrhnout objednávku'),
+            : 'Hlasování'),
       ),
       body: ListView(
         padding: const EdgeInsets.all(12),

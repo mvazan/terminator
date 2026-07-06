@@ -17,6 +17,8 @@ class SlotCell extends StatelessWidget {
     this.onLongPress,
     this.venueFree,
     this.venueCapacity,
+    this.expanded = false,
+    this.onToggleExpand,
   });
 
   final HourMinute time;
@@ -32,6 +34,11 @@ class SlotCell extends StatelessWidget {
   /// Free/total lanes at the venue (scraped); null = no occupancy info.
   final int? venueFree;
   final int? venueCapacity;
+
+  /// Whether the "who's in" list below this cell is currently shown. Only
+  /// meaningful together with [onToggleExpand] (shows a chevron to tap).
+  final bool expanded;
+  final VoidCallback? onToggleExpand;
 
   bool get _venueFull => venueFree != null && venueFree! <= 0;
 
@@ -69,17 +76,36 @@ class SlotCell extends StatelessWidget {
                     ),
               ),
               const SizedBox(height: 2),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (mine)
-                    const Padding(
-                      padding: EdgeInsets.only(right: 2),
-                      child: Icon(Icons.check_circle, size: 14),
-                    ),
-                  Text('$count',
-                      style: Theme.of(context).textTheme.bodySmall),
-                ],
+              InkWell(
+                onTap: count > 0 ? onToggleExpand : null,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 4, vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (mine)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 2),
+                          child: Icon(Icons.check_circle, size: 14),
+                        ),
+                      Text('$count',
+                          style: Theme.of(context).textTheme.bodySmall),
+                      if (count > 0) ...[
+                        const SizedBox(width: 1),
+                        Icon(
+                          expanded
+                              ? Icons.expand_less
+                              : Icons.expand_more,
+                          size: 14,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
               if (venueFree != null)
                 Text(

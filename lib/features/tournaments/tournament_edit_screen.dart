@@ -21,17 +21,16 @@ class TournamentEditScreen extends StatefulWidget {
 }
 
 class _GroupDraft {
-  _GroupDraft(this.weekdays, [String times = ''])
-      : timesController = TextEditingController(text: times);
+  _GroupDraft(this.weekdays, [List<HourMinute>? times])
+      : times = times ?? [];
 
   final Set<int> weekdays;
-  final TextEditingController timesController;
+  final List<HourMinute> times;
 }
 
 class _TournamentEditScreenState extends State<TournamentEditScreen> {
   late final _name = TextEditingController(text: widget.existing?.name);
   late final _venue = TextEditingController(text: widget.existing?.venue);
-  late final _kind = TextEditingController(text: widget.existing?.kind);
   late final _email =
       TextEditingController(text: widget.existing?.contactEmail);
   late final _phone =
@@ -40,8 +39,7 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
   late final _notes = TextEditingController(text: widget.existing?.notes);
   late final _minPlayers =
       TextEditingController(text: '${widget.existing?.minPlayers ?? 2}');
-  late final _maxPlayers = TextEditingController(
-      text: widget.existing?.maxPlayers?.toString() ?? '2');
+  late TournamentKind _kind;
 
   Day? _startsOn;
   Day? _endsOn;
@@ -57,35 +55,25 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
   @override
   void initState() {
     super.initState();
+    _kind = TournamentKind.tryParse(widget.existing?.kind ?? '') ??
+        TournamentKind.dvojice;
     _startsOn = widget.existing?.startsOn;
     _endsOn = widget.existing?.endsOn;
     _url.addListener(() => setState(() {}));
   }
 
-  List<DayGroup>? _parsedGroups({bool quiet = false}) {
-    final groups = <DayGroup>[];
-    for (final draft in _groups) {
-      final input = draft.timesController.text.trim();
-      if (input.isEmpty && draft.weekdays.isEmpty) continue;
-      final times = parseTimesInput(input);
-      if (times == null) {
-        if (!quiet) snack(context, 'Neplatné časy: „$input"');
-        return null;
-      }
-      if (times.isEmpty || draft.weekdays.isEmpty) continue;
-      groups.add(DayGroup(weekdays: draft.weekdays, times: times));
-    }
-    return groups;
-  }
+  List<DayGroup> _filledGroups() => [
+        for (final draft in _groups)
+          if (draft.weekdays.isNotEmpty && draft.times.isNotEmpty)
+            DayGroup(weekdays: draft.weekdays, times: draft.times),
+      ];
 
   int get _previewCount {
     if (_startsOn == null || _endsOn == null) return 0;
-    final groups = _parsedGroups(quiet: true);
-    if (groups == null) return 0;
     return generateSlotsFromGroups(
       startsOn: _startsOn!,
       endsOn: _endsOn!,
-      groups: groups,
+      groups: _filledGroups(),
     ).length;
   }
 
@@ -119,23 +107,21 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
 
     List<DayGroup> groups = const [];
     if (!_isEdit && !scraping) {
-      final parsed = _parsedGroups();
-      if (parsed == null) return;
-      if (parsed.isEmpty) {
+      groups = _filledGroups();
+      if (groups.isEmpty) {
         snack(context, 'Přidej aspoň jeden čas startu (nebo web turnaje).');
         return;
       }
-      groups = parsed;
     }
 
     final fields = {
       'name': name,
       'venue': _venue.text.trim(),
-      'kind': _kind.text.trim(),
+      'kind': _kind.label,
       'starts_on': _startsOn!.toSql(),
       'ends_on': _endsOn!.toSql(),
       'min_players': int.tryParse(_minPlayers.text) ?? 2,
-      'max_players': int.tryParse(_maxPlayers.text),
+      'max_players': _kind.laneCapacity,
       'contact_email': _email.text.trim(),
       'contact_phone': _phone.text.trim(),
       'source_url': _url.text.trim(),
@@ -199,13 +185,14 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: TextField(
-                controller: _kind,
-                decoration: const InputDecoration(
-                  labelText: 'Typ (dvojice…)',
-                  helperText: 'Jen popisek, nikam se nepočítá',
-                  helperMaxLines: 2,
-                ),
+              child: DropdownButtonFormField<TournamentKind>(
+                initialValue: _kind,
+                decoration: const InputDecoration(labelText: 'Typ'),
+                items: [
+                  for (final kind in TournamentKind.values)
+                    DropdownMenuItem(value: kind, child: Text(kind.label)),
+                ],
+                onChanged: (kind) => setState(() => _kind = kind!),
               ),
             ),
           ]),
@@ -229,31 +216,16 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
             ),
           ]),
           const SizedBox(height: 12),
-          Row(children: [
-            Expanded(
-              child: TextField(
-                controller: _minPlayers,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Min. hráčů na start',
-                  helperText: 'Od kolika hráčů se dá termín objednat',
-                  helperMaxLines: 2,
-                ),
-              ),
+          TextField(
+            controller: _minPlayers,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Min. hráčů na start',
+              helperText:
+                  'Od kolika hráčů pošle appka upozornění „dá se objednat"',
+              helperMaxLines: 2,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                controller: _maxPlayers,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Hráčů na start',
-                  helperText: 'Kapacita jedné dráhy (2 = dvojice)',
-                  helperMaxLines: 2,
-                ),
-              ),
-            ),
-          ]),
+          ),
           const SizedBox(height: 12),
           Row(children: [
             Expanded(
@@ -369,19 +341,30 @@ class _GroupEditor extends StatelessWidget {
   final VoidCallback onChanged;
   final VoidCallback? onRemove;
 
+  Future<void> _addTime(BuildContext context) async {
+    // Opens the native time picker repeatedly — pick a time, it's added as a
+    // chip, the picker reopens automatically so you can keep adding times
+    // for this day group until you tap Cancel.
+    while (true) {
+      final picked = await showTimePicker(
+        context: context,
+        initialTime: const TimeOfDay(hour: 17, minute: 0),
+        helpText: 'PŘIDAT ČAS STARTU',
+        confirmText: 'Přidat',
+        cancelText: 'Hotovo',
+      );
+      if (picked == null || !context.mounted) return;
+      final time = HourMinute(picked.hour, picked.minute);
+      if (!group.times.contains(time)) {
+        group.times.add(time);
+        group.times.sort();
+      }
+      onChanged();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final parsed = parseTimesInput(group.timesController.text);
-    final input = group.timesController.text.trim();
-    final String? helper;
-    if (input.isEmpty) {
-      helper = null;
-    } else if (parsed == null) {
-      helper = 'Nerozumím — zkontroluj formát (např. „16 17:30").';
-    } else {
-      helper = '→ ${parsed.map((t) => t.display()).join(', ')}';
-    }
-
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
       child: Padding(
@@ -419,19 +402,26 @@ class _GroupEditor extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            TextField(
-              controller: group.timesController,
-              keyboardType: TextInputType.datetime,
-              onChanged: (_) => onChanged(),
-              decoration: InputDecoration(
-                labelText: 'Časy startů',
-                hintText: '16 17:30 19',
-                helperText: helper,
-                errorText: input.isNotEmpty && parsed == null
-                    ? 'Neplatný formát'
-                    : null,
-                isDense: true,
-              ),
+            Text('Časy startů', style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final time in group.times)
+                  InputChip(
+                    label: Text(time.display()),
+                    onDeleted: () {
+                      group.times.remove(time);
+                      onChanged();
+                    },
+                  ),
+                ActionChip(
+                  avatar: const Icon(Icons.access_time, size: 18),
+                  label: const Text('přidat čas'),
+                  onPressed: () => _addTime(context),
+                ),
+              ],
             ),
           ],
         ),

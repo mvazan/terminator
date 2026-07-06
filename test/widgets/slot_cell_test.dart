@@ -56,4 +56,54 @@ void main() {
     final border = (container.decoration! as BoxDecoration).border! as Border;
     expect(border.top.width, 2);
   });
+
+  testWidgets('shows expand chevron only when someone is in, and toggles it',
+      (tester) async {
+    var toggles = 0;
+    await tester.pumpWidget(wrap(SlotCell(
+      time: const HourMinute(18, 0),
+      count: 3,
+      intensity: 0.5,
+      isOrderable: true,
+      mine: false,
+      onTap: () {},
+      onToggleExpand: () => toggles++,
+    )));
+
+    expect(find.byIcon(Icons.expand_more), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.expand_more));
+    expect(toggles, 1);
+  });
+
+  testWidgets('no expand chevron when nobody ticked the slot',
+      (tester) async {
+    await tester.pumpWidget(wrap(SlotCell(
+      time: const HourMinute(18, 0),
+      count: 0,
+      intensity: 0,
+      isOrderable: false,
+      mine: false,
+      onTap: () {},
+      onToggleExpand: () {},
+    )));
+
+    expect(find.byIcon(Icons.expand_more), findsNothing);
+    expect(find.byIcon(Icons.expand_less), findsNothing);
+  });
+
+  testWidgets('expanded shows the "less" chevron', (tester) async {
+    await tester.pumpWidget(wrap(SlotCell(
+      time: const HourMinute(18, 0),
+      count: 2,
+      intensity: 0.5,
+      isOrderable: false,
+      mine: false,
+      onTap: () {},
+      expanded: true,
+      onToggleExpand: () {},
+    )));
+
+    expect(find.byIcon(Icons.expand_less), findsOneWidget);
+    expect(find.byIcon(Icons.expand_more), findsNothing);
+  });
 }

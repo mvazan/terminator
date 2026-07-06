@@ -38,6 +38,15 @@ void main() {
     );
   });
 
+  test('TournamentKind: tandem is 2 players sharing one lane', () {
+    expect(TournamentKind.jednotlivci.laneCapacity, 1);
+    expect(TournamentKind.dvojice.laneCapacity, 2);
+    expect(TournamentKind.ctverice.laneCapacity, 4);
+    expect(TournamentKind.tandem.laneCapacity, 2);
+    expect(TournamentKind.tryParse('tandem'), TournamentKind.tandem);
+    expect(TournamentKind.tryParse('neznámý'), isNull);
+  });
+
   test('models: HourMinute and Day parse Postgres formats', () {
     expect(HourMinute.parse('16:30:00'), const HourMinute(16, 30));
     expect(HourMinute.parse('9:05'), const HourMinute(9, 5));

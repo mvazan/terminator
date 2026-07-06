@@ -63,7 +63,7 @@ class _TournamentDetailScreenState
       Future.microtask(() => _sync(tournament));
     }
 
-    final slots = (ref.watch(slotsProvider).value ?? const [])
+    final allSlots = (ref.watch(slotsProvider).value ?? const [])
         .where((s) => s.tournamentId == tournamentId)
         .toList()
       ..sort((a, b) {
@@ -71,6 +71,8 @@ class _TournamentDetailScreenState
         if (byDate != 0) return byDate;
         return a.time.compareTo(b.time);
       });
+    // Fully booked venue slots aren't ours to fill — hide them from the grid.
+    final slots = allSlots.where((s) => !s.venueFull).toList();
     final slotIds = {for (final s in slots) s.id};
     final availability = (ref.watch(availabilityProvider).value ?? const [])
         .where((a) => slotIds.contains(a.slotId))
@@ -83,6 +85,7 @@ class _TournamentDetailScreenState
     final orders = (ref.watch(ordersProvider).value ?? const [])
         .where((o) => o.tournamentId == tournamentId)
         .toList();
+    final members = ref.watch(membersProvider).value ?? const [];
     final uid = currentUserId;
 
     final slotsByDay = <Day, List<Slot>>{};
@@ -135,7 +138,8 @@ class _TournamentDetailScreenState
               style: Theme.of(context).textTheme.titleMedium),
           Text(
             'Číslo = kolik nás může. Rámeček = dá se objednat '
-            '(min. ${tournament.minPlayers}).',
+            '(min. ${tournament.minPlayers}). Klepnutím na počet zobrazíš, '
+            'kdo se hlásí.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 8),
@@ -144,6 +148,7 @@ class _TournamentDetailScreenState
               day: day,
               slots: slotsByDay[day]!,
               heatmap: heatmap,
+              members: members,
               uid: uid,
             ),
           const SizedBox(height: 16),
@@ -285,22 +290,37 @@ class _InfoCard extends StatelessWidget {
   }
 }
 
-class _DayRow extends ConsumerWidget {
+class _DayRow extends ConsumerStatefulWidget {
   const _DayRow({
     required this.day,
     required this.slots,
     required this.heatmap,
+    required this.members,
     required this.uid,
   });
 
   final Day day;
   final List<Slot> slots;
   final Heatmap heatmap;
+  final List<Profile> members;
   final String? uid;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final dayStats = heatmap.byDay[day];
+  ConsumerState<_DayRow> createState() => _DayRowState();
+}
+
+class _DayRowState extends ConsumerState<_DayRow> {
+  // Only one slot's "who's in" list open per day row, so the view doesn't
+  // get cluttered — expanding another one closes the previous.
+  String? _expandedSlotId;
+
+  @override
+  Widget build(BuildContext context) {
+    final dayStats = widget.heatmap.byDay[widget.day];
+    final expandedSlot = widget.slots
+        .where((s) => s.id == _expandedSlotId)
+        .firstOrNull;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(
@@ -308,7 +328,7 @@ class _DayRow extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Text(dayLabel(day),
+              Text(dayLabel(widget.day),
                   style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(width: 8),
               if (dayStats != null && dayStats.distinctPlayers > 0)
@@ -320,29 +340,59 @@ class _DayRow extends ConsumerWidget {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: [for (final slot in slots) _cell(context, slot)],
+            children: [for (final slot in widget.slots) _cell(context, slot)],
           ),
+          if (expandedSlot != null) _whoIsIn(context, expandedSlot),
         ],
       ),
     );
   }
 
   Widget _cell(BuildContext context, Slot slot) {
-    final stats = heatmap.bySlotId[slot.id];
-    final mine = uid != null && (stats?.userIds.contains(uid) ?? false);
+    final stats = widget.heatmap.bySlotId[slot.id];
+    final mine =
+        widget.uid != null && (stats?.userIds.contains(widget.uid) ?? false);
 
     return SlotCell(
       time: slot.time,
       count: stats?.count ?? 0,
-      intensity: heatmap.intensity(slot.id),
+      intensity: widget.heatmap.intensity(slot.id),
       isOrderable: stats?.isOrderable ?? false,
       mine: mine,
       venueFree: slot.venueFree,
       venueCapacity: slot.venueCapacity,
+      expanded: _expandedSlotId == slot.id,
+      onToggleExpand: () => setState(() {
+        _expandedSlotId = _expandedSlotId == slot.id ? null : slot.id;
+      }),
       onTap: () => Api.setAvailability(slot.id, !mine),
       // Scraped slots are owned by the web sync — no manual deletion.
       onLongPress:
           slot.hasVenueInfo ? null : () => _confirmDelete(context, slot),
+    );
+  }
+
+  Widget _whoIsIn(BuildContext context, Slot slot) {
+    final stats = widget.heatmap.bySlotId[slot.id];
+    final names = [
+      for (final id in stats?.userIds ?? const <String>{})
+        memberName(widget.members, id),
+    ]..sort();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          '${slot.time.display()}: ${names.join(', ')}',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ),
     );
   }
 
@@ -399,7 +449,7 @@ class _BestPicksCard extends StatelessWidget {
               children: [
                 FilledButton.icon(
                   icon: const Icon(Icons.how_to_vote),
-                  label: const Text('Navrhnout'),
+                  label: const Text('Hlasování'),
                   onPressed: () => _openProposal(context, direct: false),
                 ),
                 const SizedBox(width: 12),

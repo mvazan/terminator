@@ -117,6 +117,33 @@ class Profile {
       );
 }
 
+/// Tournament format. Determines how many players a start requires —
+/// jednotlivci/dvojice/čtveřice: team size, the minimum that must be
+/// ordered together (max_players doubles as team size here). tandem: an
+/// individual discipline where, unusually, 2 players still share one lane.
+enum TournamentKind {
+  jednotlivci('jednotlivci', 1),
+  dvojice('dvojice', 2),
+  ctverice('čtveřice', 4),
+  tandem('tandem', 2);
+
+  const TournamentKind(this.label, this.laneCapacity);
+
+  /// Czech display label, also the value stored in tournaments.kind.
+  final String label;
+
+  /// Players per start (tournaments.max_players) — team size for
+  /// jednotlivci/dvojice/čtveřice, or players sharing one lane for tandem.
+  final int laneCapacity;
+
+  static TournamentKind? tryParse(String value) {
+    for (final kind in values) {
+      if (kind.label == value) return kind;
+    }
+    return null;
+  }
+}
+
 class Tournament {
   const Tournament({
     required this.id,

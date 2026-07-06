@@ -62,34 +62,4 @@ void main() {
       );
     });
   });
-
-  group('parseTimesInput', () {
-    test('accepts mixed separators and formats', () {
-      expect(
-        parseTimesInput('16 17:30, 19.00; 9'),
-        [
-          const HourMinute(9, 0),
-          const HourMinute(16, 0),
-          const HourMinute(17, 30),
-          const HourMinute(19, 0),
-        ],
-      );
-    });
-
-    test('dedupes and sorts', () {
-      expect(parseTimesInput('18:00 16:00 18.00'),
-          [const HourMinute(16, 0), const HourMinute(18, 0)]);
-    });
-
-    test('rejects invalid tokens', () {
-      expect(parseTimesInput('16:00 abc'), isNull);
-      expect(parseTimesInput('25:00'), isNull);
-      expect(parseTimesInput('16:75'), isNull);
-      expect(parseTimesInput('16.5'), isNull); // one-digit minutes = typo
-    });
-
-    test('empty input is an empty list, not an error', () {
-      expect(parseTimesInput('  '), isEmpty);
-    });
-  });
 }
