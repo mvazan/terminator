@@ -189,11 +189,8 @@ class _TournamentDetailScreenState
               style: Theme.of(context).textTheme.titleMedium),
           Text(
             scrapable
-                ? 'Číslo „nás/dráhy" = kolik z nás může / kolik je volných '
-                    'drah. Rámeček = dá se objednat (min. '
-                    '${tournament.minPlayers}).'
-                : 'Číslo = kolik nás může. Rámeček = dá se objednat '
-                    '(min. ${tournament.minPlayers}).',
+                ? 'Číslo „nás/dráhy" = kolik z nás může / kolik je volných drah.'
+                : 'Číslo = kolik nás může.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 8),
