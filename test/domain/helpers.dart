@@ -1,0 +1,28 @@
+import 'package:terminator/domain/models.dart';
+
+Tournament makeTournament({
+  String id = 't1',
+  String name = 'Vracov Cup',
+  String venue = 'Vracov',
+  String kind = 'dvojice',
+  required Day startsOn,
+  required Day endsOn,
+  int minPlayers = 2,
+  int? maxPlayers = 2,
+}) =>
+    Tournament(
+      id: id,
+      name: name,
+      venue: venue,
+      kind: kind,
+      startsOn: startsOn,
+      endsOn: endsOn,
+      minPlayers: minPlayers,
+      maxPlayers: maxPlayers,
+      orderingContact: 'organizer@example.com',
+      notes: '',
+      createdBy: 'u1',
+    );
+
+Slot makeSlot(String id, Day date, HourMinute time, {String tournamentId = 't1'}) =>
+    Slot(id: id, tournamentId: tournamentId, date: date, time: time);
