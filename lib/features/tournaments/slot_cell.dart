@@ -13,7 +13,7 @@ class SlotCell extends StatelessWidget {
     required this.intensity,
     required this.isOrderable,
     required this.mine,
-    required this.onTap,
+    this.onTap,
     this.onLongPress,
     this.venueFree,
     this.venueCapacity,
@@ -27,7 +27,7 @@ class SlotCell extends StatelessWidget {
   final double intensity;
   final bool isOrderable;
   final bool mine;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
   /// Free/total lanes at the venue (scraped); null = no occupancy info.

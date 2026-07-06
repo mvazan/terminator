@@ -95,11 +95,13 @@ class _TournamentDetailScreenState
       slotsByDay.putIfAbsent(s.date, () => []).add(s);
     }
 
+    final archived = tournament.isArchived;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(tournament.name),
         actions: [
-          if (scrapable)
+          if (scrapable && !archived)
             IconButton(
               tooltip: 'Aktualizovat obsazenost z webu',
               icon: _syncing
@@ -129,13 +131,15 @@ class _TournamentDetailScreenState
                 checked: showWhoIsIn,
                 child: const Text('Zobrazit, kdo je přihlášený'),
               ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                  value: 'edit', child: Text('Upravit turnaj')),
-              const PopupMenuItem(
-                  value: 'add_slot', child: Text('Přidat start')),
-              const PopupMenuItem(
-                  value: 'archive', child: Text('Archivovat')),
+              if (!archived) ...[
+                const PopupMenuDivider(),
+                const PopupMenuItem(
+                    value: 'edit', child: Text('Upravit turnaj')),
+                const PopupMenuItem(
+                    value: 'add_slot', child: Text('Přidat start')),
+                const PopupMenuItem(
+                    value: 'archive', child: Text('Archivovat')),
+              ],
             ],
           ),
         ],
@@ -143,6 +147,33 @@ class _TournamentDetailScreenState
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
+          if (archived)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.archive_outlined,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Turnaj je archivovaný — jen ke čtení. Nedají se '
+                        'měnit termíny, hlasovat ani objednávat.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           _InfoCard(tournament: tournament),
           const SizedBox(height: 12),
           Text('Kdy můžeš? Odklikni si starty:',
@@ -161,17 +192,24 @@ class _TournamentDetailScreenState
               heatmap: heatmap,
               members: members,
               uid: uid,
+              readOnly: archived,
             ),
           const SizedBox(height: 16),
-          _BestPicksCard(tournament: tournament, heatmap: heatmap),
-          const SizedBox(height: 16),
+          if (!archived) ...[
+            _BestPicksCard(tournament: tournament, heatmap: heatmap),
+            const SizedBox(height: 16),
+          ],
           if (orders.any((o) => o.status != OrderStatus.cancelled)) ...[
             Text('Návrhy a objednávky',
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             for (final order in orders)
               if (order.status != OrderStatus.cancelled)
-                OrderCard(order: order, tournament: tournament),
+                OrderCard(
+                  order: order,
+                  tournament: tournament,
+                  readOnly: archived,
+                ),
           ],
           const SizedBox(height: 48),
         ],
@@ -206,6 +244,26 @@ class _TournamentDetailScreenState
           success: 'Start přidán.',
         );
       case 'archive':
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Archivovat turnaj?'),
+            content: Text(
+              '„${tournament.name}" se přesune do archivu a stane se jen '
+              'ke čtení — nepůjde upravovat, přidávat termíny, hlasovat '
+              'ani objednávat.',
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Zrušit')),
+              FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: const Text('Archivovat')),
+            ],
+          ),
+        );
+        if (confirmed != true || !context.mounted) return;
         await tryAction(context, () => Api.archiveTournament(tournament.id),
             success: 'Turnaj archivován.');
         if (context.mounted) Navigator.of(context).pop();
@@ -310,6 +368,7 @@ class _DayRow extends ConsumerWidget {
     required this.heatmap,
     required this.members,
     required this.uid,
+    this.readOnly = false,
   });
 
   final Day day;
@@ -317,6 +376,7 @@ class _DayRow extends ConsumerWidget {
   final Heatmap heatmap;
   final List<Profile> members;
   final String? uid;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -370,10 +430,11 @@ class _DayRow extends ConsumerWidget {
       venueFree: slot.venueFree,
       venueCapacity: slot.venueCapacity,
       whoIsIn: whoIsIn,
-      onTap: () => Api.setAvailability(slot.id, !mine),
+      onTap: readOnly ? null : () => Api.setAvailability(slot.id, !mine),
       // Scraped slots are owned by the web sync — no manual deletion.
-      onLongPress:
-          slot.hasVenueInfo ? null : () => _confirmDelete(context, slot),
+      onLongPress: readOnly || slot.hasVenueInfo
+          ? null
+          : () => _confirmDelete(context, slot),
     );
   }
 

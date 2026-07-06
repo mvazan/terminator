@@ -84,4 +84,17 @@ void main() {
     // Only the time and count texts should be present.
     expect(find.byType(Text), findsNWidgets(2));
   });
+
+  testWidgets('null onTap makes the cell inert (read-only)', (tester) async {
+    await tester.pumpWidget(wrap(const SlotCell(
+      time: HourMinute(18, 0),
+      count: 2,
+      intensity: 0.5,
+      isOrderable: true,
+      mine: false,
+    )));
+
+    final inkWell = tester.widget<InkWell>(find.byType(InkWell));
+    expect(inkWell.onTap, isNull);
+  });
 }

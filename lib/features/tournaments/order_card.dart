@@ -14,10 +14,16 @@ import '../chats/chat_screen.dart';
 /// e-mail/phone) or cancel it.
 /// Ordered: per-slot rosters — join, assign members, add guests, free places.
 class OrderCard extends ConsumerWidget {
-  const OrderCard({super.key, required this.order, required this.tournament});
+  const OrderCard({
+    super.key,
+    required this.order,
+    required this.tournament,
+    this.readOnly = false,
+  });
 
   final Order order;
   final Tournament tournament;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -65,7 +71,7 @@ class OrderCard extends ConsumerWidget {
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
-                _menu(context),
+                if (!readOnly) _menu(context),
               ],
             ),
             Text(daysLabel),
@@ -73,13 +79,19 @@ class OrderCard extends ConsumerWidget {
               Text(order.note, style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 8),
             if (order.isProposal)
-              _ProposalVoting(order: order, votes: votes, members: members)
+              _ProposalVoting(
+                order: order,
+                votes: votes,
+                members: members,
+                readOnly: readOnly,
+              )
             else
               _OrderedBody(
                 tournament: tournament,
                 slots: slots,
                 rosters: rosters,
                 members: members,
+                readOnly: readOnly,
               ),
           ],
         ),
@@ -135,11 +147,13 @@ class _ProposalVoting extends StatelessWidget {
     required this.order,
     required this.votes,
     required this.members,
+    this.readOnly = false,
   });
 
   final Order order;
   final List<OrderVote> votes;
   final List<Profile> members;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -163,11 +177,14 @@ class _ProposalVoting extends StatelessWidget {
           ],
           emptySelectionAllowed: true,
           selected: {?myVote},
-          onSelectionChanged: (selection) {
-            if (selection.isNotEmpty) {
-              tryAction(context, () => Api.vote(order.id, selection.first));
-            }
-          },
+          onSelectionChanged: readOnly
+              ? null
+              : (selection) {
+                  if (selection.isNotEmpty) {
+                    tryAction(
+                        context, () => Api.vote(order.id, selection.first));
+                  }
+                },
         ),
         const SizedBox(height: 8),
         for (final (vote, label) in [
@@ -192,12 +209,14 @@ class _OrderedBody extends ConsumerWidget {
     required this.slots,
     required this.rosters,
     required this.members,
+    this.readOnly = false,
   });
 
   final Tournament tournament;
   final List<Slot> slots;
   final List<RosterEntry> rosters;
   final List<Profile> members;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -226,6 +245,7 @@ class _OrderedBody extends ConsumerWidget {
             ],
             members: members,
             uid: uid,
+            readOnly: readOnly,
           ),
         const SizedBox(height: 8),
         Wrap(
@@ -255,12 +275,14 @@ class _SlotRoster extends StatelessWidget {
     required this.rosters,
     required this.members,
     required this.uid,
+    this.readOnly = false,
   });
 
   final SlotPlaces slotPlaces;
   final List<RosterEntry> rosters;
   final List<Profile> members;
   final String? uid;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -284,10 +306,12 @@ class _SlotRoster extends StatelessWidget {
               for (final entry in rosters)
                 InputChip(
                   label: Text(rosterEntryName(entry, members)),
-                  onDeleted: () => tryAction(
-                      context, () => Api.removeRosterEntry(entry.id)),
+                  onDeleted: readOnly
+                      ? null
+                      : () => tryAction(
+                          context, () => Api.removeRosterEntry(entry.id)),
                 ),
-              if (slotPlaces.hasFreePlace) ...[
+              if (!readOnly && slotPlaces.hasFreePlace) ...[
                 if (!imIn)
                   ActionChip(
                     avatar: const Icon(Icons.person_add, size: 16),
