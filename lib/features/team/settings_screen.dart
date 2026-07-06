@@ -182,9 +182,15 @@ class _NotificationKindTileState extends State<_NotificationKindTile> {
       _save(context,
           enabled: true, mutedUntil: DateTime.now().add(duration));
 
+  // Supabase upserts on this screen usually finish in ~150ms — faster than
+  // a spinner is perceptible. Enforce a minimum visible time so the tap
+  // always reads as "something happened", instead of looking like a no-op.
+  static const _minSpinnerTime = Duration(milliseconds: 350);
+
   Future<void> _save(BuildContext context,
       {required bool enabled, DateTime? mutedUntil}) async {
     setState(() => _saving = true);
+    final started = DateTime.now();
     try {
       await tryAction(
         context,
@@ -192,6 +198,10 @@ class _NotificationKindTileState extends State<_NotificationKindTile> {
             enabled: enabled, mutedUntil: mutedUntil),
       );
     } finally {
+      final elapsed = DateTime.now().difference(started);
+      if (elapsed < _minSpinnerTime) {
+        await Future.delayed(_minSpinnerTime - elapsed);
+      }
       if (mounted) setState(() => _saving = false);
     }
   }
