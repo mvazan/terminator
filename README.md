@@ -12,6 +12,7 @@ that archives itself.
 - **Design & implementation plan:** `~/Home/termínátor.md`
 - **Czech intro for the team / focus group:** `~/Home/terminator-predstaveni.md`
 - **Backend setup guide (one-time):** [SETUP.md](SETUP.md)
+- **CI/CD guide (GitHub Actions → Supabase, APK releases):** [CICD.md](CICD.md)
 
 ## Stack
 
