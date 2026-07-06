@@ -182,9 +182,12 @@ class _TournamentDetailScreenState
           Text('Kdy můžeš? Odklikni si starty:',
               style: Theme.of(context).textTheme.titleMedium),
           Text(
-            'Číslo = kolik nás může. Rámeček = dá se objednat '
-            '(min. ${tournament.minPlayers}). Klepnutím na počet zobrazíš, '
-            'kdo se hlásí.',
+            scrapable
+                ? 'Číslo „nás/dráhy" = kolik z nás může / kolik je volných '
+                    'drah. Rámeček = dá se objednat (min. '
+                    '${tournament.minPlayers}).'
+                : 'Číslo = kolik nás může. Rámeček = dá se objednat '
+                    '(min. ${tournament.minPlayers}).',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 8),
@@ -409,24 +412,17 @@ class _DayRow extends ConsumerWidget {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: [
-              for (final slot in slots) _cell(context, slot, showWhoIsIn),
-            ],
+            children: [for (final slot in slots) _cell(context, slot)],
           ),
+          if (showWhoIsIn) _whoIsIn(context),
         ],
       ),
     );
   }
 
-  Widget _cell(BuildContext context, Slot slot, bool showWhoIsIn) {
+  Widget _cell(BuildContext context, Slot slot) {
     final stats = heatmap.bySlotId[slot.id];
     final mine = uid != null && (stats?.userIds.contains(uid) ?? false);
-    String? whoIsIn;
-    if (showWhoIsIn && stats != null && stats.userIds.isNotEmpty) {
-      whoIsIn = (stats.userIds.map((id) => memberName(members, id)).toList()
-            ..sort())
-          .join(', ');
-    }
 
     return SlotCell(
       time: slot.time,
@@ -436,12 +432,59 @@ class _DayRow extends ConsumerWidget {
       mine: mine,
       venueFree: slot.venueFree,
       venueCapacity: slot.venueCapacity,
-      whoIsIn: whoIsIn,
       onTap: readOnly ? null : () => Api.setAvailability(slot.id, !mine),
       // Scraped slots are owned by the web sync — no manual deletion.
       onLongPress: readOnly || slot.hasVenueInfo
           ? null
           : () => _confirmDelete(context, slot),
+    );
+  }
+
+  /// Names of who ticked each start that day, listed under the day's grid
+  /// (shown when the team-wide "who's in" toggle is on).
+  Widget _whoIsIn(BuildContext context) {
+    final lines = <Widget>[];
+    for (final slot in slots) {
+      final ids = heatmap.bySlotId[slot.id]?.userIds ?? const <String>{};
+      if (ids.isEmpty) continue;
+      final names = (ids.map((id) => memberName(members, id)).toList()
+            ..sort())
+          .join(', ');
+      lines.add(RichText(
+        text: TextSpan(
+          style: Theme.of(context).textTheme.bodySmall,
+          children: [
+            TextSpan(
+              text: '${slot.time.display()}: ',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            TextSpan(text: names),
+          ],
+        ),
+      ));
+    }
+    if (lines.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainer,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final line in lines)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 1),
+                child: line,
+              ),
+          ],
+        ),
+      ),
     );
   }
 

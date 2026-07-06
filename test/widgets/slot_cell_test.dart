@@ -57,31 +57,34 @@ void main() {
     expect(border.top.width, 2);
   });
 
-  testWidgets('shows who-is-in names when provided', (tester) async {
+  testWidgets('scraped cell shows team/free lanes as X/Y', (tester) async {
     await tester.pumpWidget(wrap(SlotCell(
       time: const HourMinute(18, 0),
-      count: 2,
+      count: 6, // team can exceed venue capacity
       intensity: 0.5,
       isOrderable: true,
       mine: false,
       onTap: () {},
-      whoIsIn: 'Petr, Jana',
+      venueFree: 4,
+      venueCapacity: 4,
     )));
 
-    expect(find.text('Petr, Jana'), findsOneWidget);
+    expect(find.text('6/4'), findsOneWidget);
+    expect(find.text('6'), findsNothing);
   });
 
-  testWidgets('hides who-is-in row when null or empty', (tester) async {
+  testWidgets('non-scraped cell shows just the team count', (tester) async {
     await tester.pumpWidget(wrap(SlotCell(
       time: const HourMinute(18, 0),
-      count: 2,
+      count: 3,
       intensity: 0.5,
       isOrderable: true,
       mine: false,
       onTap: () {},
     )));
 
-    // Only the time and count texts should be present.
+    expect(find.text('3'), findsOneWidget);
+    // Only the time and count texts — no venue slash line.
     expect(find.byType(Text), findsNWidgets(2));
   });
 

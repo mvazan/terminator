@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../domain/models.dart';
 
-/// One cell of the availability heatmap: start time, player count, shading
-/// by popularity, primary border when orderable, check when I ticked it.
-/// Purely presentational — callbacks injected — so it's widget-testable.
+/// One cell of the availability heatmap: start time and, below it, how many
+/// of our team ticked this slot. When the tournament is scraped, the count
+/// reads "team/free" — team members available over free lanes at the venue
+/// (team can exceed capacity). Popularity shading and an orderable border
+/// round it out. Purely presentational — callbacks injected — so it's
+/// widget-testable.
 class SlotCell extends StatelessWidget {
   const SlotCell({
     super.key,
@@ -17,7 +20,6 @@ class SlotCell extends StatelessWidget {
     this.onLongPress,
     this.venueFree,
     this.venueCapacity,
-    this.whoIsIn,
   });
 
   final HourMinute time;
@@ -34,11 +36,7 @@ class SlotCell extends StatelessWidget {
   final int? venueFree;
   final int? venueCapacity;
 
-  /// Names of members who ticked this slot, shown under the count when the
-  /// team-wide "show who's in" setting is on (Tým → ⋮ menu). Null/empty
-  /// hides the row — same compact layout as before.
-  final String? whoIsIn;
-
+  bool get _scraped => venueFree != null;
   bool get _venueFull => venueFree != null && venueFree! <= 0;
 
   @override
@@ -52,8 +50,7 @@ class SlotCell extends StatelessWidget {
         opacity: _venueFull ? 0.55 : 1,
         child: Container(
           width: 80,
-          padding: const EdgeInsets.symmetric(
-              vertical: 8, horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             color: Color.lerp(
@@ -84,27 +81,13 @@ class SlotCell extends StatelessWidget {
                       padding: EdgeInsets.only(right: 2),
                       child: Icon(Icons.check_circle, size: 14),
                     ),
-                  Text('$count', style: Theme.of(context).textTheme.bodySmall),
+                  // Plain team count, or "team/free lanes" when scraped.
+                  Text(
+                    _scraped ? '$count/$venueFree' : '$count',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ],
               ),
-              if (whoIsIn != null && whoIsIn!.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                    whoIsIn!,
-                    textAlign: TextAlign.center,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelSmall,
-                  ),
-                ),
-              if (venueFree != null)
-                Text(
-                  _venueFull ? 'plné' : 'volné $venueFree',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: _venueFull ? scheme.error : scheme.secondary,
-                      ),
-                ),
             ],
           ),
         ),
