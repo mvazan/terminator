@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/ui.dart';
+import '../../data/local_prefs.dart';
 import '../../data/providers.dart';
 import '../../domain/heatmap.dart';
 import '../../domain/models.dart';
@@ -86,6 +87,7 @@ class _TournamentDetailScreenState
         .where((o) => o.tournamentId == tournamentId)
         .toList();
     final members = ref.watch(membersProvider).value ?? const [];
+    final showWhoIsIn = ref.watch(showWhoIsInProvider);
     final uid = currentUserId;
 
     final slotsByDay = <Day, List<Slot>>{};
@@ -121,10 +123,19 @@ class _TournamentDetailScreenState
           ),
           PopupMenuButton<String>(
             onSelected: (action) => _menuAction(context, action, tournament),
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'edit', child: Text('Upravit turnaj')),
-              PopupMenuItem(value: 'add_slot', child: Text('Přidat start')),
-              PopupMenuItem(value: 'archive', child: Text('Archivovat')),
+            itemBuilder: (_) => [
+              CheckedPopupMenuItem(
+                value: 'toggle_who_is_in',
+                checked: showWhoIsIn,
+                child: const Text('Zobrazit, kdo je přihlášený'),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                  value: 'edit', child: Text('Upravit turnaj')),
+              const PopupMenuItem(
+                  value: 'add_slot', child: Text('Přidat start')),
+              const PopupMenuItem(
+                  value: 'archive', child: Text('Archivovat')),
             ],
           ),
         ],
@@ -171,6 +182,8 @@ class _TournamentDetailScreenState
   Future<void> _menuAction(
       BuildContext context, String action, Tournament tournament) async {
     switch (action) {
+      case 'toggle_who_is_in':
+        await ref.read(showWhoIsInProvider.notifier).toggle();
       case 'edit':
         await Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => TournamentEditScreen(existing: tournament)));
@@ -290,7 +303,7 @@ class _InfoCard extends StatelessWidget {
   }
 }
 
-class _DayRow extends ConsumerStatefulWidget {
+class _DayRow extends ConsumerWidget {
   const _DayRow({
     required this.day,
     required this.slots,
@@ -306,20 +319,9 @@ class _DayRow extends ConsumerStatefulWidget {
   final String? uid;
 
   @override
-  ConsumerState<_DayRow> createState() => _DayRowState();
-}
-
-class _DayRowState extends ConsumerState<_DayRow> {
-  // Only one slot's "who's in" list open per day row, so the view doesn't
-  // get cluttered — expanding another one closes the previous.
-  String? _expandedSlotId;
-
-  @override
-  Widget build(BuildContext context) {
-    final dayStats = widget.heatmap.byDay[widget.day];
-    final expandedSlot = widget.slots
-        .where((s) => s.id == _expandedSlotId)
-        .firstOrNull;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dayStats = heatmap.byDay[day];
+    final showWhoIsIn = ref.watch(showWhoIsInProvider);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -328,7 +330,7 @@ class _DayRowState extends ConsumerState<_DayRow> {
         children: [
           Row(
             children: [
-              Text(dayLabel(widget.day),
+              Text(dayLabel(day),
                   style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(width: 8),
               if (dayStats != null && dayStats.distinctPlayers > 0)
@@ -340,59 +342,38 @@ class _DayRowState extends ConsumerState<_DayRow> {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: [for (final slot in widget.slots) _cell(context, slot)],
+            children: [
+              for (final slot in slots) _cell(context, slot, showWhoIsIn),
+            ],
           ),
-          if (expandedSlot != null) _whoIsIn(context, expandedSlot),
         ],
       ),
     );
   }
 
-  Widget _cell(BuildContext context, Slot slot) {
-    final stats = widget.heatmap.bySlotId[slot.id];
-    final mine =
-        widget.uid != null && (stats?.userIds.contains(widget.uid) ?? false);
+  Widget _cell(BuildContext context, Slot slot, bool showWhoIsIn) {
+    final stats = heatmap.bySlotId[slot.id];
+    final mine = uid != null && (stats?.userIds.contains(uid) ?? false);
+    String? whoIsIn;
+    if (showWhoIsIn && stats != null && stats.userIds.isNotEmpty) {
+      whoIsIn = (stats.userIds.map((id) => memberName(members, id)).toList()
+            ..sort())
+          .join(', ');
+    }
 
     return SlotCell(
       time: slot.time,
       count: stats?.count ?? 0,
-      intensity: widget.heatmap.intensity(slot.id),
+      intensity: heatmap.intensity(slot.id),
       isOrderable: stats?.isOrderable ?? false,
       mine: mine,
       venueFree: slot.venueFree,
       venueCapacity: slot.venueCapacity,
-      expanded: _expandedSlotId == slot.id,
-      onToggleExpand: () => setState(() {
-        _expandedSlotId = _expandedSlotId == slot.id ? null : slot.id;
-      }),
+      whoIsIn: whoIsIn,
       onTap: () => Api.setAvailability(slot.id, !mine),
       // Scraped slots are owned by the web sync — no manual deletion.
       onLongPress:
           slot.hasVenueInfo ? null : () => _confirmDelete(context, slot),
-    );
-  }
-
-  Widget _whoIsIn(BuildContext context, Slot slot) {
-    final stats = widget.heatmap.bySlotId[slot.id];
-    final names = [
-      for (final id in stats?.userIds ?? const <String>{})
-        memberName(widget.members, id),
-    ]..sort();
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Text(
-          '${slot.time.display()}: ${names.join(', ')}',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ),
     );
   }
 

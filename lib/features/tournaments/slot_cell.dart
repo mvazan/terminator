@@ -17,8 +17,7 @@ class SlotCell extends StatelessWidget {
     this.onLongPress,
     this.venueFree,
     this.venueCapacity,
-    this.expanded = false,
-    this.onToggleExpand,
+    this.whoIsIn,
   });
 
   final HourMinute time;
@@ -35,10 +34,10 @@ class SlotCell extends StatelessWidget {
   final int? venueFree;
   final int? venueCapacity;
 
-  /// Whether the "who's in" list below this cell is currently shown. Only
-  /// meaningful together with [onToggleExpand] (shows a chevron to tap).
-  final bool expanded;
-  final VoidCallback? onToggleExpand;
+  /// Names of members who ticked this slot, shown under the count when the
+  /// team-wide "show who's in" setting is on (Tým → ⋮ menu). Null/empty
+  /// hides the row — same compact layout as before.
+  final String? whoIsIn;
 
   bool get _venueFull => venueFree != null && venueFree! <= 0;
 
@@ -53,7 +52,8 @@ class SlotCell extends StatelessWidget {
         opacity: _venueFull ? 0.55 : 1,
         child: Container(
           width: 80,
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(
+              vertical: 8, horizontal: 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             color: Color.lerp(
@@ -76,40 +76,31 @@ class SlotCell extends StatelessWidget {
                     ),
               ),
               const SizedBox(height: 2),
-              InkWell(
-                onTap: count > 0 ? onToggleExpand : null,
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 4, vertical: 2),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (mine)
-                        const Padding(
-                          padding: EdgeInsets.only(right: 2),
-                          child: Icon(Icons.check_circle, size: 14),
-                        ),
-                      Text('$count',
-                          style: Theme.of(context).textTheme.bodySmall),
-                      if (count > 0) ...[
-                        const SizedBox(width: 1),
-                        Icon(
-                          expanded
-                              ? Icons.expand_less
-                              : Icons.expand_more,
-                          size: 14,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ],
-                    ],
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (mine)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 2),
+                      child: Icon(Icons.check_circle, size: 14),
+                    ),
+                  Text('$count', style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+              if (whoIsIn != null && whoIsIn!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    whoIsIn!,
+                    textAlign: TextAlign.center,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall,
                   ),
                 ),
-              ),
               if (venueFree != null)
                 Text(
-                  _venueFull ? 'plné' : 'volné $venueFree/$venueCapacity',
+                  _venueFull ? 'plné' : 'volné $venueFree',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: _venueFull ? scheme.error : scheme.secondary,
                       ),
