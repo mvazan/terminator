@@ -92,8 +92,29 @@ class _NotificationKindTile extends StatefulWidget {
 class _NotificationKindTileState extends State<_NotificationKindTile> {
   bool _saving = false;
 
+  // What the user just chose. Shown immediately so the icon reflects the new
+  // state right away — the notification_prefs stream that carries the real
+  // value back has Realtime latency, and without this the tile would briefly
+  // flash the OLD icon after the save finishes, until the stream catches up.
+  NotificationPref? _optimistic;
+
   NotificationKind get kind => widget.kind;
-  NotificationPref get pref => widget.pref;
+
+  // Prefer the just-chosen value; fall back to what the stream last delivered.
+  NotificationPref get pref => _optimistic ?? widget.pref;
+
+  @override
+  void didUpdateWidget(_NotificationKindTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Stream delivered a value matching our optimistic guess → drop the guess
+    // and let the stream be the source of truth again.
+    if (_optimistic != null && _samePref(widget.pref, _optimistic!)) {
+      _optimistic = null;
+    }
+  }
+
+  bool _samePref(NotificationPref a, NotificationPref b) =>
+      a.enabled == b.enabled && a.mutedUntil == b.mutedUntil;
 
   String _statusLabel() {
     final now = DateTime.now();
@@ -182,27 +203,33 @@ class _NotificationKindTileState extends State<_NotificationKindTile> {
       _save(context,
           enabled: true, mutedUntil: DateTime.now().add(duration));
 
-  // Supabase upserts on this screen usually finish in ~150ms — faster than
-  // a spinner is perceptible. Enforce a minimum visible time so the tap
-  // always reads as "something happened", instead of looking like a no-op.
-  static const _minSpinnerTime = Duration(milliseconds: 350);
-
   Future<void> _save(BuildContext context,
       {required bool enabled, DateTime? mutedUntil}) async {
     setState(() => _saving = true);
-    final started = DateTime.now();
+    var ok = false;
     try {
       await tryAction(
         context,
-        () => Api.setNotificationPref(kind,
-            enabled: enabled, mutedUntil: mutedUntil),
+        () async {
+          await Api.setNotificationPref(kind,
+              enabled: enabled, mutedUntil: mutedUntil);
+          ok = true;
+        },
       );
     } finally {
-      final elapsed = DateTime.now().difference(started);
-      if (elapsed < _minSpinnerTime) {
-        await Future.delayed(_minSpinnerTime - elapsed);
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          // Keep showing the chosen state until the stream confirms it,
+          // so the icon never flashes back to the old value.
+          if (ok) {
+            final chosen = NotificationPref(
+                kind: kind, enabled: enabled, mutedUntil: mutedUntil);
+            _optimistic =
+                _samePref(chosen, widget.pref) ? null : chosen;
+          }
+        });
       }
-      if (mounted) setState(() => _saving = false);
     }
   }
 
