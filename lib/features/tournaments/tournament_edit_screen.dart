@@ -201,8 +201,11 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
             Expanded(
               child: TextField(
                 controller: _kind,
-                decoration:
-                    const InputDecoration(labelText: 'Typ (dvojice…)'),
+                decoration: const InputDecoration(
+                  labelText: 'Typ (dvojice…)',
+                  helperText: 'Jen popisek, nikam se nepočítá',
+                  helperMaxLines: 2,
+                ),
               ),
             ),
           ]),
@@ -231,8 +234,11 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
               child: TextField(
                 controller: _minPlayers,
                 keyboardType: TextInputType.number,
-                decoration:
-                    const InputDecoration(labelText: 'Min. hráčů na start'),
+                decoration: const InputDecoration(
+                  labelText: 'Min. hráčů na start',
+                  helperText: 'Od kolika hráčů se dá termín objednat',
+                  helperMaxLines: 2,
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -240,8 +246,11 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
               child: TextField(
                 controller: _maxPlayers,
                 keyboardType: TextInputType.number,
-                decoration:
-                    const InputDecoration(labelText: 'Hráčů na start'),
+                decoration: const InputDecoration(
+                  labelText: 'Hráčů na start',
+                  helperText: 'Kapacita jedné dráhy (2 = dvojice)',
+                  helperMaxLines: 2,
+                ),
               ),
             ),
           ]),
