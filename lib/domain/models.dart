@@ -350,6 +350,12 @@ enum NotificationKind {
 
   final String sqlName;
 
+  /// Whether the kind is on for members who never touched settings.
+  /// newMember and threshold are opt-in (user decision 2026-07-06).
+  /// Must stay in sync with DEFAULT_OFF in supabase/functions/notify.
+  bool get defaultEnabled =>
+      this != NotificationKind.newMember && this != NotificationKind.threshold;
+
   static NotificationKind? tryParse(String value) {
     for (final kind in values) {
       if (kind.sqlName == value) return kind;
@@ -359,7 +365,7 @@ enum NotificationKind {
 }
 
 /// A member's preference for one notification kind.
-/// No stored row means "enabled" — [NotificationPref.fallback].
+/// No stored row means the kind's default — [NotificationPref.fallback].
 class NotificationPref {
   const NotificationPref({
     required this.kind,
@@ -372,7 +378,7 @@ class NotificationPref {
   final DateTime? mutedUntil;
 
   static NotificationPref fallback(NotificationKind kind) =>
-      NotificationPref(kind: kind, enabled: true);
+      NotificationPref(kind: kind, enabled: kind.defaultEnabled);
 
   bool isMutedAt(DateTime now) =>
       mutedUntil != null && mutedUntil!.isAfter(now);

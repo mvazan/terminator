@@ -146,10 +146,15 @@ type NotificationKind =
   | "chat"
   | "threshold";
 
+// Kinds that are opt-in: silent unless the member enabled them in settings.
+// Must stay in sync with NotificationKind.defaultEnabled in the app.
+const DEFAULT_OFF: NotificationKind[] = ["new_member", "threshold"];
+
 /**
- * All approved members' tokens for one notification kind, minus excluded
- * user ids and minus everyone whose notification_prefs row disables the kind
- * or mutes it until a future timestamp (missing row = enabled).
+ * All approved members' tokens for one notification kind, honoring
+ * notification_prefs. Default-on kinds: missing row = send; a row can
+ * disable or mute. Default-off kinds: only members whose row enables the
+ * kind (and isn't muted) receive it.
  */
 async function teamTokens(
   kind: NotificationKind,
@@ -171,14 +176,19 @@ async function teamTokens(
 
   const now = Date.now();
   const excluded = new Set(exclude.filter(Boolean));
+  const activeRows = new Set<string>();
   for (const pref of prefsResult.data ?? []) {
     const muted = pref.muted_until !== null &&
       Date.parse(pref.muted_until) > now;
+    if (pref.enabled && !muted) activeRows.add(pref.user_id);
     if (!pref.enabled || muted) excluded.add(pref.user_id);
   }
 
+  const optIn = DEFAULT_OFF.includes(kind);
   return (profilesResult.data ?? [])
-    .filter((p) => !excluded.has(p.id))
+    .filter((p) =>
+      optIn ? activeRows.has(p.id) : !excluded.has(p.id)
+    )
     .map((p) => ({ userId: p.id, token: p.fcm_token as string }));
 }
 
