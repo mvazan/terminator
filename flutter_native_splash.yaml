@@ -1,0 +1,18 @@
+flutter_native_splash:
+  # Black background; on Android 12+ this fills the rounded-square behind the
+  # icon so there is no white border around the squirrel.
+  color: "#000000"
+
+  # Legacy splash (Android 11 and below, iOS): the full squirrel image,
+  # centered on black.
+  image: assets/icon/icon.png
+
+  android_12:
+    # Android 12+ uses this as the splash icon inside the rounded square,
+    # on the same black background → no white edge.
+    image: assets/icon/icon.png
+    color: "#000000"
+
+  android: true
+  ios: true
+  web: false
