@@ -335,8 +335,6 @@ class _InfoCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('${t.timelineLabel} · ${rangeLabel(t.startsOn, t.endsOn)}'),
-            Text('Na start: min. ${t.minPlayers}'
-                '${t.maxPlayers != null ? ', hraje ${t.maxPlayers}' : ''}'),
             if (t.scrapedAt != null)
               Text(
                 'Obsazenost z webu: ${_freshness(t.scrapedAt!)}',
