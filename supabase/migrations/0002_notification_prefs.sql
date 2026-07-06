@@ -1,8 +1,13 @@
 -- Per-user, per-kind notification preferences.
--- Missing row = enabled (the default). A row can disable a kind outright or
+-- Missing row = the kind's default. A row can disable a kind outright or
 -- mute it until a timestamp (1h/3h/6h/12h/custom from the app).
 -- The notify Edge Function checks these before sending; per-chat mutes in
 -- chat_mutes still apply on top for the 'chat' kind.
+--
+-- The kind list lives in THREE places that must stay in sync: this CHECK
+-- constraint, NotificationKind in lib/domain/models.dart, and NotificationKind
+-- + DEFAULT_OFF in supabase/functions/notify/index.ts. Adding a kind needs a
+-- new migration extending the constraint.
 
 create table notification_prefs (
   user_id uuid not null references profiles (id) on delete cascade,

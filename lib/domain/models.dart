@@ -60,9 +60,6 @@ class Day implements Comparable<Day> {
   /// DateTime.monday (1) .. DateTime.sunday (7)
   int get weekday => _dt.weekday;
 
-  bool get isWeekend =>
-      weekday == DateTime.saturday || weekday == DateTime.sunday;
-
   Day addDays(int days) => Day.fromDateTime(_dt.add(Duration(days: days)));
 
   int differenceInDays(Day other) => _dt.difference(other._dt).inDays;
@@ -86,6 +83,17 @@ class Day implements Comparable<Day> {
   @override
   String toString() => toSql();
 }
+
+/// Chronological ordering by date, then start time — the one comparator every
+/// slot-like list in the app sorts by.
+int compareDayTime(Day dateA, HourMinute timeA, Day dateB, HourMinute timeB) {
+  final byDate = dateA.compareTo(dateB);
+  return byDate != 0 ? byDate : timeA.compareTo(timeB);
+}
+
+/// "20.4.–3.5."
+String rangeLabel(Day from, Day to) =>
+    '${from.day}.${from.month}.–${to.day}.${to.month}.';
 
 enum ProfileStatus { pending, approved }
 
@@ -188,6 +196,9 @@ class Tournament {
 
   bool get isArchived => archivedAt != null;
 
+  /// Typed view of [kind]; null for legacy free-text values.
+  TournamentKind? get kindEnum => TournamentKind.tryParse(kind);
+
   /// Label used in the season timeline: "Vracov (dvojice)".
   String get timelineLabel => kind.isEmpty ? venue : '$venue ($kind)';
 
@@ -247,6 +258,18 @@ class Slot {
         venueCapacity: json['venue_capacity'] as int?,
         venueOccupied: json['venue_occupied'] as int?,
       );
+
+  static int compare(Slot a, Slot b) =>
+      compareDayTime(a.date, a.time, b.date, b.time);
+}
+
+/// Groups slots by their date, preserving input order within each day.
+Map<Day, List<Slot>> slotsByDay(Iterable<Slot> slots) {
+  final byDay = <Day, List<Slot>>{};
+  for (final slot in slots) {
+    byDay.putIfAbsent(slot.date, () => []).add(slot);
+  }
+  return byDay;
 }
 
 class Availability {
@@ -363,8 +386,13 @@ class RosterEntry {
 }
 
 /// Kinds of push notifications a member can tune in settings.
-/// SQL names must match the notification_prefs.kind check constraint and the
-/// kind strings used by the notify Edge Function.
+///
+/// The kind list and the default-off rule live in THREE places that must stay
+/// in sync (shared across runtimes, so full dedup isn't possible):
+///   1. this enum (+ [defaultEnabled]),
+///   2. supabase/functions/notify/index.ts — NotificationKind + DEFAULT_OFF,
+///   3. supabase/migrations/0002_notification_prefs.sql — the kind CHECK
+///      constraint (adding a kind needs a new migration extending it).
 enum NotificationKind {
   newMember('new_member'),
   newTournament('new_tournament'),
@@ -379,7 +407,6 @@ enum NotificationKind {
 
   /// Whether the kind is on for members who never touched settings.
   /// newMember and threshold are opt-in (user decision 2026-07-06).
-  /// Must stay in sync with DEFAULT_OFF in supabase/functions/notify.
   bool get defaultEnabled =>
       this != NotificationKind.newMember && this != NotificationKind.threshold;
 

@@ -13,13 +13,11 @@ class VenueTerm {
   const VenueTerm({
     required this.date,
     required this.time,
-    required this.lane,
     required this.occupied,
   });
 
   final Day date;
   final HourMinute time;
-  final int lane;
   final bool occupied;
 }
 
@@ -54,11 +52,7 @@ List<VenueSlot> aggregateTerms(List<VenueTerm> terms) {
         capacity: group.length,
         occupied: group.where((t) => t.occupied).length,
       ),
-  ]..sort((a, b) {
-      final byDate = a.date.compareTo(b.date);
-      if (byDate != 0) return byDate;
-      return a.time.compareTo(b.time);
-    });
+  ]..sort((a, b) => compareDayTime(a.date, a.time, b.date, b.time));
   return slots;
 }
 

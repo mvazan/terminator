@@ -29,25 +29,30 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
   final _note = TextEditingController();
   bool _saving = false;
 
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
+
   Future<void> _submit() async {
     if (_selected.isEmpty) {
       snack(context, 'Vyber aspoň jeden start.');
       return;
     }
     setState(() => _saving = true);
-    try {
-      await Api.createProposal(
+    final ok = await tryAction(
+      context,
+      () => Api.createProposal(
         tournamentId: widget.tournament.id,
         slotIds: _selected,
         note: _note.text.trim(),
         directlyOrdered: widget.directlyOrdered,
-      );
-      if (mounted) Navigator.of(context).pop();
-    } catch (e) {
-      if (mounted) snack(context, 'Nepovedlo se: $e');
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
+      ),
+    );
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (ok) Navigator.of(context).pop();
   }
 
   @override
@@ -55,11 +60,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     final slots = (ref.watch(slotsProvider).value ?? const [])
         .where((s) => s.tournamentId == widget.tournament.id)
         .toList()
-      ..sort((a, b) {
-        final byDate = a.date.compareTo(b.date);
-        if (byDate != 0) return byDate;
-        return a.time.compareTo(b.time);
-      });
+      ..sort(Slot.compare);
     final slotIds = {for (final s in slots) s.id};
     final availability = (ref.watch(availabilityProvider).value ?? const [])
         .where((a) => slotIds.contains(a.slotId))
@@ -70,10 +71,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
       availability: availability,
     );
 
-    final byDay = <Day, List<Slot>>{};
-    for (final s in slots) {
-      byDay.putIfAbsent(s.date, () => []).add(s);
-    }
+    final byDay = slotsByDay(slots);
 
     final capacity = widget.tournament.maxPlayers;
     final placesInfo = capacity == null

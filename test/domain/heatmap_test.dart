@@ -53,8 +53,6 @@ void main() {
 
     final thursday = heatmap.byDay[thu]!;
     expect(thursday.distinctPlayers, 3); // u1, u2, u3
-    expect(thursday.bestSlotCount, 2);
-    expect(thursday.orderableSlots, 2);
     expect(heatmap.byDay[fri]!.distinctPlayers, 1);
   });
 

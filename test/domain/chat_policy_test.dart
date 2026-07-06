@@ -53,6 +53,5 @@ void main() {
     expect(const HourMinute(16, 30).toSql(), '16:30:00');
     expect(Day.parse('2026-04-20').toSql(), '2026-04-20');
     expect(Day(2026, 4, 20).weekday, DateTime.monday);
-    expect(Day(2026, 4, 25).isWeekend, isTrue);
   });
 }

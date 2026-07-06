@@ -24,22 +24,12 @@ class SlotStats {
 }
 
 class DayStats {
-  const DayStats({
-    required this.day,
-    required this.distinctPlayers,
-    required this.bestSlotCount,
-    required this.orderableSlots,
-  });
+  const DayStats({required this.day, required this.distinctPlayers});
 
   final Day day;
 
   /// How many different members can make at least one slot that day.
   final int distinctPlayers;
-
-  /// Highest single-slot count that day (drives the day-summary shading).
-  final int bestSlotCount;
-
-  final int orderableSlots;
 }
 
 class Heatmap {
@@ -77,22 +67,16 @@ class Heatmap {
       );
     }
 
-    final slotsByDay = <Day, List<SlotStats>>{};
+    final usersByDay = <Day, Set<String>>{};
     for (final stats in bySlot.values) {
-      slotsByDay.putIfAbsent(stats.slot.date, () => []).add(stats);
+      usersByDay
+          .putIfAbsent(stats.slot.date, () => <String>{})
+          .addAll(stats.userIds);
     }
-    final byDay = <Day, DayStats>{};
-    for (final day in slotsByDay.keys.toList()..sort()) {
-      final dayStats = slotsByDay[day]!;
-      final distinct = <String>{for (final s in dayStats) ...s.userIds};
-      byDay[day] = DayStats(
-        day: day,
-        distinctPlayers: distinct.length,
-        bestSlotCount:
-            dayStats.map((s) => s.count).fold(0, (a, b) => a > b ? a : b),
-        orderableSlots: dayStats.where((s) => s.isOrderable).length,
-      );
-    }
+    final byDay = <Day, DayStats>{
+      for (final day in usersByDay.keys.toList()..sort())
+        day: DayStats(day: day, distinctPlayers: usersByDay[day]!.length),
+    };
 
     return Heatmap._(bySlot, byDay, maxCount);
   }
@@ -115,9 +99,7 @@ List<SlotStats> bestPicks({
         ..sort((a, b) {
           final byCount = b.count.compareTo(a.count);
           if (byCount != 0) return byCount;
-          final byDate = a.slot.date.compareTo(b.slot.date);
-          if (byDate != 0) return byDate;
-          return a.slot.time.compareTo(b.slot.time);
+          return Slot.compare(a.slot, b.slot);
         });
   return orderable.take(limit).toList();
 }

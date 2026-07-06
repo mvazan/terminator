@@ -34,7 +34,7 @@ class MkwareScraper implements TournamentScraper {
 }
 
 final _rowPattern = RegExp(
-  r'<tr id="(\d{4}-\d{2}-\d{2})-(\d+)">(.*?)</tr>',
+  r'<tr id="(\d{4}-\d{2}-\d{2})-\d+">(.*?)</tr>',
   dotAll: true,
 );
 final _timePattern = RegExp(r'(\d{1,2}:\d{2})\s*-');
@@ -43,13 +43,12 @@ final _timePattern = RegExp(r'(\d{1,2}:\d{2})\s*-');
 List<VenueTerm> parseMkwareHtml(String html) {
   final terms = <VenueTerm>[];
   for (final row in _rowPattern.allMatches(html)) {
-    final body = row.group(3)!;
+    final body = row.group(2)!;
     final timeMatch = _timePattern.firstMatch(body);
     if (timeMatch == null) continue;
     terms.add(VenueTerm(
       date: Day.parse(row.group(1)!),
       time: HourMinute.parse(timeMatch.group(1)!),
-      lane: int.parse(row.group(2)!),
       // A free lane-start renders an empty booking form; a booked one
       // renders the reservation as plain text without the form.
       occupied: !body.contains('placeholder="Name"'),

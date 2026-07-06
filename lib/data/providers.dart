@@ -40,6 +40,13 @@ final membersProvider = StreamProvider<List<Profile>>((ref) {
         ..sort((a, b) => a.displayName.compareTo(b.displayName)));
 });
 
+/// Single tournament looked up from the live tournaments stream.
+final tournamentByIdProvider = Provider.family<Tournament?, String>(
+  (ref, id) => (ref.watch(tournamentsProvider).value ?? const [])
+      .where((t) => t.id == id)
+      .firstOrNull,
+);
+
 final tournamentsProvider = StreamProvider<List<Tournament>>((ref) {
   return _db
       .from('tournaments')

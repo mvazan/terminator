@@ -4,7 +4,6 @@
 library;
 
 import 'models.dart';
-import 'slot_generator.dart';
 
 class DayGroup {
   DayGroup({Set<int>? weekdays, List<HourMinute>? times})
@@ -14,8 +13,24 @@ class DayGroup {
   /// DateTime.monday (1) .. DateTime.sunday (7)
   final Set<int> weekdays;
   final List<HourMinute> times;
+}
 
-  bool get isComplete => weekdays.isNotEmpty && times.isNotEmpty;
+/// A single (date, time) slot specification produced by the generator.
+class SlotSpec {
+  const SlotSpec(this.date, this.time);
+
+  final Day date;
+  final HourMinute time;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SlotSpec && other.date == date && other.time == time;
+
+  @override
+  int get hashCode => Object.hash(date, time);
+
+  @override
+  String toString() => '$date $time';
 }
 
 /// One slot per date × (union of times of all groups covering that weekday).

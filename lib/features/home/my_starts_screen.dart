@@ -33,11 +33,7 @@ class MyStartsScreen extends ConsumerWidget {
       if (tournament == null) continue;
       mine.add((slot: slot, tournament: tournament));
     }
-    mine.sort((a, b) {
-      final byDate = a.slot.date.compareTo(b.slot.date);
-      if (byDate != 0) return byDate;
-      return a.slot.time.compareTo(b.slot.time);
-    });
+    mine.sort((a, b) => Slot.compare(a.slot, b.slot));
 
     return Scaffold(
       appBar: AppBar(title: const Text('Moje starty')),

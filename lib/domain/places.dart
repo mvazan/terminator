@@ -58,11 +58,7 @@ OrderPlaces orderPlaces({
   for (final r in rosters) {
     filledBySlot[r.slotId] = (filledBySlot[r.slotId] ?? 0) + 1;
   }
-  final sorted = [...orderSlots]..sort((a, b) {
-      final byDate = a.date.compareTo(b.date);
-      if (byDate != 0) return byDate;
-      return a.time.compareTo(b.time);
-    });
+  final sorted = [...orderSlots]..sort(Slot.compare);
   return OrderPlaces(perSlot: [
     for (final slot in sorted)
       SlotPlaces(

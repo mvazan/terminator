@@ -66,7 +66,6 @@ void main() {
       mine: false,
       onTap: () {},
       venueFree: 4,
-      venueCapacity: 4,
     )));
 
     expect(find.text('6/4'), findsOneWidget);

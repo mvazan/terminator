@@ -94,24 +94,8 @@ class TeamScreen extends ConsumerWidget {
   }
 
   Future<void> _editName(BuildContext context, Profile me) async {
-    final controller = TextEditingController(text: me.displayName);
-    final name = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Tvoje jméno'),
-        content: TextField(controller: controller, autofocus: true),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Zrušit')),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('Uložit'),
-          ),
-        ],
-      ),
-    );
+    final name = await promptText(context,
+        title: 'Tvoje jméno', initial: me.displayName);
     if (name != null && name.isNotEmpty && context.mounted) {
       await tryAction(context, () => Api.updateMyName(name));
     }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/ui.dart';
 import '../../data/local_prefs.dart';
@@ -30,6 +29,22 @@ class _TournamentDetailScreenState
   bool _autoSyncDone = false;
   bool _syncing = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // Once per screen visit: refresh venue occupancy from the web when the
+    // tournament resolves and the cached data is older than the TTL.
+    ref.listenManual(tournamentByIdProvider(widget.tournamentId),
+        fireImmediately: true, (_, tournament) {
+      if (tournament == null || _autoSyncDone) return;
+      if (ScraperRegistry.forUrl(tournament.sourceUrl) != null &&
+          Api.scrapeIsStale(tournament)) {
+        _autoSyncDone = true;
+        _sync(tournament);
+      }
+    });
+  }
+
   Future<void> _sync(Tournament tournament, {bool manual = false}) async {
     if (_syncing) return;
     setState(() => _syncing = true);
@@ -50,30 +65,18 @@ class _TournamentDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    final tournaments = ref.watch(tournamentsProvider).value ?? const [];
-    final tournament =
-        tournaments.where((t) => t.id == tournamentId).firstOrNull;
+    final tournament = ref.watch(tournamentByIdProvider(tournamentId));
     if (tournament == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final scrapable = ScraperRegistry.forUrl(tournament.sourceUrl) != null;
-    if (!_autoSyncDone && scrapable && Api.scrapeIsStale(tournament)) {
-      // Occupancy older than the cache TTL: refresh once per screen visit.
-      _autoSyncDone = true;
-      Future.microtask(() => _sync(tournament));
-    }
 
-    final allSlots = (ref.watch(slotsProvider).value ?? const [])
-        .where((s) => s.tournamentId == tournamentId)
-        .toList()
-      ..sort((a, b) {
-        final byDate = a.date.compareTo(b.date);
-        if (byDate != 0) return byDate;
-        return a.time.compareTo(b.time);
-      });
     // Fully booked venue slots aren't ours to fill — hide them from the grid.
-    final slots = allSlots.where((s) => !s.venueFull).toList();
+    final slots = (ref.watch(slotsProvider).value ?? const [])
+        .where((s) => s.tournamentId == tournamentId && !s.venueFull)
+        .toList()
+      ..sort(Slot.compare);
     final slotIds = {for (final s in slots) s.id};
     final availability = (ref.watch(availabilityProvider).value ?? const [])
         .where((a) => slotIds.contains(a.slotId))
@@ -90,10 +93,7 @@ class _TournamentDetailScreenState
     final showWhoIsIn = ref.watch(showWhoIsInProvider);
     final uid = currentUserId;
 
-    final slotsByDay = <Day, List<Slot>>{};
-    for (final s in slots) {
-      slotsByDay.putIfAbsent(s.date, () => []).add(s);
-    }
+    final byDay = slotsByDay(slots);
 
     final archived = tournament.isArchived;
 
@@ -194,10 +194,10 @@ class _TournamentDetailScreenState
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 8),
-          for (final day in slotsByDay.keys)
+          for (final day in byDay.keys)
             _DayRow(
               day: day,
-              slots: slotsByDay[day]!,
+              slots: byDay[day]!,
               heatmap: heatmap,
               members: members,
               uid: uid,
@@ -257,26 +257,15 @@ class _TournamentDetailScreenState
           success: 'Start přidán.',
         );
       case 'archive':
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: const Text('Archivovat turnaj?'),
-            content: Text(
-              '„${tournament.name}" se přesune do archivu a stane se jen '
-              'ke čtení — nepůjde upravovat, přidávat termíny, hlasovat '
+        final confirmed = await confirmDialog(
+          context,
+          title: 'Archivovat turnaj?',
+          message: '„${tournament.name}" se přesune do archivu a stane se '
+              'jen ke čtení — nepůjde upravovat, přidávat termíny, hlasovat '
               'ani objednávat.',
-            ),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(dialogContext, false),
-                  child: const Text('Zrušit')),
-              FilledButton(
-                  onPressed: () => Navigator.pop(dialogContext, true),
-                  child: const Text('Archivovat')),
-            ],
-          ),
+          confirmLabel: 'Archivovat',
         );
-        if (confirmed != true || !context.mounted) return;
+        if (!confirmed || !context.mounted) return;
         await tryAction(context, () => Api.archiveTournament(tournament.id),
             success: 'Turnaj archivován.');
         if (context.mounted) Navigator.of(context).pop();
@@ -297,20 +286,19 @@ class _InfoCard extends StatelessWidget {
         ActionChip(
           avatar: const Icon(Icons.mail_outline, size: 16),
           label: Text(t.contactEmail),
-          onPressed: () => _launch('mailto:${t.contactEmail}'),
+          onPressed: () => launchEmail(t.contactEmail),
         ),
       if (t.contactPhone.isNotEmpty)
         ActionChip(
           avatar: const Icon(Icons.phone_outlined, size: 16),
           label: Text(t.contactPhone),
-          onPressed: () =>
-              _launch('tel:${t.contactPhone.replaceAll(' ', '')}'),
+          onPressed: () => launchPhone(t.contactPhone),
         ),
       if (t.sourceUrl.isNotEmpty)
         ActionChip(
           avatar: const Icon(Icons.language, size: 16),
           label: const Text('web turnaje'),
-          onPressed: () => _launch(t.sourceUrl),
+          onPressed: () => launchWeb(t.sourceUrl),
         ),
       // Tournaments from before the e-mail/phone split.
       if (t.contactEmail.isEmpty &&
@@ -319,9 +307,9 @@ class _InfoCard extends StatelessWidget {
         ActionChip(
           avatar: const Icon(Icons.contact_page_outlined, size: 16),
           label: Text(t.orderingContact),
-          onPressed: () => _launch(t.orderingContact.contains('@')
-              ? 'mailto:${t.orderingContact}'
-              : 'tel:${t.orderingContact.replaceAll(' ', '')}'),
+          onPressed: () => t.orderingContact.contains('@')
+              ? launchEmail(t.orderingContact)
+              : launchPhone(t.orderingContact),
         ),
     ];
 
@@ -362,14 +350,6 @@ class _InfoCard extends StatelessWidget {
     return 'před ${age.inDays} dny';
   }
 
-  void _launch(String target) {
-    final uri = Uri.parse(
-        target.contains('://') || target.startsWith('mailto:') ||
-                target.startsWith('tel:')
-            ? target
-            : 'https://$target');
-    launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
 }
 
 class _DayRow extends ConsumerWidget {
@@ -432,7 +412,6 @@ class _DayRow extends ConsumerWidget {
       isOrderable: stats?.isOrderable ?? false,
       mine: mine,
       venueFree: slot.venueFree,
-      venueCapacity: slot.venueCapacity,
       onTap: readOnly ? null : () => Api.setAvailability(slot.id, !mine),
       // Scraped slots are owned by the web sync — no manual deletion.
       onLongPress: readOnly || slot.hasVenueInfo
@@ -490,23 +469,15 @@ class _DayRow extends ConsumerWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context, Slot slot) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Smazat start?'),
-        content: Text('${dayFull(slot.date)} ${slot.time.display()} — '
-            'včetně hlasů a obsazení.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Ne')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Smazat')),
-        ],
-      ),
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Smazat start?',
+      message: '${dayFull(slot.date)} ${slot.time.display()} — '
+          'včetně hlasů a obsazení.',
+      confirmLabel: 'Smazat',
+      cancelLabel: 'Ne',
     );
-    if (confirmed == true && context.mounted) {
+    if (confirmed && context.mounted) {
       await tryAction(context, () => Api.deleteSlot(slot.id));
     }
   }

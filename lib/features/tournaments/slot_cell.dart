@@ -19,7 +19,6 @@ class SlotCell extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.venueFree,
-    this.venueCapacity,
   });
 
   final HourMinute time;
@@ -32,9 +31,8 @@ class SlotCell extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
-  /// Free/total lanes at the venue (scraped); null = no occupancy info.
+  /// Free lanes at the venue (scraped); null = no occupancy info.
   final int? venueFree;
-  final int? venueCapacity;
 
   bool get _scraped => venueFree != null;
   bool get _venueFull => venueFree != null && venueFree! <= 0;

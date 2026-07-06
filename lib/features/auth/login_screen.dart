@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../config.dart';
+import '../../core/ui.dart';
 import '../../data/providers.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -15,26 +16,26 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _sending = false;
   bool _sent = false;
 
+  @override
+  void dispose() {
+    _email.dispose();
+    super.dispose();
+  }
+
   Future<void> _send() async {
     final email = _email.text.trim();
     if (email.isEmpty || !email.contains('@')) {
-      _snack('Zadej platný e-mail.');
+      snack(context, 'Zadej platný e-mail.');
       return;
     }
     setState(() => _sending = true);
-    try {
-      await Api.sendMagicLink(email, AppConfig.authRedirectUrl);
-      setState(() => _sent = true);
-    } catch (e) {
-      _snack('Odeslání se nepovedlo: $e');
-    } finally {
-      if (mounted) setState(() => _sending = false);
-    }
-  }
-
-  void _snack(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    final ok = await tryAction(
+        context, () => Api.sendMagicLink(email, AppConfig.authRedirectUrl));
+    if (!mounted) return;
+    setState(() {
+      _sending = false;
+      if (ok) _sent = true;
+    });
   }
 
   @override

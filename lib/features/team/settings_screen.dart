@@ -122,8 +122,7 @@ class _NotificationKindTileState extends State<_NotificationKindTile> {
     if (pref.isMutedAt(now)) {
       final until = pref.mutedUntil!.toLocal();
       final untilDay = Day.fromDateTime(until);
-      final time =
-          '${until.hour}:${until.minute.toString().padLeft(2, '0')}';
+      final time = HourMinute(until.hour, until.minute).display();
       return untilDay == today()
           ? 'ztlumeno do $time'
           : 'ztlumeno do ${dayLabel(untilDay)} $time';
@@ -192,7 +191,14 @@ class _NotificationKindTileState extends State<_NotificationKindTile> {
       case 'mute12':
         await _mute(context, const Duration(hours: 12));
       case 'custom':
-        final hours = await _askCustomHours(context);
+        final input = await promptText(context,
+            title: 'Ztlumit na kolik hodin?',
+            hint: 'např. 24 nebo 0,5',
+            suffixText: 'h',
+            confirmLabel: 'Ztlumit',
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true));
+        final hours = double.tryParse((input ?? '').replaceAll(',', '.'));
         if (hours != null && hours > 0 && context.mounted) {
           await _mute(context, Duration(minutes: (hours * 60).round()));
         }
@@ -233,35 +239,4 @@ class _NotificationKindTileState extends State<_NotificationKindTile> {
     }
   }
 
-  Future<double?> _askCustomHours(BuildContext context) {
-    final controller = TextEditingController();
-    return showDialog<double>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Ztlumit na kolik hodin?'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-            hintText: 'např. 24 nebo 0,5',
-            suffixText: 'h',
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Zrušit')),
-          FilledButton(
-            onPressed: () => Navigator.pop(
-              dialogContext,
-              double.tryParse(controller.text.replaceAll(',', '.')),
-            ),
-            child: const Text('Ztlumit'),
-          ),
-        ],
-      ),
-    );
-  }
 }

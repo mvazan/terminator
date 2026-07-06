@@ -33,11 +33,7 @@ class OrderCard extends ConsumerWidget {
     final slots = (ref.watch(slotsProvider).value ?? const [])
         .where((s) => slotIdsOfOrder.contains(s.id))
         .toList()
-      ..sort((a, b) {
-        final byDate = a.date.compareTo(b.date);
-        if (byDate != 0) return byDate;
-        return a.time.compareTo(b.time);
-      });
+      ..sort(Slot.compare);
     final votes = (ref.watch(orderVotesProvider).value ?? const [])
         .where((v) => v.orderId == order.id)
         .toList();
@@ -100,10 +96,7 @@ class OrderCard extends ConsumerWidget {
   }
 
   String _slotsSummary(List<Slot> slots) {
-    final byDay = <Day, List<Slot>>{};
-    for (final s in slots) {
-      byDay.putIfAbsent(s.date, () => []).add(s);
-    }
+    final byDay = slotsByDay(slots);
     return [
       for (final day in byDay.keys)
         '${dayLabel(day)} '
@@ -364,7 +357,10 @@ class _SlotRoster extends StatelessWidget {
               title: const Text('Host (nemá appku) — zadat jméno'),
               onTap: () async {
                 Navigator.pop(sheetContext);
-                final name = await _askGuestName(context);
+                final name = await promptText(context,
+                    title: 'Jméno hosta',
+                    hint: 'např. Franta',
+                    confirmLabel: 'Přidat');
                 if (name != null && name.isNotEmpty && context.mounted) {
                   await tryAction(
                       context, () => Api.addGuest(slotPlaces.slot.id, name));
@@ -373,31 +369,6 @@ class _SlotRoster extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Future<String?> _askGuestName(BuildContext context) {
-    final controller = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Jméno hosta'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'např. Franta'),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Zrušit')),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('Přidat'),
-          ),
-        ],
       ),
     );
   }

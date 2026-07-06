@@ -9,7 +9,7 @@ void main() {
   final html =
       File('test/fixtures/mkware_sample.html').readAsStringSync();
 
-  test('parses lane-starts with date, time, lane and occupancy', () {
+  test('parses lane-starts with date, time and occupancy', () {
     final terms = parseMkwareHtml(html);
 
     expect(terms, hasLength(8));
@@ -18,7 +18,6 @@ void main() {
     final first = terms.first;
     expect(first.date, Day(2026, 7, 31));
     expect(first.time, const HourMinute(16, 0));
-    expect(first.lane, 1);
     expect(first.occupied, isFalse);
   });
 

@@ -22,6 +22,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _input = TextEditingController();
   bool _sending = false;
 
+  @override
+  void dispose() {
+    _input.dispose();
+    super.dispose();
+  }
+
   Future<void> _send() async {
     final body = _input.text.trim();
     if (body.isEmpty || _sending) return;
@@ -38,9 +44,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tournament = (ref.watch(tournamentsProvider).value ?? const [])
-        .where((t) => t.id == widget.tournamentId)
-        .firstOrNull;
+    final tournament =
+        ref.watch(tournamentByIdProvider(widget.tournamentId));
     final members = ref.watch(membersProvider).value ?? const [];
     final messages = (ref.watch(messagesProvider(widget.tournamentId)).value ??
             const <ChatMessage>[])

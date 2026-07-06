@@ -12,23 +12,6 @@ import 'models.dart';
 /// Days a chat stays open after its subject ends.
 const int chatGraceDays = 3;
 
-/// Identifies one chat: tournament chat (day == null) or a day chat.
-class ChatRef {
-  const ChatRef(this.tournamentId, [this.day]);
-
-  final String tournamentId;
-  final Day? day;
-
-  bool get isTournamentChat => day == null;
-
-  @override
-  bool operator ==(Object other) =>
-      other is ChatRef && other.tournamentId == tournamentId && other.day == day;
-
-  @override
-  int get hashCode => Object.hash(tournamentId, day);
-}
-
 /// The day after which the chat locks (inclusive last open day).
 Day chatOpenUntil({required Tournament tournament, Day? day}) =>
     (day ?? tournament.endsOn).addDays(chatGraceDays);

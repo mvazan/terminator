@@ -63,13 +63,25 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
   @override
   void initState() {
     super.initState();
-    _kind = TournamentKind.tryParse(_prefill?.kind ?? '') ??
-        TournamentKind.dvojice;
+    _kind = _prefill?.kindEnum ?? TournamentKind.dvojice;
     if (widget.existing != null) {
       _startsOn = widget.existing!.startsOn;
       _endsOn = widget.existing!.endsOn;
     }
-    _url.addListener(() => setState(() {}));
+    _url.addListener(_onUrlChanged);
+  }
+
+  void _onUrlChanged() => setState(() {});
+
+  @override
+  void dispose() {
+    _url.removeListener(_onUrlChanged);
+    for (final controller in [
+      _name, _venue, _email, _phone, _url, _notes, _minPlayers,
+    ]) {
+      controller.dispose();
+    }
+    super.dispose();
   }
 
   List<DayGroup> _filledGroups() => [
@@ -341,8 +353,6 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
   }
 }
 
-const _weekdayNames = ['po', 'út', 'st', 'čt', 'pá', 'so', 'ne'];
-
 class _GroupEditor extends StatelessWidget {
   const _GroupEditor({
     super.key,
@@ -394,7 +404,7 @@ class _GroupEditor extends StatelessWidget {
                     children: [
                       for (var day = 1; day <= 7; day++)
                         FilterChip(
-                          label: Text(_weekdayNames[day - 1]),
+                          label: Text(weekdaysShort[day - 1]),
                           visualDensity: VisualDensity.compact,
                           selected: group.weekdays.contains(day),
                           onSelected: (selected) {

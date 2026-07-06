@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/ui.dart';
 import '../../data/providers.dart';
 
 /// First sign-in: validate the team invite code and pick a display name.
@@ -17,11 +18,18 @@ class _JoinScreenState extends State<JoinScreen> {
   final _name = TextEditingController();
   bool _joining = false;
 
+  @override
+  void dispose() {
+    _code.dispose();
+    _name.dispose();
+    super.dispose();
+  }
+
   Future<void> _join() async {
     final code = _code.text.trim();
     final name = _name.text.trim();
     if (code.isEmpty || name.isEmpty) {
-      _snack('Vyplň kód týmu i své jméno.');
+      snack(context, 'Vyplň kód týmu i své jméno.');
       return;
     }
     setState(() => _joining = true);
@@ -29,18 +37,16 @@ class _JoinScreenState extends State<JoinScreen> {
       await Api.joinTeam(code, name);
       // AuthGate re-routes automatically via the profile stream.
     } catch (e) {
-      final message = '$e'.contains('invalid_invite_code')
-          ? 'Neplatný kód týmu.'
-          : 'Nepovedlo se: $e';
-      _snack(message);
+      if (mounted) {
+        snack(
+            context,
+            '$e'.contains('invalid_invite_code')
+                ? 'Neplatný kód týmu.'
+                : 'Nepovedlo se: $e');
+      }
     } finally {
       if (mounted) setState(() => _joining = false);
     }
-  }
-
-  void _snack(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override

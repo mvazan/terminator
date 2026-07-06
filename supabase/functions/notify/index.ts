@@ -147,7 +147,11 @@ type NotificationKind =
   | "threshold";
 
 // Kinds that are opt-in: silent unless the member enabled them in settings.
-// Must stay in sync with NotificationKind.defaultEnabled in the app.
+//
+// The kind list and the default-off rule live in THREE places that must stay
+// in sync: this file, NotificationKind in lib/domain/models.dart, and the
+// kind CHECK constraint in supabase/migrations/0002_notification_prefs.sql
+// (adding a kind needs a new migration extending it).
 const DEFAULT_OFF: NotificationKind[] = ["new_member", "threshold"];
 
 /**
@@ -247,26 +251,28 @@ async function handle(payload: WebhookPayload) {
     case "orders": {
       const status = record.status as string;
       const oldStatus = payload.old_record?.status as string | undefined;
+      const isNewProposal = payload.type === "INSERT" &&
+        status === "proposed";
+      const isOrdered = status === "ordered" &&
+        (payload.type === "INSERT" || oldStatus === "proposed");
+      const isCancelled = payload.type === "UPDATE" &&
+        status === "cancelled" && oldStatus !== "cancelled";
+      if (!isNewProposal && !isOrdered && !isCancelled) return;
+
       const name = await tournamentName(record.tournament_id);
-      if (payload.type === "INSERT" && status === "proposed") {
+      if (isNewProposal) {
         await sendToTokens(
           await teamTokens("proposal", [record.created_by as string]),
           `Návrh: ${name}`,
           "Beru / Nemůžu / Radši jiný den — hlasuj v aplikaci.",
         );
-      } else if (
-        status === "ordered" &&
-        (payload.type === "INSERT" || oldStatus === "proposed")
-      ) {
+      } else if (isOrdered) {
         await sendToTokens(
           await teamTokens("order", [record.created_by as string]),
           `Objednáno: ${name}`,
           "Termín je objednaný — přidej se, dokud je místo!",
         );
-      } else if (
-        payload.type === "UPDATE" && status === "cancelled" &&
-        oldStatus !== "cancelled"
-      ) {
+      } else {
         await sendToTokens(
           await teamTokens("order", []),
           `Zrušeno: ${name}`,
@@ -280,18 +286,20 @@ async function handle(payload: WebhookPayload) {
       if (payload.type !== "INSERT") return;
       const tournamentId = record.tournament_id as string;
       const day = record.day as string | null;
-      const name = await tournamentName(tournamentId);
 
-      // Muted users for this chat.
       let mutesQuery = supabase.from("chat_mutes").select("user_id")
         .eq("tournament_id", tournamentId);
       mutesQuery = day === null
         ? mutesQuery.is("day", null)
         : mutesQuery.eq("day", day);
-      const { data: mutes } = await mutesQuery;
 
-      const { data: author } = await supabase.from("profiles")
-        .select("display_name").eq("id", record.user_id).single();
+      // Tournament name, this chat's mutes, and the author are independent.
+      const [name, { data: mutes }, { data: author }] = await Promise.all([
+        tournamentName(tournamentId),
+        mutesQuery,
+        supabase.from("profiles")
+          .select("display_name").eq("id", record.user_id).single(),
+      ]);
 
       const title = day === null
         ? `${name}`
