@@ -132,14 +132,20 @@ class _TournamentDetailScreenState
                 child: const Text('Zobrazit, kdo je přihlášený'),
               ),
               const PopupMenuDivider(),
-              const PopupMenuItem(
-                  value: 'duplicate',
-                  child: Text('Duplikovat jako nový turnaj')),
-              if (!archived) ...[
+              if (archived)
+                // "New season from last year" — only offered on archived
+                // tournaments, where starting a fresh copy makes sense.
+                const PopupMenuItem(
+                    value: 'duplicate',
+                    child: Text('Duplikovat jako nový turnaj'))
+              else ...[
                 const PopupMenuItem(
                     value: 'edit', child: Text('Upravit turnaj')),
-                const PopupMenuItem(
-                    value: 'add_slot', child: Text('Přidat start')),
+                // Scraped tournaments own their slot grid via the web sync —
+                // manual starts don't belong there.
+                if (!scrapable)
+                  const PopupMenuItem(
+                      value: 'add_slot', child: Text('Přidat start')),
                 const PopupMenuItem(
                     value: 'archive', child: Text('Archivovat')),
               ],
