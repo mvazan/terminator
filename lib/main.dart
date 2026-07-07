@@ -28,6 +28,7 @@ class TerminatorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Termínátor',
+      navigatorKey: Push.navigatorKey,
       debugShowCheckedModeBanner: false,
       locale: const Locale('cs'),
       supportedLocales: const [Locale('cs'), Locale('en')],

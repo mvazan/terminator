@@ -106,6 +106,9 @@ async function sendToTokens(
   tokens: { userId: string; token: string }[],
   title: string,
   body: string,
+  // Tap routing for the app (FCM data values must be strings):
+  // kind + tournament_id (+ day for day chats). See lib/push/push.dart.
+  data: Record<string, string> = {},
 ) {
   if (tokens.length === 0) return;
   const accessToken = await getAccessToken();
@@ -123,6 +126,7 @@ async function sendToTokens(
         message: {
           token,
           notification: { title, body },
+          data,
           android: { priority: "HIGH" },
         },
       }),
@@ -244,6 +248,7 @@ async function handle(payload: WebhookPayload) {
         await teamTokens("new_tournament", [record.created_by as string]),
         "Nový turnaj 🎳",
         `${record.name} — odklikej si termíny!`,
+        { kind: "new_tournament", tournament_id: record.id as string },
       );
       return;
     }
@@ -260,23 +265,30 @@ async function handle(payload: WebhookPayload) {
       if (!isNewProposal && !isOrdered && !isCancelled) return;
 
       const name = await tournamentName(record.tournament_id);
+      const orderData = {
+        kind: "order",
+        tournament_id: record.tournament_id as string,
+      };
       if (isNewProposal) {
         await sendToTokens(
           await teamTokens("proposal", [record.created_by as string]),
           `Návrh: ${name}`,
           "Beru / Nemůžu / Radši jiný den — hlasuj v aplikaci.",
+          orderData,
         );
       } else if (isOrdered) {
         await sendToTokens(
           await teamTokens("order", [record.created_by as string]),
           `Objednáno: ${name}`,
           "Termín je objednaný — přidej se, dokud je místo!",
+          orderData,
         );
       } else {
         await sendToTokens(
           await teamTokens("order", []),
           `Zrušeno: ${name}`,
           "Návrh/objednávka byla zrušena.",
+          orderData,
         );
       }
       return;
@@ -311,6 +323,11 @@ async function handle(payload: WebhookPayload) {
         ]),
         title,
         `${author?.display_name ?? "?"}: ${record.body}`,
+        {
+          kind: "chat",
+          tournament_id: tournamentId,
+          ...(day === null ? {} : { day }),
+        },
       );
       return;
     }
@@ -346,6 +363,10 @@ async function handle(payload: WebhookPayload) {
         `${tournament.name}: dá se objednat!`,
         `${dayLabel(slot.date)} ${timeLabel(slot.time)} už má ${count} hráčů ` +
           `(min. ${tournament.min_players}). Navrhni objednávku!`,
+        {
+          kind: "threshold",
+          tournament_id: slot.tournament_id as string,
+        },
       );
       return;
     }

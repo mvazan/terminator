@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../push/push.dart';
 import 'chats/chats_screen.dart';
 import 'home/my_starts_screen.dart';
 import 'team/team_screen.dart';
@@ -14,6 +15,20 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _tab = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Notification taps navigate only once the signed-in shell is on screen;
+    // this also fires a tap that cold-started the app.
+    WidgetsBinding.instance.addPostFrameCallback((_) => Push.shellReady(true));
+  }
+
+  @override
+  void dispose() {
+    Push.shellReady(false);
+    super.dispose();
+  }
 
   static const _screens = [
     MyStartsScreen(),
