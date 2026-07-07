@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/ui.dart';
 import '../../data/providers.dart';
 import '../../domain/models.dart';
 import 'settings_screen.dart';
+
+final _packageInfoProvider =
+    FutureProvider((_) => PackageInfo.fromPlatform());
 
 /// Team overview: my profile, pending approvals (anyone can approve — the
 /// everyone-equal rule), member list, sign-out.
@@ -81,11 +85,24 @@ class TeamScreen extends ConsumerWidget {
             title: const Text('Odhlásit se'),
             onTap: () => Api.signOut(),
           ),
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'Termínátor 🎳 — Hasta la vista, prázdná dráha.',
-              textAlign: TextAlign.center,
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                const Text(
+                  'Termínátor 🎳 — Hasta la vista, prázdná dráha.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                if (ref.watch(_packageInfoProvider).value case final info?)
+                  Text(
+                    'verze ${info.version} (build ${info.buildNumber})',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                  ),
+              ],
             ),
           ),
         ],
