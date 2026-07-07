@@ -51,9 +51,17 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text('🎳', textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 64)),
-                  const SizedBox(height: 8),
+                  Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(28),
+                      child: Image.asset(
+                        'assets/icon/login_logo.png',
+                        width: 112,
+                        height: 112,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Text('Termínátor',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.headlineMedium),

@@ -46,8 +46,14 @@ class _Splash extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('🎳', style: TextStyle(fontSize: 64))),
+    return Scaffold(
+      body: Center(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Image.asset('assets/icon/login_logo.png',
+              width: 96, height: 96),
+        ),
+      ),
     );
   }
 }
