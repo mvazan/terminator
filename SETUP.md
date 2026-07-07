@@ -31,11 +31,16 @@ Dashboard → **Authentication → URL Configuration** → **Redirect URLs** →
 cz.kuzelky.terminator://login-callback
 ```
 
-That's all — magic-link e-mail is enabled by default. Supabase's built-in
-e-mail sending is rate-limited (fine for a few sign-ins a day). When you
-onboard the whole team in one evening, plug in a free SMTP first
-(**Authentication → SMTP**, e.g. Brevo — 300 mails/day free), or spread
-sign-ins out.
+Magic-link e-mail is enabled by default, but Supabase's built-in sending is
+heavily rate-limited and English-only. The production setup uses **Gmail
+SMTP**: in your Google account enable 2-Step Verification, create an App
+Password (<https://myaccount.google.com/apppasswords>), then in Supabase →
+**Authentication → SMTP** set host `smtp.gmail.com`, port `587`, user = your
+Gmail address, password = the app password, sender name `Termínátor`.
+Gmail allows ~500 mails/day — plenty. With custom SMTP active you can also
+localize the e-mail templates (**Authentication → Email Templates**).
+Caveat when configuring via the Management API: set SMTP first, templates in
+a separate second request — a combined request is silently dropped.
 
 ## 4. Run the app
 
