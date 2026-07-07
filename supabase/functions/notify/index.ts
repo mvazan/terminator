@@ -109,6 +109,9 @@ async function sendToTokens(
   // Tap routing for the app (FCM data values must be strings):
   // kind + tournament_id (+ day for day chats). See lib/push/push.dart.
   data: Record<string, string> = {},
+  // Same tag = the new notification replaces the old one in the tray
+  // (Android). Used so a tournament never stacks threshold notifications.
+  tag?: string,
 ) {
   if (tokens.length === 0) return;
   const accessToken = await getAccessToken();
@@ -127,7 +130,10 @@ async function sendToTokens(
           token,
           notification: { title, body },
           data,
-          android: { priority: "HIGH" },
+          android: {
+            priority: "HIGH",
+            ...(tag ? { notification: { tag } } : {}),
+          },
         },
       }),
     });
@@ -350,7 +356,7 @@ async function handle(payload: WebhookPayload) {
       ]);
       if (!tournament || (count ?? 0) < tournament.min_players) return;
 
-      // Dedup guard: only the writer that flips the flag sends the push.
+      // Per-slot dedup: only the writer that flips the flag continues.
       const { data: flipped } = await supabase.from("slots")
         .update({ threshold_notified_at: new Date().toISOString() })
         .eq("id", slotId)
@@ -358,15 +364,65 @@ async function handle(payload: WebhookPayload) {
         .select("id");
       if (!flipped || flipped.length === 0) return;
 
+      // Per-tournament cooldown: one ticking wave = one summary push.
+      // Slots crossing the minimum during the window are absorbed silently
+      // (their flag above is already set); the summary lists everything
+      // orderable anyway, and the app shows the live grid.
+      const COOLDOWN_MINUTES = 20;
+      const cutoff = new Date(Date.now() - COOLDOWN_MINUTES * 60_000)
+        .toISOString();
+      const { data: cooldown } = await supabase.from("tournaments")
+        .update({ threshold_notified_at: new Date().toISOString() })
+        .eq("id", slot.tournament_id)
+        .or(`threshold_notified_at.is.null,threshold_notified_at.lt.${cutoff}`)
+        .select("id");
+      if (!cooldown || cooldown.length === 0) return;
+
+      // Summarize every upcoming slot that currently has enough players.
+      const today = new Date().toISOString().slice(0, 10);
+      const { data: slots } = await supabase.from("slots")
+        .select("id, date, time")
+        .eq("tournament_id", slot.tournament_id)
+        .gte("date", today);
+      const { data: ticks } = await supabase.from("availability")
+        .select("slot_id")
+        .in("slot_id", (slots ?? []).map((s) => s.id));
+      const counts = new Map<string, number>();
+      for (const t of ticks ?? []) {
+        counts.set(t.slot_id, (counts.get(t.slot_id) ?? 0) + 1);
+      }
+      const orderable = (slots ?? [])
+        .filter((s) => (counts.get(s.id) ?? 0) >= tournament.min_players)
+        .sort((a, b) =>
+          a.date === b.date
+            ? a.time.localeCompare(b.time)
+            : a.date.localeCompare(b.date)
+        );
+
+      // "čt 23.4. 17:30 + 19:00 · so 25.4. 10:00"
+      const byDay = new Map<string, string[]>();
+      for (const s of orderable) {
+        byDay.set(s.date, [...(byDay.get(s.date) ?? []), timeLabel(s.time)]);
+      }
+      const summary = [...byDay.entries()]
+        .map(([date, times]) => `${dayLabel(date)} ${times.join(" + ")}`)
+        .join(" · ");
+      const n = orderable.length;
+      const body = n <= 1
+        ? `${summary} už má dost hráčů (min. ${tournament.min_players}). ` +
+          "Navrhni objednávku!"
+        : `${n} ${n < 5 ? "termíny mají" : "termínů má"} dost hráčů: ` +
+          `${summary}. Navrhni objednávku!`;
+
       await sendToTokens(
-        await teamTokens("threshold", []),
+        await teamTokens("threshold", [record.user_id as string]),
         `${tournament.name}: dá se objednat!`,
-        `${dayLabel(slot.date)} ${timeLabel(slot.time)} už má ${count} hráčů ` +
-          `(min. ${tournament.min_players}). Navrhni objednávku!`,
+        body,
         {
           kind: "threshold",
           tournament_id: slot.tournament_id as string,
         },
+        `threshold-${slot.tournament_id}`,
       );
       return;
     }

@@ -141,18 +141,22 @@ class Push {
   static Future<void> _showForeground(RemoteMessage message) async {
     final notification = message.notification;
     if (notification == null) return;
+    // Mirror the server-set FCM tag: same tag = replace in the tray
+    // (a tournament never stacks e.g. threshold notifications).
+    final tag = notification.android?.tag;
     await _local.show(
-      id: notification.hashCode,
+      id: tag?.hashCode ?? notification.hashCode,
       title: notification.title,
       body: notification.body,
       payload: jsonEncode(message.data),
-      notificationDetails: const NotificationDetails(
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           'terminator',
           'Termínátor',
           channelDescription: 'Upozornění týmu',
           importance: Importance.high,
           priority: Priority.high,
+          tag: tag,
         ),
       ),
     );
