@@ -1,7 +1,8 @@
 /// Ordered-vs-filled places math.
 ///
 /// Ordering happens outside the app; the app records which starts and how
-/// many places were taken. Ordered places may exceed the players currently
+/// many places were taken. Capacity per start comes from the tournament
+/// kind (dvojice = 2, …). Ordered places may exceed the players currently
 /// known (5 players in a dvojice tournament → order 6 places; someone is
 /// found later or plays twice), and places may stay empty.
 library;
@@ -17,15 +18,14 @@ class SlotPlaces {
 
   final Slot slot;
 
-  /// Places ordered for this start = tournament.maxPlayers (per-start size,
-  /// e.g. 2 for dvojice). Null when the tournament has no fixed size.
-  final int? capacity;
+  /// Places ordered for this start = tournament.kind.laneCapacity.
+  final int capacity;
 
   final int filled;
 
-  int? get free => capacity == null ? null : (capacity! - filled);
+  int get free => capacity - filled;
 
-  bool get hasFreePlace => free == null || free! > 0;
+  bool get hasFreePlace => free > 0;
 }
 
 class OrderPlaces {
@@ -33,19 +33,11 @@ class OrderPlaces {
 
   final List<SlotPlaces> perSlot;
 
-  int? get orderedPlaces {
-    var total = 0;
-    for (final s in perSlot) {
-      if (s.capacity == null) return null;
-      total += s.capacity!;
-    }
-    return total;
-  }
+  int get orderedPlaces => perSlot.fold(0, (sum, s) => sum + s.capacity);
 
   int get filledPlaces => perSlot.fold(0, (sum, s) => sum + s.filled);
 
-  int? get freePlaces =>
-      orderedPlaces == null ? null : orderedPlaces! - filledPlaces;
+  int get freePlaces => orderedPlaces - filledPlaces;
 }
 
 /// Computes places for the slots of one order.
@@ -63,7 +55,7 @@ OrderPlaces orderPlaces({
     for (final slot in sorted)
       SlotPlaces(
         slot: slot,
-        capacity: tournament.maxPlayers,
+        capacity: tournament.kind.laneCapacity,
         filled: filledBySlot[slot.id] ?? 0,
       ),
   ]);

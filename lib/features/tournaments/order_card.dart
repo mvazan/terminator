@@ -221,13 +221,12 @@ class _OrderedBody extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (places.orderedPlaces != null)
-          Text(
-            'Objednáno ${places.orderedPlaces} míst · '
-            'obsazeno ${places.filledPlaces} · '
-            'volných ${places.freePlaces}',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+        Text(
+          'Objednáno ${places.orderedPlaces} míst · '
+          'obsazeno ${places.filledPlaces} · '
+          'volných ${places.freePlaces}',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
         const SizedBox(height: 4),
         for (final slotPlaces in places.perSlot)
           _SlotRoster(
@@ -281,9 +280,6 @@ class _SlotRoster extends StatelessWidget {
   Widget build(BuildContext context) {
     final slot = slotPlaces.slot;
     final imIn = rosters.any((r) => r.userId == uid);
-    final capacityLabel = slotPlaces.capacity == null
-        ? '${slotPlaces.filled}'
-        : '${slotPlaces.filled}/${slotPlaces.capacity}';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -291,7 +287,7 @@ class _SlotRoster extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('${dayLabel(slot.date)} ${slot.time.display()} · '
-              '$capacityLabel hráčů'),
+              '${slotPlaces.filled}/${slotPlaces.capacity} hráčů'),
           Wrap(
             spacing: 6,
             runSpacing: 4,

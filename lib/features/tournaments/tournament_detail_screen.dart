@@ -300,17 +300,6 @@ class _InfoCard extends StatelessWidget {
           label: const Text('web turnaje'),
           onPressed: () => launchWeb(t.sourceUrl),
         ),
-      // Tournaments from before the e-mail/phone split.
-      if (t.contactEmail.isEmpty &&
-          t.contactPhone.isEmpty &&
-          t.orderingContact.isNotEmpty)
-        ActionChip(
-          avatar: const Icon(Icons.contact_page_outlined, size: 16),
-          label: Text(t.orderingContact),
-          onPressed: () => t.orderingContact.contains('@')
-              ? launchEmail(t.orderingContact)
-              : launchPhone(t.orderingContact),
-        ),
     ];
 
     return Card(

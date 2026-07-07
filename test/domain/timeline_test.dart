@@ -23,7 +23,7 @@ void main() {
     final olomouc = makeTournament(
       id: 'b',
       venue: 'Olomouc',
-      kind: 'tandemy',
+      kind: TournamentKind.tandem,
       startsOn: Day(2026, 5, 4),
       endsOn: Day(2026, 5, 31),
     );
@@ -42,7 +42,7 @@ void main() {
     final rowB = timeline.rows[1];
     expect(rowB.startCol, 1);
     expect(rowB.endCol, 4);
-    expect(rowB.tournament.timelineLabel, 'Olomouc (tandemy)');
+    expect(rowB.tournament.timelineLabel, 'Olomouc (tandem)');
   });
 
   test('empty input produces an empty timeline', () {

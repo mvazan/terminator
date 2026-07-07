@@ -1,15 +1,17 @@
--- Termínátor — initial schema
--- One team space. Access model: magic-link auth + invite code + member approval.
--- All approved members are equal (no admin role).
+-- Termínátor — canonical schema (clean baseline, no legacy columns).
+-- One team space. Access model: magic-link auth + invite code + member
+-- approval. All approved members are equal (no admin role). Archived
+-- tournaments are read-only, enforced here in RLS, not just in the UI.
 
 create extension if not exists pgcrypto;
+create extension if not exists pg_net;
 
 -- ---------------------------------------------------------------------------
 -- Tables
 -- ---------------------------------------------------------------------------
 
--- Private team configuration. No RLS policies are created for it on purpose:
--- clients can never read it; only security-definer functions touch it.
+-- Private team configuration. No RLS policies on purpose: clients can never
+-- read it; only security-definer functions touch it.
 create table team_settings (
   id boolean primary key default true check (id),
   invite_code text not null
@@ -18,7 +20,6 @@ create table team_settings (
 create table profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   display_name text not null,
-  phone text,
   fcm_token text,
   status text not null default 'pending' check (status in ('pending', 'approved')),
   approved_by uuid references profiles (id),
@@ -26,16 +27,21 @@ create table profiles (
   created_at timestamptz not null default now()
 );
 
+-- kind values mirror TournamentKind in lib/domain/models.dart; per-start
+-- capacity is derived from kind in the app (no stored max_players).
 create table tournaments (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   venue text not null default '',
-  kind text not null default '',
+  kind text not null default 'dvojice'
+    check (kind in ('jednotlivci', 'dvojice', 'čtveřice', 'tandem')),
   starts_on date not null,
   ends_on date not null check (ends_on >= starts_on),
   min_players int not null default 2 check (min_players > 0),
-  max_players int check (max_players is null or max_players >= min_players),
-  ordering_contact text not null default '',
+  contact_email text not null default '',
+  contact_phone text not null default '',
+  source_url text not null default '',
+  scraped_at timestamptz,
   notes text not null default '',
   created_by uuid not null references profiles (id),
   created_at timestamptz not null default now(),
@@ -47,11 +53,14 @@ create table slots (
   tournament_id uuid not null references tournaments (id) on delete cascade,
   date date not null,
   time time not null,
+  -- venue occupancy from web scraping (null = manual slot, no info)
+  venue_capacity int,
+  venue_occupied int,
   -- set by the notify function when the min-players push was sent (dedup)
   threshold_notified_at timestamptz,
+  -- also serves lookups by (tournament_id, date); used by scrape upserts
   unique (tournament_id, date, time)
 );
-create index slots_tournament_date_idx on slots (tournament_id, date);
 
 create table availability (
   slot_id uuid not null references slots (id) on delete cascade,
@@ -59,7 +68,6 @@ create table availability (
   created_at timestamptz not null default now(),
   primary key (slot_id, user_id)
 );
-create index availability_user_idx on availability (user_id);
 
 create table orders (
   id uuid primary key default gen_random_uuid(),
@@ -90,9 +98,8 @@ create table order_votes (
   primary key (order_id, user_id)
 );
 
--- One row per filled place of an ordered slot. Either a member or a free-text
--- guest (someone without the app). Places may stay empty; capacity is
--- tournaments.max_players per slot.
+-- One row per filled place of an ordered slot: a member or a free-text guest.
+-- Places may stay empty; capacity per slot is derived from tournaments.kind.
 create table rosters (
   id uuid primary key default gen_random_uuid(),
   slot_id uuid not null references slots (id) on delete cascade,
@@ -128,12 +135,24 @@ create table chat_mutes (
 create unique index chat_mutes_unique_idx
   on chat_mutes (user_id, tournament_id, coalesce(day, '0001-01-01'::date));
 
+-- Per-user, per-kind notification preferences. Missing row = the kind's
+-- default. The kind list lives in THREE places that must stay in sync: this
+-- CHECK constraint, NotificationKind in lib/domain/models.dart, and
+-- NotificationKind + DEFAULT_OFF in supabase/functions/notify/index.ts.
+create table notification_prefs (
+  user_id uuid not null references profiles (id) on delete cascade,
+  kind text not null check (kind in (
+    'new_member', 'new_tournament', 'proposal', 'order', 'chat', 'threshold'
+  )),
+  enabled boolean not null default true,
+  muted_until timestamptz,
+  primary key (user_id, kind)
+);
+
 -- ---------------------------------------------------------------------------
--- Helper + RPC functions
+-- Functions
 -- ---------------------------------------------------------------------------
 
--- True when the caller has an approved profile. SECURITY DEFINER so policies
--- on other tables can use it without recursive RLS lookups on profiles.
 create or replace function is_approved()
 returns boolean
 language sql stable security definer set search_path = public
@@ -143,9 +162,15 @@ as $$
   );
 $$;
 
--- Called once after the first magic-link sign-in. Validates the invite code
--- and creates the caller's profile. The very first member (no approved
--- profiles yet) is auto-approved — the founder.
+create or replace function is_tournament_archived(p_tournament_id uuid)
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select archived_at is not null from tournaments where id = p_tournament_id;
+$$;
+
+-- First sign-in: validate the invite code and create the caller's profile.
+-- The very first member (no approved profiles yet) is auto-approved.
 create or replace function join_team(p_invite_code text, p_display_name text)
 returns profiles
 language plpgsql security definer set search_path = public
@@ -207,66 +232,164 @@ begin
 end;
 $$;
 
+-- Webhook fan-out: every event the notify Edge Function cares about is
+-- delivered by a pg_net POST from the triggers below. The x-webhook-secret
+-- header must match the WEBHOOK_SECRET function secret.
+create or replace function notify_webhook()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  perform net.http_post(
+    url := 'https://rpjfoopecntfyvmtrnfm.supabase.co/functions/v1/notify',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'x-webhook-secret', '3f3681ba6f2a83b0e2c0ad6f3619d27bb856d3ba8dd44ee4'
+    ),
+    body := jsonb_build_object(
+      'type', tg_op,
+      'table', tg_table_name,
+      'schema', tg_table_schema,
+      'record', case when tg_op = 'DELETE' then null else to_jsonb(new) end,
+      'old_record', case when tg_op = 'INSERT' then null else to_jsonb(old) end
+    )
+  );
+  return coalesce(new, old);
+end;
+$$;
+
+create trigger notify_profiles
+  after insert on profiles
+  for each row execute function notify_webhook();
+create trigger notify_tournaments
+  after insert on tournaments
+  for each row execute function notify_webhook();
+create trigger notify_orders
+  after insert or update on orders
+  for each row execute function notify_webhook();
+create trigger notify_messages
+  after insert on messages
+  for each row execute function notify_webhook();
+create trigger notify_availability
+  after insert on availability
+  for each row execute function notify_webhook();
+
 -- ---------------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------------
 
-alter table team_settings enable row level security;  -- no policies: locked
-alter table profiles      enable row level security;
-alter table tournaments   enable row level security;
-alter table slots         enable row level security;
-alter table availability  enable row level security;
-alter table orders        enable row level security;
-alter table order_slots   enable row level security;
-alter table order_votes   enable row level security;
-alter table rosters       enable row level security;
-alter table messages      enable row level security;
-alter table chat_mutes    enable row level security;
+alter table team_settings      enable row level security;  -- no policies: locked
+alter table profiles           enable row level security;
+alter table tournaments        enable row level security;
+alter table slots              enable row level security;
+alter table availability       enable row level security;
+alter table orders             enable row level security;
+alter table order_slots        enable row level security;
+alter table order_votes        enable row level security;
+alter table rosters            enable row level security;
+alter table messages           enable row level security;
+alter table chat_mutes         enable row level security;
+alter table notification_prefs enable row level security;
 
 -- profiles: everyone sees their own row (needed while pending); approved
--- members see the whole team. Members edit only their own name/phone/token —
+-- members see the whole team. Members edit only their own name/token —
 -- column-level grants keep status/approved_* out of reach (approval goes
--- through the approve_member() function only).
+-- through approve_member() only).
 revoke update on profiles from authenticated;
-grant update (display_name, phone, fcm_token) on profiles to authenticated;
+grant update (display_name, fcm_token) on profiles to authenticated;
 
 create policy profiles_select on profiles for select
   using (id = auth.uid() or is_approved());
 create policy profiles_update_own on profiles for update
   using (id = auth.uid()) with check (id = auth.uid());
 
--- Team data: full access for approved members (trusted, everyone equal),
--- with ownership checks where a row speaks for a person.
-create policy tournaments_all on tournaments for all
+-- tournaments: full access for approved members; archiving itself stays
+-- possible (and reversible) via update.
+create policy tournaments_select on tournaments for select
+  using (is_approved());
+create policy tournaments_insert on tournaments for insert
+  with check (is_approved());
+create policy tournaments_update on tournaments for update
   using (is_approved()) with check (is_approved());
+create policy tournaments_delete on tournaments for delete
+  using (is_approved() and archived_at is null);
 
-create policy slots_all on slots for all
-  using (is_approved()) with check (is_approved());
+-- Team data below: writes are blocked once the tournament is archived.
+create policy slots_select on slots for select
+  using (is_approved());
+create policy slots_insert on slots for insert
+  with check (is_approved() and not is_tournament_archived(tournament_id));
+create policy slots_update on slots for update
+  using (is_approved() and not is_tournament_archived(tournament_id))
+  with check (is_approved() and not is_tournament_archived(tournament_id));
+create policy slots_delete on slots for delete
+  using (is_approved() and not is_tournament_archived(tournament_id));
 
 create policy availability_select on availability for select
   using (is_approved());
 create policy availability_insert on availability for insert
-  with check (is_approved() and user_id = auth.uid());
+  with check (
+    is_approved() and user_id = auth.uid()
+    and not is_tournament_archived(
+      (select tournament_id from slots where id = slot_id)
+    )
+  );
 create policy availability_delete on availability for delete
   using (user_id = auth.uid());
 
-create policy orders_all on orders for all
-  using (is_approved()) with check (is_approved());
+create policy orders_select on orders for select
+  using (is_approved());
+create policy orders_insert on orders for insert
+  with check (is_approved() and not is_tournament_archived(tournament_id));
+create policy orders_update on orders for update
+  using (is_approved() and not is_tournament_archived(tournament_id))
+  with check (is_approved() and not is_tournament_archived(tournament_id));
+create policy orders_delete on orders for delete
+  using (is_approved() and not is_tournament_archived(tournament_id));
 
-create policy order_slots_all on order_slots for all
-  using (is_approved()) with check (is_approved());
+create policy order_slots_select on order_slots for select
+  using (is_approved());
+create policy order_slots_insert on order_slots for insert
+  with check (
+    is_approved()
+    and not is_tournament_archived(
+      (select tournament_id from orders where id = order_id)
+    )
+  );
+create policy order_slots_delete on order_slots for delete
+  using (is_approved());
 
 create policy order_votes_select on order_votes for select
   using (is_approved());
 create policy order_votes_insert on order_votes for insert
-  with check (is_approved() and user_id = auth.uid());
+  with check (
+    is_approved() and user_id = auth.uid()
+    and not is_tournament_archived(
+      (select tournament_id from orders where id = order_id)
+    )
+  );
 create policy order_votes_update on order_votes for update
-  using (user_id = auth.uid()) with check (user_id = auth.uid());
+  using (user_id = auth.uid())
+  with check (
+    user_id = auth.uid()
+    and not is_tournament_archived(
+      (select tournament_id from orders where id = order_id)
+    )
+  );
 create policy order_votes_delete on order_votes for delete
   using (user_id = auth.uid());
 
-create policy rosters_all on rosters for all
-  using (is_approved()) with check (is_approved() and added_by = auth.uid());
+create policy rosters_select on rosters for select
+  using (is_approved());
+create policy rosters_insert on rosters for insert
+  with check (
+    is_approved() and added_by = auth.uid()
+    and not is_tournament_archived(
+      (select tournament_id from slots where id = slot_id)
+    )
+  );
+create policy rosters_delete on rosters for delete
+  using (is_approved());
 
 create policy messages_select on messages for select
   using (is_approved());
@@ -278,10 +401,14 @@ create policy messages_delete_own on messages for delete
 create policy chat_mutes_own on chat_mutes for all
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 
+create policy notification_prefs_own on notification_prefs for all
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
 -- ---------------------------------------------------------------------------
 -- Realtime
 -- ---------------------------------------------------------------------------
 
 alter publication supabase_realtime add table
   profiles, tournaments, slots, availability,
-  orders, order_slots, order_votes, rosters, messages;
+  orders, order_slots, order_votes, rosters, messages,
+  chat_mutes, notification_prefs;

@@ -102,14 +102,12 @@ class Profile {
     required this.id,
     required this.displayName,
     required this.status,
-    this.phone,
     this.fcmToken,
   });
 
   final String id;
   final String displayName;
   final ProfileStatus status;
-  final String? phone;
   final String? fcmToken;
 
   bool get isApproved => status == ProfileStatus.approved;
@@ -120,15 +118,15 @@ class Profile {
         status: json['status'] == 'approved'
             ? ProfileStatus.approved
             : ProfileStatus.pending,
-        phone: json['phone'] as String?,
         fcmToken: json['fcm_token'] as String?,
       );
 }
 
-/// Tournament format. Determines how many players a start requires —
+/// Tournament format. The single source of per-start capacity —
 /// jednotlivci/dvojice/čtveřice: team size, the minimum that must be
-/// ordered together (max_players doubles as team size here). tandem: an
-/// individual discipline where, unusually, 2 players still share one lane.
+/// ordered together. tandem: an individual discipline where, unusually,
+/// 2 players still share one lane. Stored labels are CHECK-constrained in
+/// the tournaments table, so parsing never fails in practice.
 enum TournamentKind {
   jednotlivci('jednotlivci', 1),
   dvojice('dvojice', 2),
@@ -140,8 +138,8 @@ enum TournamentKind {
   /// Czech display label, also the value stored in tournaments.kind.
   final String label;
 
-  /// Players per start (tournaments.max_players) — team size for
-  /// jednotlivci/dvojice/čtveřice, or players sharing one lane for tandem.
+  /// Players per start — team size for jednotlivci/dvojice/čtveřice, or
+  /// players sharing one lane for tandem.
   final int laneCapacity;
 
   static TournamentKind? tryParse(String value) {
@@ -161,8 +159,6 @@ class Tournament {
     required this.startsOn,
     required this.endsOn,
     required this.minPlayers,
-    required this.maxPlayers,
-    required this.orderingContact,
     required this.contactEmail,
     required this.contactPhone,
     required this.sourceUrl,
@@ -175,15 +171,10 @@ class Tournament {
   final String id;
   final String name;
   final String venue;
-  final String kind;
+  final TournamentKind kind;
   final Day startsOn;
   final Day endsOn;
   final int minPlayers;
-  final int? maxPlayers;
-
-  /// Legacy single contact field; superseded by contactEmail/contactPhone
-  /// but still displayed for tournaments created before the split.
-  final String orderingContact;
   final String contactEmail;
   final String contactPhone;
 
@@ -196,22 +187,18 @@ class Tournament {
 
   bool get isArchived => archivedAt != null;
 
-  /// Typed view of [kind]; null for legacy free-text values.
-  TournamentKind? get kindEnum => TournamentKind.tryParse(kind);
-
   /// Label used in the season timeline: "Vracov (dvojice)".
-  String get timelineLabel => kind.isEmpty ? venue : '$venue ($kind)';
+  String get timelineLabel => '$venue (${kind.label})';
 
   factory Tournament.fromJson(Map<String, dynamic> json) => Tournament(
         id: json['id'] as String,
         name: json['name'] as String,
         venue: json['venue'] as String? ?? '',
-        kind: json['kind'] as String? ?? '',
+        kind: TournamentKind.tryParse(json['kind'] as String) ??
+            TournamentKind.dvojice,
         startsOn: Day.parse(json['starts_on'] as String),
         endsOn: Day.parse(json['ends_on'] as String),
         minPlayers: json['min_players'] as int,
-        maxPlayers: json['max_players'] as int?,
-        orderingContact: json['ordering_contact'] as String? ?? '',
         contactEmail: json['contact_email'] as String? ?? '',
         contactPhone: json['contact_phone'] as String? ?? '',
         sourceUrl: json['source_url'] as String? ?? '',

@@ -6,12 +6,8 @@ import 'helpers.dart';
 
 void main() {
   final thu = Day(2026, 4, 23);
-  final tournament = makeTournament(
-    startsOn: thu,
-    endsOn: thu,
-    minPlayers: 2,
-    maxPlayers: 2, // dvojice
-  );
+  // Default kind is dvojice → capacity 2 per start.
+  final tournament = makeTournament(startsOn: thu, endsOn: thu);
   final s1 = makeSlot('s1', thu, const HourMinute(18, 0));
   final s2 = makeSlot('s2', thu, const HourMinute(19, 0));
   final s3 = makeSlot('s3', thu, const HourMinute(20, 0));
@@ -68,21 +64,20 @@ void main() {
     expect(places.perSlot.map((p) => p.slot.id).toList(), ['s1', 's2', 's3']);
   });
 
-  test('no fixed team size means no place totals', () {
-    final open = makeTournament(
+  test('capacity follows the tournament kind', () {
+    final ctverice = makeTournament(
       startsOn: thu,
       endsOn: thu,
-      maxPlayers: null,
+      kind: TournamentKind.ctverice,
     );
     final places = orderPlaces(
-      tournament: open,
+      tournament: ctverice,
       orderSlots: [s1],
       rosters: [member('r1', 's1', 'u1')],
     );
 
-    expect(places.orderedPlaces, isNull);
-    expect(places.freePlaces, isNull);
-    expect(places.filledPlaces, 1);
+    expect(places.orderedPlaces, 4);
+    expect(places.freePlaces, 3);
     expect(places.perSlot.single.hasFreePlace, isTrue);
   });
 }

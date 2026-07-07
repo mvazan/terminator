@@ -73,10 +73,9 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
 
     final byDay = slotsByDay(slots);
 
-    final capacity = widget.tournament.maxPlayers;
-    final placesInfo = capacity == null
-        ? '${_selected.length} startů'
-        : '${_selected.length} startů = ${_selected.length * capacity} míst';
+    final capacity = widget.tournament.kind.laneCapacity;
+    final placesInfo =
+        '${_selected.length} startů = ${_selected.length * capacity} míst';
 
     return Scaffold(
       appBar: AppBar(

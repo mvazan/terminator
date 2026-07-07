@@ -13,9 +13,10 @@ database awake. Step 9 builds the APK for the team.
 
 ## 2. Database schema
 
-1. Dashboard → **SQL Editor** → paste and **Run** each file from
-   [`supabase/migrations/`](supabase/migrations/) **in order**
-   (`0001_init.sql`, then `0002_notification_prefs.sql`).
+1. Dashboard → **SQL Editor** → paste and **Run**
+   [`supabase/migrations/0001_schema.sql`](supabase/migrations/0001_schema.sql)
+   (the complete schema, including the webhook triggers that drive push
+   notifications — no dashboard webhook clicking needed).
 2. Set the team invite code (pick your own secret word):
 
    ```sql
@@ -74,22 +75,20 @@ supabase secrets set FIREBASE_SERVICE_ACCOUNT="$(cat path/to/service-account.jso
 supabase functions deploy notify
 ```
 
-## 7. Database webhooks (what triggers the pushes)
+## 7. Webhook secret (what authenticates the pushes)
 
-Dashboard → **Database → Webhooks** → create **five** webhooks, all pointing
-to the **notify** Edge Function (type: *Supabase Edge Function*):
+The webhook triggers live in the schema (step 2) and send an
+`x-webhook-secret` header; the notify function checks it against its
+`WEBHOOK_SECRET` secret. Generate and set it once:
 
-| Name                | Table        | Events         |
-|---------------------|--------------|----------------|
-| notify-members      | profiles     | INSERT         |
-| notify-tournaments  | tournaments  | INSERT         |
-| notify-orders       | orders       | INSERT, UPDATE |
-| notify-messages     | messages     | INSERT         |
-| notify-availability | availability | INSERT         |
+```bash
+supabase secrets set WEBHOOK_SECRET=<the secret embedded in 0001_schema.sql>
+```
 
-That gives you: new-member approval, new tournament, proposal + ordered +
-cancelled, chat messages (mute-aware), and the "slot reached min players"
-nudge — all the v1 notifications.
+(The secret is the string in the `notify_webhook()` function definition —
+keep the two in sync.) That gives you all the v1 notifications: new-member
+approval, new tournament, proposal + ordered + cancelled, chat messages
+(mute-aware), and the "slot reached min players" nudge.
 
 ## 8. Keep-alive (free tier pauses after 7 idle days)
 

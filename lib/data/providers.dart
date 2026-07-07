@@ -344,7 +344,6 @@ class Api {
         'kind': kind.sqlName,
         'enabled': enabled,
         'muted_until': mutedUntil?.toUtc().toIso8601String(),
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
       });
 
   static Future<void> setMuted(String tournamentId, Day? day, bool muted) async {

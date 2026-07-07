@@ -4,11 +4,10 @@ Tournament makeTournament({
   String id = 't1',
   String name = 'Vracov Cup',
   String venue = 'Vracov',
-  String kind = 'dvojice',
+  TournamentKind kind = TournamentKind.dvojice,
   required Day startsOn,
   required Day endsOn,
   int minPlayers = 2,
-  int? maxPlayers = 2,
 }) =>
     Tournament(
       id: id,
@@ -18,8 +17,6 @@ Tournament makeTournament({
       startsOn: startsOn,
       endsOn: endsOn,
       minPlayers: minPlayers,
-      maxPlayers: maxPlayers,
-      orderingContact: '',
       contactEmail: 'organizer@example.com',
       contactPhone: '',
       sourceUrl: '',

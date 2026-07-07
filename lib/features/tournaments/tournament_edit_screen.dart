@@ -63,7 +63,7 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
   @override
   void initState() {
     super.initState();
-    _kind = _prefill?.kindEnum ?? TournamentKind.dvojice;
+    _kind = _prefill?.kind ?? TournamentKind.dvojice;
     if (widget.existing != null) {
       _startsOn = widget.existing!.startsOn;
       _endsOn = widget.existing!.endsOn;
@@ -143,7 +143,6 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
       'starts_on': _startsOn!.toSql(),
       'ends_on': _endsOn!.toSql(),
       'min_players': int.tryParse(_minPlayers.text) ?? 2,
-      'max_players': _kind.laneCapacity,
       'contact_email': _email.text.trim(),
       'contact_phone': _phone.text.trim(),
       'source_url': _url.text.trim(),
