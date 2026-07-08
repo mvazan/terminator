@@ -5,6 +5,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/ui.dart';
 import '../../data/providers.dart';
 import '../../domain/models.dart';
+import '../manage/manage_mode.dart';
 import 'changelog.dart';
 import 'settings_screen.dart';
 
@@ -22,10 +23,22 @@ class TeamScreen extends ConsumerWidget {
     final members = ref.watch(membersProvider).value ?? const [];
     final pending = [for (final m in members) if (!m.isApproved) m];
     final approved = [for (final m in members) if (m.isApproved) m];
+    final manage = ref.watch(manageUnlockedProvider);
+    // Hidden members are filtered out of membersProvider; fetch them raw only
+    // in manage mode so they can be unhidden.
+    final hidden = manage
+        ? (ref.watch(allMembersProvider).value ?? const [])
+            .where((m) => m.isHidden)
+            .toList()
+        : const <Profile>[];
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tým'),
+        // Long-press the title to reach the hidden manage mode (PIN-gated).
+        title: GestureDetector(
+          onLongPress: () => handleManageGesture(context, ref),
+          child: const Text('Tým'),
+        ),
         actions: [
           IconButton(
             tooltip: 'Nastavení',
@@ -79,7 +92,34 @@ class TeamScreen extends ConsumerWidget {
               dense: true,
               leading: const Icon(Icons.person_outline),
               title: Text(m.displayName),
+              trailing: manage && m.id != me?.id
+                  ? IconButton(
+                      icon: const Icon(Icons.visibility_off_outlined),
+                      tooltip: 'Skrýt hráče',
+                      onPressed: () => _confirmHideMember(context, m),
+                    )
+                  : null,
             ),
+          if (hidden.isNotEmpty) ...[
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Text('Skrytí (${hidden.length})',
+                  style: Theme.of(context).textTheme.titleSmall),
+            ),
+            for (final m in hidden)
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.visibility_off, size: 20),
+                title: Text(m.displayName),
+                trailing: TextButton(
+                  onPressed: () => tryAction(
+                      context, () => Api.setMemberHidden(m.id, false),
+                      success: '${m.displayName} zobrazen(a).'),
+                  child: const Text('Zobrazit'),
+                ),
+              ),
+          ],
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout),
@@ -125,6 +165,20 @@ class TeamScreen extends ConsumerWidget {
         title: 'Tvoje jméno', initial: me.displayName);
     if (name != null && name.isNotEmpty && context.mounted) {
       await tryAction(context, () => Api.updateMyName(name));
+    }
+  }
+
+  Future<void> _confirmHideMember(BuildContext context, Profile m) async {
+    final ok = await confirmDialog(
+      context,
+      title: 'Skrýt hráče?',
+      message: '„${m.displayName}" zmizí ze seznamu. Skrytí jde vrátit '
+          'tady v režimu správy.',
+      confirmLabel: 'Skrýt',
+    );
+    if (ok && context.mounted) {
+      await tryAction(context, () => Api.setMemberHidden(m.id, true),
+          success: '${m.displayName} skryt(a).');
     }
   }
 }

@@ -11,6 +11,14 @@ import '../domain/models.dart';
 export '../domain/models.dart' show rangeLabel;
 
 const weekdaysShort = ['po', 'út', 'st', 'čt', 'pá', 'so', 'ne'];
+
+/// Czech-declined lane count: "1 dráha", "2 dráhy", "5 drah".
+String lanesLabel(int n) {
+  final word = n == 1
+      ? 'dráha'
+      : (n >= 2 && n <= 4 ? 'dráhy' : 'drah');
+  return '$n $word';
+}
 const _weekdaysFull = [
   'pondělí', 'úterý', 'středa', 'čtvrtek', 'pátek', 'sobota', 'neděle',
 ];

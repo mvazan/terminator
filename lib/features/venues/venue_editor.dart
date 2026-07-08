@@ -100,7 +100,7 @@ class _VenueFormState extends ConsumerState<_VenueForm> {
           ),
           items: [
             for (final n in _laneOptions)
-              DropdownMenuItem(value: n, child: Text('$n drah')),
+              DropdownMenuItem(value: n, child: Text(lanesLabel(n))),
           ],
           onChanged: (n) => setState(() => _lanes = n ?? _lanes),
         ),

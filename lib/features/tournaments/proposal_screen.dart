@@ -89,7 +89,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     final byDay = slotsByDay(slots);
 
     final totalLanes = _selected.values.fold(0, (sum, n) => sum + n);
-    final placesInfo = '${_selected.length} startů = $totalLanes drah';
+    final placesInfo = '${_selected.length} startů = ${lanesLabel(totalLanes)}';
 
     return Scaffold(
       appBar: AppBar(
@@ -219,7 +219,7 @@ class _LanesStepper extends StatelessWidget {
           visualDensity: VisualDensity.compact,
           onPressed: lanes > 1 ? () => onChanged(lanes - 1) : null,
         ),
-        Text('$lanes drah', style: Theme.of(context).textTheme.bodyMedium),
+        Text(lanesLabel(lanes), style: Theme.of(context).textTheme.bodyMedium),
         IconButton(
           icon: const Icon(Icons.add_circle_outline, size: 20),
           visualDensity: VisualDensity.compact,

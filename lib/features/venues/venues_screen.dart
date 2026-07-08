@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/ui.dart';
 import '../../data/providers.dart';
 import 'venue_editor.dart';
 
@@ -37,7 +38,7 @@ class VenuesScreen extends ConsumerWidget {
                     leading: const Icon(Icons.location_on_outlined),
                     title: Text(v.name),
                     subtitle: Text([
-                      '${v.laneCount} drah',
+                      lanesLabel(v.laneCount),
                       if (v.address.isNotEmpty) v.address,
                     ].join(' · ')),
                     trailing: const Icon(Icons.edit_outlined),

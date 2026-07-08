@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/ui.dart';
 import '../../data/providers.dart';
 import '../../domain/models.dart';
+import '../manage/manage_mode.dart';
 import 'timeline_screen.dart';
 import 'tournament_detail_screen.dart';
 import 'tournament_edit_screen.dart';
@@ -15,10 +16,20 @@ class TournamentsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tournaments = ref.watch(tournamentsProvider);
     final now = today();
+    final manage = ref.watch(manageUnlockedProvider);
+    final hidden = manage
+        ? (ref.watch(allTournamentsProvider).value ?? const [])
+            .where((t) => t.isHidden)
+            .toList()
+        : const <Tournament>[];
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Turnaje'),
+        // Long-press the title to reach the hidden manage mode (PIN-gated).
+        title: GestureDetector(
+          onLongPress: () => handleManageGesture(context, ref),
+          child: const Text('Turnaje'),
+        ),
         actions: [
           IconButton(
             tooltip: 'Sezónní kalendář',
@@ -66,6 +77,25 @@ class TournamentsScreen extends ConsumerWidget {
                   children: [
                     for (final t in past)
                       _TournamentTile(tournament: t, now: now),
+                  ],
+                ),
+              if (hidden.isNotEmpty)
+                ExpansionTile(
+                  leading: const Icon(Icons.visibility_off_outlined),
+                  title: Text('Skryté (${hidden.length})'),
+                  children: [
+                    for (final t in hidden)
+                      ListTile(
+                        leading: const Icon(Icons.visibility_off, size: 20),
+                        title: Text(t.name),
+                        subtitle: Text(t.timelineLabel),
+                        trailing: TextButton(
+                          onPressed: () => tryAction(context,
+                              () => Api.setTournamentHidden(t.id, false),
+                              success: 'Turnaj zobrazen.'),
+                          child: const Text('Zobrazit'),
+                        ),
+                      ),
                   ],
                 ),
             ],

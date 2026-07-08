@@ -226,7 +226,7 @@ class _TournamentEditScreenState extends ConsumerState<TournamentEditScreen> {
               for (final v in venues)
                 DropdownMenuItem(
                   value: v.id,
-                  child: Text('${v.name} · ${v.laneCount} drah',
+                  child: Text('${v.name} · ${lanesLabel(v.laneCount)}',
                       overflow: TextOverflow.ellipsis),
                 ),
             ],

@@ -46,13 +46,28 @@ final myProfileProvider = StreamProvider<Profile?>((ref) {
       .map((rows) => rows.isEmpty ? null : Profile.fromJson(rows.first));
 });
 
-final membersProvider = StreamProvider<List<Profile>>((ref) {
+/// All members incl. hidden — only the manage mode needs this. Everyday UI
+/// uses [membersProvider], which drops hidden members.
+final allMembersProvider = StreamProvider<List<Profile>>((ref) {
   if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
-  return _db
-      .from('profiles')
-      .stream(primaryKey: ['id'])
-      .map((rows) => rows.map(Profile.fromJson).toList()
+  return _db.from('profiles').stream(primaryKey: ['id']).map((rows) =>
+      rows.map(Profile.fromJson).toList()
         ..sort((a, b) => a.displayName.compareTo(b.displayName)));
+});
+
+final membersProvider = Provider<AsyncValue<List<Profile>>>((ref) {
+  return ref.watch(allMembersProvider).whenData(
+      (all) => all.where((p) => !p.isHidden).toList());
+});
+
+/// Shared PIN gating the hidden manage mode. Approved members may read it.
+final managePinProvider = FutureProvider<String?>((ref) async {
+  if (ref.watch(_userIdProvider) == null) return null;
+  final row = await _db
+      .from('team_settings')
+      .select('manage_pin')
+      .maybeSingle();
+  return row?['manage_pin'] as String?;
 });
 
 /// Saved bowling alleys, reusable across tournaments.
@@ -78,13 +93,18 @@ final tournamentByIdProvider = Provider.family<Tournament?, String>(
       .firstOrNull,
 );
 
-final tournamentsProvider = StreamProvider<List<Tournament>>((ref) {
+/// All tournaments incl. hidden — only the manage mode needs this. Everyday UI
+/// uses [tournamentsProvider], which drops hidden ones.
+final allTournamentsProvider = StreamProvider<List<Tournament>>((ref) {
   if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
-  return _db
-      .from('tournaments')
-      .stream(primaryKey: ['id'])
-      .map((rows) => rows.map(Tournament.fromJson).toList()
+  return _db.from('tournaments').stream(primaryKey: ['id']).map((rows) =>
+      rows.map(Tournament.fromJson).toList()
         ..sort((a, b) => a.startsOn.compareTo(b.startsOn)));
+});
+
+final tournamentsProvider = Provider<AsyncValue<List<Tournament>>>((ref) {
+  return ref.watch(allTournamentsProvider).whenData(
+      (all) => all.where((t) => !t.isHidden).toList());
 });
 
 final slotsProvider = StreamProvider<List<Slot>>((ref) {
@@ -221,6 +241,18 @@ class Api {
 
   static Future<void> approveMember(String userId) =>
       _db.rpc('approve_member', params: {'p_user_id': userId});
+
+  /// Soft-hide (or unhide) a member. Reversible — the row stays in the DB.
+  static Future<void> setMemberHidden(String userId, bool hidden) =>
+      _db.from('profiles').update({
+        'hidden_at': hidden ? DateTime.now().toUtc().toIso8601String() : null,
+      }).eq('id', userId);
+
+  /// Soft-hide (or unhide) a tournament and, with it, its chats/orders.
+  static Future<void> setTournamentHidden(String id, bool hidden) =>
+      _db.from('tournaments').update({
+        'hidden_at': hidden ? DateTime.now().toUtc().toIso8601String() : null,
+      }).eq('id', id);
 
   static Future<void> updateMyName(String name) async {
     await _db

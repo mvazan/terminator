@@ -8,6 +8,7 @@ import '../../domain/heatmap.dart';
 import '../../domain/models.dart';
 import '../../scrape/scraper.dart';
 import '../chats/chat_screen.dart';
+import '../manage/manage_mode.dart';
 import 'order_card.dart';
 import 'proposal_screen.dart';
 import 'slot_cell.dart';
@@ -97,9 +98,14 @@ class _TournamentDetailScreenState
 
     final archived = tournament.isArchived;
 
+    final manage = ref.watch(manageUnlockedProvider);
     return Scaffold(
       appBar: AppBar(
-        title: Text(tournament.name),
+        // Long-press the title to reach the hidden manage mode (PIN-gated).
+        title: GestureDetector(
+          onLongPress: () => handleManageGesture(context, ref),
+          child: Text(tournament.name),
+        ),
         actions: [
           if (scrapable && !archived)
             IconButton(
@@ -148,6 +154,11 @@ class _TournamentDetailScreenState
                       value: 'add_slot', child: Text('Přidat start')),
                 const PopupMenuItem(
                     value: 'archive', child: Text('Archivovat')),
+              ],
+              if (manage) ...[
+                const PopupMenuDivider(),
+                const PopupMenuItem(
+                    value: 'hide', child: Text('Skrýt turnaj (s chaty)')),
               ],
             ],
           ),
@@ -268,6 +279,20 @@ class _TournamentDetailScreenState
         if (!confirmed || !context.mounted) return;
         await tryAction(context, () => Api.archiveTournament(tournament.id),
             success: 'Turnaj archivován.');
+        if (context.mounted) Navigator.of(context).pop();
+      case 'hide':
+        final confirmed = await confirmDialog(
+          context,
+          title: 'Skrýt turnaj?',
+          message: '„${tournament.name}" i s chaty zmizí ze seznamu. '
+              'Nic se nesmaže — skrytí jde vrátit v seznamu turnajů '
+              'v režimu správy.',
+          confirmLabel: 'Skrýt',
+        );
+        if (!confirmed || !context.mounted) return;
+        await tryAction(
+            context, () => Api.setTournamentHidden(tournament.id, true),
+            success: 'Turnaj skryt.');
         if (context.mounted) Navigator.of(context).pop();
     }
   }

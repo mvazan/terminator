@@ -103,6 +103,7 @@ class Profile {
     required this.displayName,
     required this.status,
     this.fcmToken,
+    this.hiddenAt,
   });
 
   final String id;
@@ -110,7 +111,11 @@ class Profile {
   final ProfileStatus status;
   final String? fcmToken;
 
+  /// When set, the member is hidden from the everyday UI (soft, reversible).
+  final DateTime? hiddenAt;
+
   bool get isApproved => status == ProfileStatus.approved;
+  bool get isHidden => hiddenAt != null;
 
   factory Profile.fromJson(Map<String, dynamic> json) => Profile(
         id: json['id'] as String,
@@ -119,6 +124,9 @@ class Profile {
             ? ProfileStatus.approved
             : ProfileStatus.pending,
         fcmToken: json['fcm_token'] as String?,
+        hiddenAt: json['hidden_at'] == null
+            ? null
+            : DateTime.parse(json['hidden_at'] as String),
       );
 }
 
@@ -199,6 +207,7 @@ class Tournament {
     this.venueId,
     this.scrapedAt,
     this.archivedAt,
+    this.hiddenAt,
   });
 
   final String id;
@@ -225,7 +234,12 @@ class Tournament {
   final DateTime createdAt;
   final DateTime? archivedAt;
 
+  /// When set, the tournament (and its chats/orders) is hidden from the
+  /// everyday UI (soft, reversible).
+  final DateTime? hiddenAt;
+
   bool get isArchived => archivedAt != null;
+  bool get isHidden => hiddenAt != null;
 
   /// Label used in the season timeline: "Vracov (dvojice)" or, with a
   /// discipline set, "Vracov (dvojice · 100HS)".
@@ -256,6 +270,9 @@ class Tournament {
         archivedAt: json['archived_at'] == null
             ? null
             : DateTime.parse(json['archived_at'] as String),
+        hiddenAt: json['hidden_at'] == null
+            ? null
+            : DateTime.parse(json['hidden_at'] as String),
       );
 }
 

@@ -237,7 +237,7 @@ class _OrderedBody extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Objednáno ${places.orderedLanes} drah'
+          'Objednáno ${lanesLabel(places.orderedLanes)}'
           '${tournament.kind.playersPerLane > 1 ? ' (${places.orderedPlaces} míst)' : ''} · '
           'obsazeno ${places.filledPlaces} · '
           'volných ${places.freePlaces}',
