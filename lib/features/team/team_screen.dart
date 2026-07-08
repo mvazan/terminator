@@ -5,6 +5,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/ui.dart';
 import '../../data/providers.dart';
 import '../../domain/models.dart';
+import 'changelog.dart';
 import 'settings_screen.dart';
 
 final _packageInfoProvider =
@@ -95,12 +96,21 @@ class TeamScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 if (ref.watch(_packageInfoProvider).value case final info?)
-                  Text(
-                    'verze ${info.version} (build ${info.buildNumber})',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
+                  InkWell(
+                    onTap: () => showChangelog(context),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Text(
+                        'verze ${info.version} (build ${info.buildNumber})'
+                        ' · co je nového?',
+                        textAlign: TextAlign.center,
+                        style:
+                            Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.outline,
+                                ),
+                      ),
+                    ),
                   ),
               ],
             ),
