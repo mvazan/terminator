@@ -64,6 +64,26 @@ void main() {
     expect(places.perSlot.map((p) => p.slot.id).toList(), ['s1', 's2', 's3']);
   });
 
+  test('entered place counts override the kind default per slot', () {
+    // Ordered extra places on s1 (two lanes), kind default on s2.
+    final places = orderPlaces(
+      tournament: tournament,
+      orderSlots: [s1, s2],
+      rosters: [
+        member('r1', 's1', 'u1'),
+        member('r2', 's1', 'u2'),
+        member('r3', 's1', 'u3'),
+      ],
+      placesBySlot: {'s1': 4, 's2': null},
+    );
+
+    expect(places.orderedPlaces, 6); // 4 + kind default 2
+    expect(places.filledPlaces, 3);
+    expect(places.perSlot.first.capacity, 4);
+    expect(places.perSlot.first.hasFreePlace, isTrue);
+    expect(places.perSlot.last.capacity, 2);
+  });
+
   test('capacity follows the tournament kind', () {
     final ctverice = makeTournament(
       startsOn: thu,

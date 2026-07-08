@@ -28,17 +28,18 @@ class OrderCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final members = ref.watch(membersProvider).value ?? const [];
-    final slotIdsOfOrder =
-        ref.watch(orderSlotsProvider).value?[order.id] ?? const <String>{};
+    final placesBySlot =
+        ref.watch(orderSlotsProvider).value?[order.id] ??
+            const <String, int?>{};
     final slots = (ref.watch(slotsProvider).value ?? const [])
-        .where((s) => slotIdsOfOrder.contains(s.id))
+        .where((s) => placesBySlot.containsKey(s.id))
         .toList()
       ..sort(Slot.compare);
     final votes = (ref.watch(orderVotesProvider).value ?? const [])
         .where((v) => v.orderId == order.id)
         .toList();
     final rosters = (ref.watch(rostersProvider).value ?? const [])
-        .where((r) => slotIdsOfOrder.contains(r.slotId))
+        .where((r) => placesBySlot.containsKey(r.slotId))
         .toList();
 
     final creator = memberName(members, order.createdBy);
@@ -85,6 +86,7 @@ class OrderCard extends ConsumerWidget {
               _OrderedBody(
                 tournament: tournament,
                 slots: slots,
+                placesBySlot: placesBySlot,
                 rosters: rosters,
                 members: members,
                 readOnly: readOnly,
@@ -200,6 +202,7 @@ class _OrderedBody extends ConsumerWidget {
   const _OrderedBody({
     required this.tournament,
     required this.slots,
+    required this.placesBySlot,
     required this.rosters,
     required this.members,
     this.readOnly = false,
@@ -207,6 +210,7 @@ class _OrderedBody extends ConsumerWidget {
 
   final Tournament tournament;
   final List<Slot> slots;
+  final Map<String, int?> placesBySlot;
   final List<RosterEntry> rosters;
   final List<Profile> members;
   final bool readOnly;
@@ -214,9 +218,20 @@ class _OrderedBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final places = orderPlaces(
-        tournament: tournament, orderSlots: slots, rosters: rosters);
+        tournament: tournament,
+        orderSlots: slots,
+        rosters: rosters,
+        placesBySlot: placesBySlot);
     final uid = currentUserId;
     final days = {for (final s in slots) s.date};
+
+    // Who ticked each slot in "Kdy můžeš?" — the add-player sheet offers
+    // them first.
+    final availability = ref.watch(availabilityProvider).value ?? const [];
+    final tickedBySlot = <String, Set<String>>{};
+    for (final a in availability) {
+      tickedBySlot.putIfAbsent(a.slotId, () => {}).add(a.userId);
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -236,6 +251,7 @@ class _OrderedBody extends ConsumerWidget {
                 if (r.slotId == slotPlaces.slot.id) r,
             ],
             members: members,
+            ticked: tickedBySlot[slotPlaces.slot.id] ?? const {},
             uid: uid,
             readOnly: readOnly,
           ),
@@ -266,6 +282,7 @@ class _SlotRoster extends StatelessWidget {
     required this.slotPlaces,
     required this.rosters,
     required this.members,
+    required this.ticked,
     required this.uid,
     this.readOnly = false,
   });
@@ -273,6 +290,10 @@ class _SlotRoster extends StatelessWidget {
   final SlotPlaces slotPlaces;
   final List<RosterEntry> rosters;
   final List<Profile> members;
+
+  /// User ids who ticked this slot in "Kdy můžeš?".
+  final Set<String> ticked;
+
   final String? uid;
   final bool readOnly;
 
@@ -327,6 +348,9 @@ class _SlotRoster extends StatelessWidget {
       for (final m in members)
         if (m.isApproved && !inSlot.contains(m.id)) m,
     ];
+    // Those who ticked this slot in "Kdy můžeš?" go first.
+    final signedUp = [for (final m in candidates) if (ticked.contains(m.id)) m];
+    final others = [for (final m in candidates) if (!ticked.contains(m.id)) m];
 
     await showModalBottomSheet<void>(
       context: context,
@@ -338,7 +362,20 @@ class _SlotRoster extends StatelessWidget {
               padding: EdgeInsets.all(12),
               child: Text('Koho přidat na tento start?'),
             ),
-            for (final m in candidates)
+            for (final m in signedUp)
+              ListTile(
+                leading: const Icon(Icons.event_available),
+                title: Text(m.displayName),
+                subtitle: const Text('hlásí se na tento start'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  tryAction(context,
+                      () => Api.joinSlot(slotPlaces.slot.id, userId: m.id));
+                },
+              ),
+            if (signedUp.isNotEmpty && others.isNotEmpty)
+              const Divider(height: 1),
+            for (final m in others)
               ListTile(
                 leading: const Icon(Icons.person),
                 title: Text(m.displayName),

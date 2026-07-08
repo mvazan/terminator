@@ -25,7 +25,13 @@ class ProposalScreen extends ConsumerStatefulWidget {
 }
 
 class _ProposalScreenState extends ConsumerState<ProposalScreen> {
-  late final Set<String> _selected = {...widget.preselected};
+  /// Selected slots with the number of places to order for each. Usually the
+  /// kind's lane capacity, but the team often orders more than the currently
+  /// signed-up players — someone joins later even if they never ticked.
+  late final Map<String, int> _selected = {
+    for (final id in widget.preselected)
+      id: widget.tournament.kind.laneCapacity,
+  };
   final _note = TextEditingController();
   bool _saving = false;
 
@@ -45,7 +51,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
       context,
       () => Api.createProposal(
         tournamentId: widget.tournament.id,
-        slotIds: _selected,
+        placesBySlot: _selected,
         note: _note.text.trim(),
         directlyOrdered: widget.directlyOrdered,
       ),
@@ -74,8 +80,8 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     final byDay = slotsByDay(slots);
 
     final capacity = widget.tournament.kind.laneCapacity;
-    final placesInfo =
-        '${_selected.length} startů = ${_selected.length * capacity} míst';
+    final totalPlaces = _selected.values.fold(0, (sum, n) => sum + n);
+    final placesInfo = '${_selected.length} startů = $totalPlaces míst';
 
     return Scaffold(
       appBar: AppBar(
@@ -103,13 +109,23 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
             for (final slot in byDay[day]!)
               CheckboxListTile(
                 dense: true,
-                value: _selected.contains(slot.id),
+                value: _selected.containsKey(slot.id),
                 onChanged: (checked) => setState(() {
                   checked == true
-                      ? _selected.add(slot.id)
+                      ? _selected[slot.id] = capacity
                       : _selected.remove(slot.id);
                 }),
-                title: Text(slot.time.display()),
+                title: Row(
+                  children: [
+                    Expanded(child: Text(slot.time.display())),
+                    if (_selected.containsKey(slot.id))
+                      _PlacesStepper(
+                        places: _selected[slot.id]!,
+                        onChanged: (n) =>
+                            setState(() => _selected[slot.id] = n),
+                      ),
+                  ],
+                ),
                 subtitle: Text(
                     '${heatmap.bySlotId[slot.id]?.count ?? 0} hráčů může'),
               ),
@@ -124,6 +140,11 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
           ),
           const SizedBox(height: 16),
           Text(placesInfo, style: Theme.of(context).textTheme.titleSmall),
+          Text(
+            'Počet míst u startu jde zvýšit — klidně objednej víc, '
+            'než se zatím hlásí.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
           const SizedBox(height: 12),
           FilledButton(
             onPressed: _saving ? null : _submit,
@@ -136,6 +157,34 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
           const SizedBox(height: 24),
         ],
       ),
+    );
+  }
+}
+
+/// Compact "− n míst +" control for one selected start.
+class _PlacesStepper extends StatelessWidget {
+  const _PlacesStepper({required this.places, required this.onChanged});
+
+  final int places;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.remove_circle_outline, size: 20),
+          visualDensity: VisualDensity.compact,
+          onPressed: places > 1 ? () => onChanged(places - 1) : null,
+        ),
+        Text('$places míst', style: Theme.of(context).textTheme.bodyMedium),
+        IconButton(
+          icon: const Icon(Icons.add_circle_outline, size: 20),
+          visualDensity: VisualDensity.compact,
+          onPressed: () => onChanged(places + 1),
+        ),
+      ],
     );
   }
 }

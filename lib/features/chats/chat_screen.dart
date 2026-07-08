@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/ui.dart';
+import '../../data/local_prefs.dart';
 import '../../data/providers.dart';
 import '../../domain/chat_policy.dart';
 import '../../domain/models.dart';
@@ -53,6 +54,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         .toList();
     final mutes = ref.watch(myMutesProvider).value ?? const <String>{};
     final muted = mutes.contains(muteKey(widget.tournamentId, widget.day));
+
+    // Everything rendered counts as read (also as new messages stream in
+    // while the chat is open) — feeds the unread badges in the chat list.
+    if (messages.isNotEmpty) {
+      final latest = messages.last.createdAt;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(chatReadsProvider.notifier).markRead(
+            muteKey(widget.tournamentId, widget.day), latest);
+      });
+    }
 
     final locked = tournament != null &&
         isChatLocked(

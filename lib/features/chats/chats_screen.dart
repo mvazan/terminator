@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/ui.dart';
+import '../../data/local_prefs.dart';
 import '../../data/providers.dart';
 import '../../domain/chat_policy.dart';
 import '../../domain/models.dart';
@@ -16,8 +17,8 @@ class ChatsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tournaments = ref.watch(tournamentsProvider).value ?? const [];
     final orders = ref.watch(ordersProvider).value ?? const [];
-    final orderSlots =
-        ref.watch(orderSlotsProvider).value ?? const <String, Set<String>>{};
+    final orderSlots = ref.watch(orderSlotsProvider).value ??
+        const <String, Map<String, int?>>{};
     final slots = ref.watch(slotsProvider).value ?? const [];
     final mutes = ref.watch(myMutesProvider).value ?? const <String>{};
 
@@ -28,11 +29,31 @@ class ChatsScreen extends ConsumerWidget {
     final orderedDays = <String, Set<Day>>{};
     for (final order in orders) {
       if (!order.isActive) continue;
-      for (final slotId in orderSlots[order.id] ?? const <String>{}) {
+      for (final slotId
+          in (orderSlots[order.id] ?? const <String, int?>{}).keys) {
         final slot = slotById[slotId];
         if (slot != null) {
           orderedDays.putIfAbsent(order.tournamentId, () => {}).add(slot.date);
         }
+      }
+    }
+
+    // Last activity and unread count per chat ("tournamentId|day" key).
+    final messages = ref.watch(allMessagesProvider).value ?? const [];
+    final reads = ref.watch(chatReadsProvider);
+    final uid = currentUserId;
+    final lastAt = <String, DateTime>{};
+    final unread = <String, int>{};
+    for (final msg in messages) {
+      final key = muteKey(msg.tournamentId, msg.day);
+      final last = lastAt[key];
+      if (last == null || msg.createdAt.isAfter(last)) {
+        lastAt[key] = msg.createdAt;
+      }
+      final readAt = reads[key];
+      if (msg.userId != uid &&
+          (readAt == null || msg.createdAt.isAfter(readAt))) {
+        unread[key] = (unread[key] ?? 0) + 1;
       }
     }
 
@@ -53,6 +74,27 @@ class ChatsScreen extends ConsumerWidget {
       }
     }
 
+    // Most recently active first; chats without messages keep the
+    // tournament order at the end.
+    int byActivity(_ChatTileData a, _ChatTileData b) {
+      final la = lastAt[muteKey(a.tournament.id, a.day)];
+      final lb = lastAt[muteKey(b.tournament.id, b.day)];
+      if (la != null || lb != null) {
+        if (la == null) return 1;
+        if (lb == null) return -1;
+        return lb.compareTo(la);
+      }
+      final t = a.tournament.startsOn.compareTo(b.tournament.startsOn);
+      if (t != 0) return t;
+      final (da, db) = (a.day, b.day);
+      if (da == null) return -1;
+      if (db == null) return 1;
+      return da.compareTo(db);
+    }
+
+    open.sort(byActivity);
+    archived.sort(byActivity);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Chaty')),
       body: (open.isEmpty && archived.isEmpty)
@@ -62,7 +104,12 @@ class ChatsScreen extends ConsumerWidget {
           : ListView(
               children: [
                 for (final chat in open)
-                  _ChatTile(data: chat, mutes: mutes),
+                  _ChatTile(
+                    data: chat,
+                    mutes: mutes,
+                    unread:
+                        unread[muteKey(chat.tournament.id, chat.day)] ?? 0,
+                  ),
                 if (archived.isNotEmpty)
                   ExpansionTile(
                     leading: const Icon(Icons.archive_outlined),
@@ -89,11 +136,13 @@ class _ChatTile extends StatelessWidget {
   const _ChatTile({
     required this.data,
     required this.mutes,
+    this.unread = 0,
     this.locked = false,
   });
 
   final _ChatTileData data;
   final Set<String> mutes;
+  final int unread;
   final bool locked;
 
   @override
@@ -103,8 +152,17 @@ class _ChatTile extends StatelessWidget {
     final muted = mutes.contains(muteKey(t.id, day));
 
     return ListTile(
-      leading: Icon(day == null ? Icons.groups : Icons.event),
-      title: Text(day == null ? t.name : '${t.name} — ${dayLabel(day)}'),
+      leading: Badge(
+        isLabelVisible: unread > 0,
+        label: Text('$unread'),
+        child: Icon(day == null ? Icons.groups : Icons.event),
+      ),
+      title: Text(
+        day == null ? t.name : '${t.name} — ${dayLabel(day)}',
+        style: unread > 0
+            ? const TextStyle(fontWeight: FontWeight.w700)
+            : null,
+      ),
       subtitle: Text(day == null
           ? 'chat k turnaji · celá parta'
           : 'chat hracího dne · účastníci'),

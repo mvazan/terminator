@@ -18,7 +18,8 @@ class SlotPlaces {
 
   final Slot slot;
 
-  /// Places ordered for this start = tournament.kind.laneCapacity.
+  /// Places ordered for this start: the count entered when recording the
+  /// order, falling back to tournament.kind.laneCapacity.
   final int capacity;
 
   final int filled;
@@ -40,11 +41,13 @@ class OrderPlaces {
   int get freePlaces => orderedPlaces - filledPlaces;
 }
 
-/// Computes places for the slots of one order.
+/// Computes places for the slots of one order. [placesBySlot] holds the
+/// counts entered when the order was recorded (null/missing = kind default).
 OrderPlaces orderPlaces({
   required Tournament tournament,
   required List<Slot> orderSlots,
   required List<RosterEntry> rosters,
+  Map<String, int?> placesBySlot = const {},
 }) {
   final filledBySlot = <String, int>{};
   for (final r in rosters) {
@@ -55,7 +58,7 @@ OrderPlaces orderPlaces({
     for (final slot in sorted)
       SlotPlaces(
         slot: slot,
-        capacity: tournament.kind.laneCapacity,
+        capacity: placesBySlot[slot.id] ?? tournament.kind.laneCapacity,
         filled: filledBySlot[slot.id] ?? 0,
       ),
   ]);

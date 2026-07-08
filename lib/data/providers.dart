@@ -73,17 +73,18 @@ final ordersProvider = StreamProvider<List<Order>>((ref) {
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
 });
 
-/// order_id -> slot ids
-final orderSlotsProvider = StreamProvider<Map<String, Set<String>>>((ref) {
+/// order_id -> slot_id -> ordered places (null = the kind's lane capacity).
+final orderSlotsProvider =
+    StreamProvider<Map<String, Map<String, int?>>>((ref) {
   return _db
       .from('order_slots')
       .stream(primaryKey: ['order_id', 'slot_id'])
       .map((rows) {
-    final map = <String, Set<String>>{};
+    final map = <String, Map<String, int?>>{};
     for (final row in rows) {
-      map
-          .putIfAbsent(row['order_id'] as String, () => <String>{})
-          .add(row['slot_id'] as String);
+      map.putIfAbsent(row['order_id'] as String,
+          () => <String, int?>{})[row['slot_id'] as String] =
+          row['places'] as int?;
     }
     return map;
   });
@@ -109,6 +110,15 @@ final messagesProvider =
       .stream(primaryKey: ['id'])
       .eq('tournament_id', tournamentId)
       .order('created_at', ascending: true)
+      .map((rows) => rows.map(ChatMessage.fromJson).toList());
+});
+
+/// All messages — the chat list needs last-activity and unread counts across
+/// every chat at once (same whole-table strategy as the other streams).
+final allMessagesProvider = StreamProvider<List<ChatMessage>>((ref) {
+  return _db
+      .from('messages')
+      .stream(primaryKey: ['id'])
       .map((rows) => rows.map(ChatMessage.fromJson).toList());
 });
 
@@ -275,7 +285,7 @@ class Api {
 
   static Future<void> createProposal({
     required String tournamentId,
-    required Set<String> slotIds,
+    required Map<String, int> placesBySlot, // slot_id -> ordered places
     String note = '',
     bool directlyOrdered = false,
   }) async {
@@ -293,8 +303,12 @@ class Api {
         .single();
     final orderId = inserted['id'] as String;
     await _db.from('order_slots').insert([
-      for (final slotId in slotIds)
-        {'order_id': orderId, 'slot_id': slotId},
+      for (final entry in placesBySlot.entries)
+        {
+          'order_id': orderId,
+          'slot_id': entry.key,
+          'places': entry.value,
+        },
     ]);
   }
 
