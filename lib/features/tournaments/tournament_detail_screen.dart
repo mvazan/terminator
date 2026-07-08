@@ -194,7 +194,10 @@ class _TournamentDetailScreenState
                 ),
               ),
             ),
-          _InfoCard(tournament: tournament),
+          _InfoCard(
+            tournament: tournament,
+            venue: ref.watch(venueByIdProvider(tournament.venueId)),
+          ),
           const SizedBox(height: 12),
           if (!archived) ...[
             _BestPicksCard(tournament: tournament, heatmap: heatmap),
@@ -299,14 +302,22 @@ class _TournamentDetailScreenState
 }
 
 class _InfoCard extends StatelessWidget {
-  const _InfoCard({required this.tournament});
+  const _InfoCard({required this.tournament, this.venue});
 
   final Tournament tournament;
+  final Venue? venue;
 
   @override
   Widget build(BuildContext context) {
     final t = tournament;
+    final address = venue?.address ?? '';
     final contacts = <Widget>[
+      if (address.isNotEmpty)
+        ActionChip(
+          avatar: const Icon(Icons.directions_outlined, size: 16),
+          label: const Text('navigovat'),
+          onPressed: () => launchMap(address),
+        ),
       if (t.contactEmail.isNotEmpty)
         ActionChip(
           avatar: const Icon(Icons.mail_outline, size: 16),
@@ -334,6 +345,8 @@ class _InfoCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('${t.timelineLabel} · ${rangeLabel(t.startsOn, t.endsOn)}'),
+            if (address.isNotEmpty)
+              Text(address, style: Theme.of(context).textTheme.bodySmall),
             if (t.scrapedAt != null)
               Text(
                 'Obsazenost z webu: ${_freshness(t.scrapedAt!)}',

@@ -242,11 +242,13 @@ class Api {
   static Future<void> approveMember(String userId) =>
       _db.rpc('approve_member', params: {'p_user_id': userId});
 
-  /// Soft-hide (or unhide) a member. Reversible — the row stays in the DB.
+  /// Soft-hide (or unhide) a member. Hiding also sends them back to pending,
+  /// so unhiding alone won't let them back in — they must be re-approved.
   static Future<void> setMemberHidden(String userId, bool hidden) =>
-      _db.from('profiles').update({
-        'hidden_at': hidden ? DateTime.now().toUtc().toIso8601String() : null,
-      }).eq('id', userId);
+      _db.rpc('set_member_hidden', params: {
+        'p_user_id': userId,
+        'p_hidden': hidden,
+      });
 
   /// Soft-hide (or unhide) a tournament and, with it, its chats/orders.
   static Future<void> setTournamentHidden(String id, bool hidden) =>

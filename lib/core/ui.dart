@@ -137,6 +137,12 @@ void launchPhone(String number) =>
 void launchWeb(String url) => _launchExternal(
     Uri.parse(url.contains('://') ? url : 'https://$url'));
 
+/// Opens the address in the device's default maps app (navigation). The
+/// `geo:` URI is the Android standard — the system shows the app chooser
+/// (Google Maps, Mapy.cz, Waze…) and searches for the address.
+void launchMap(String address) => _launchExternal(
+    Uri.parse('geo:0,0?q=${Uri.encodeComponent(address)}'));
+
 void _launchExternal(Uri uri) =>
     launchUrl(uri, mode: LaunchMode.externalApplication);
 

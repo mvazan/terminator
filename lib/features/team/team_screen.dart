@@ -112,10 +112,12 @@ class TeamScreen extends ConsumerWidget {
                 dense: true,
                 leading: const Icon(Icons.visibility_off, size: 20),
                 title: Text(m.displayName),
+                subtitle: const Text('po zobrazení čeká na schválení'),
                 trailing: TextButton(
                   onPressed: () => tryAction(
                       context, () => Api.setMemberHidden(m.id, false),
-                      success: '${m.displayName} zobrazen(a).'),
+                      success: '${m.displayName} zobrazen(a) — '
+                          'čeká na schválení.'),
                   child: const Text('Zobrazit'),
                 ),
               ),
@@ -172,8 +174,9 @@ class TeamScreen extends ConsumerWidget {
     final ok = await confirmDialog(
       context,
       title: 'Skrýt hráče?',
-      message: '„${m.displayName}" zmizí ze seznamu. Skrytí jde vrátit '
-          'tady v režimu správy.',
+      message: '„${m.displayName}" zmizí ze seznamu a při dalším přihlášení '
+          'bude znovu čekat na schválení. Skrytí jde vrátit tady '
+          'v režimu správy.',
       confirmLabel: 'Skrýt',
     );
     if (ok && context.mounted) {
