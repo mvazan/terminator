@@ -5,6 +5,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../data/providers.dart';
 import '../domain/models.dart';
 
 export '../domain/models.dart' show rangeLabel;
@@ -66,6 +67,17 @@ Future<bool> confirmDialog(
     ),
   );
   return confirmed ?? false;
+}
+
+/// Confirms and signs the user out. Shared by every "Odhlásit se" entry point.
+Future<void> confirmSignOut(BuildContext context) async {
+  final ok = await confirmDialog(
+    context,
+    title: 'Odhlásit se?',
+    message: 'Budeš se muset znovu přihlásit e-mailem.',
+    confirmLabel: 'Odhlásit se',
+  );
+  if (ok) await Api.signOut();
 }
 
 /// Single-field text prompt; resolves to the trimmed input, or null on cancel.

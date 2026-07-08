@@ -84,7 +84,7 @@ class TeamScreen extends ConsumerWidget {
           ListTile(
             leading: const Icon(Icons.logout),
             title: const Text('Odhlásit se'),
-            onTap: () => Api.signOut(),
+            onTap: () => confirmSignOut(context),
           ),
           Padding(
             padding: const EdgeInsets.all(16),

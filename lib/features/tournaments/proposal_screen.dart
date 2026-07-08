@@ -116,32 +116,48 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
             ),
             for (final slot in byDay[day]!)
               Builder(builder: (context) {
+                final selected = _selected.containsKey(slot.id);
                 final max = _maxLanes(slot, venue);
-                return CheckboxListTile(
-                dense: true,
-                value: _selected.containsKey(slot.id),
-                onChanged: (checked) => setState(() {
-                  if (checked == true) {
-                    _selected[slot.id] = 1;
-                  } else {
-                    _selected.remove(slot.id);
-                  }
-                }),
-                title: Row(
+                void toggle() => setState(() {
+                      selected
+                          ? _selected.remove(slot.id)
+                          : _selected[slot.id] = 1;
+                    });
+                return Column(
                   children: [
-                    Expanded(child: Text(slot.time.display())),
-                    if (_selected.containsKey(slot.id))
-                      _LanesStepper(
-                        lanes: _selected[slot.id]!,
-                        max: max,
-                        onChanged: (n) =>
-                            setState(() => _selected[slot.id] = n),
-                      ),
+                    Row(
+                      children: [
+                        // Tap target is the checkbox only, not the whole row —
+                        // so tapping a disabled stepper button can't toggle it.
+                        Checkbox(
+                          value: selected,
+                          onChanged: (_) => toggle(),
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(slot.time.display()),
+                              Text(
+                                '${heatmap.bySlotId[slot.id]?.count ?? 0} '
+                                'hráčů může',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (selected)
+                          _LanesStepper(
+                            lanes: _selected[slot.id]!,
+                            max: max,
+                            onChanged: (n) =>
+                                setState(() => _selected[slot.id] = n),
+                          ),
+                      ],
+                    ),
+                    const Divider(height: 1),
                   ],
-                ),
-                subtitle: Text(
-                    '${heatmap.bySlotId[slot.id]?.count ?? 0} hráčů může'),
-              );
+                );
               }),
           ],
           const SizedBox(height: 12),

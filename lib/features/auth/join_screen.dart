@@ -55,7 +55,9 @@ class _JoinScreenState extends State<JoinScreen> {
       appBar: AppBar(
         title: const Text('Vítej v Termínátoru'),
         actions: [
-          TextButton(onPressed: Api.signOut, child: const Text('Odhlásit')),
+          TextButton(
+              onPressed: () => confirmSignOut(context),
+              child: const Text('Odhlásit')),
         ],
       ),
       body: Center(

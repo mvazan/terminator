@@ -157,12 +157,36 @@ enum TournamentKind {
   }
 }
 
+/// Throw format, a second axis alongside [TournamentKind]. HS = "hry se
+/// sdruženými"; "jiné" covers anything else. Stored labels are
+/// CHECK-constrained in the tournaments table.
+enum Discipline {
+  hs60('60HS'),
+  hs100('100HS'),
+  hs120('120HS'),
+  hs180('180HS'),
+  other('jiné');
+
+  const Discipline(this.label);
+
+  final String label;
+
+  static Discipline? tryParse(String? value) {
+    if (value == null) return null;
+    for (final d in values) {
+      if (d.label == value) return d;
+    }
+    return null;
+  }
+}
+
 class Tournament {
   const Tournament({
     required this.id,
     required this.name,
     required this.venue,
     required this.kind,
+    this.discipline,
     required this.startsOn,
     required this.endsOn,
     required this.minPlayers,
@@ -184,6 +208,9 @@ class Tournament {
   /// Optional link to a saved venue (its lane count caps ordered places).
   final String? venueId;
   final TournamentKind kind;
+
+  /// Throw format (60HS/100HS/…), independent of [kind]. Null = unset.
+  final Discipline? discipline;
   final Day startsOn;
   final Day endsOn;
   final int minPlayers;
@@ -200,8 +227,11 @@ class Tournament {
 
   bool get isArchived => archivedAt != null;
 
-  /// Label used in the season timeline: "Vracov (dvojice)".
-  String get timelineLabel => '$venue (${kind.label})';
+  /// Label used in the season timeline: "Vracov (dvojice)" or, with a
+  /// discipline set, "Vracov (dvojice · 100HS)".
+  String get timelineLabel => discipline == null
+      ? '$venue (${kind.label})'
+      : '$venue (${kind.label} · ${discipline!.label})';
 
   factory Tournament.fromJson(Map<String, dynamic> json) => Tournament(
         id: json['id'] as String,
@@ -210,6 +240,7 @@ class Tournament {
         venueId: json['venue_id'] as String?,
         kind: TournamentKind.tryParse(json['kind'] as String) ??
             TournamentKind.dvojice,
+        discipline: Discipline.tryParse(json['discipline'] as String?),
         startsOn: Day.parse(json['starts_on'] as String),
         endsOn: Day.parse(json['ends_on'] as String),
         minPlayers: json['min_players'] as int,
@@ -488,8 +519,6 @@ class Venue {
     required this.name,
     required this.laneCount,
     required this.address,
-    required this.contactEmail,
-    required this.contactPhone,
     required this.sourceUrl,
   });
 
@@ -499,8 +528,9 @@ class Venue {
   /// Number of lanes at the alley. Required — everything else is optional.
   final int laneCount;
   final String address;
-  final String contactEmail;
-  final String contactPhone;
+
+  /// Home club's website. Organizer contacts live on the tournament instead
+  /// (one venue may host several clubs with different contacts).
   final String sourceUrl;
 
   factory Venue.fromJson(Map<String, dynamic> json) => Venue(
@@ -508,8 +538,6 @@ class Venue {
         name: json['name'] as String,
         laneCount: json['lane_count'] as int,
         address: json['address'] as String? ?? '',
-        contactEmail: json['contact_email'] as String? ?? '',
-        contactPhone: json['contact_phone'] as String? ?? '',
         sourceUrl: json['source_url'] as String? ?? '',
       );
 }

@@ -43,10 +43,9 @@ class _TournamentEditScreenState extends ConsumerState<TournamentEditScreen> {
   Tournament? get _prefill => widget.existing ?? widget.duplicateFrom;
 
   late final _name = TextEditingController(text: _prefill?.name);
-  late final _venue = TextEditingController(text: _prefill?.venue);
 
-  /// Selected saved venue (its lane count caps ordered places). Null = the
-  /// free-text venue name only.
+  /// Selected saved venue — required. Its lane count caps ordered places and
+  /// its name is stored in the tournament's venue column.
   late String? _venueId = _prefill?.venueId;
   late final _email = TextEditingController(text: _prefill?.contactEmail);
   late final _phone = TextEditingController(text: _prefill?.contactPhone);
@@ -55,6 +54,7 @@ class _TournamentEditScreenState extends ConsumerState<TournamentEditScreen> {
   late final _minPlayers =
       TextEditingController(text: '${_prefill?.minPlayers ?? 2}');
   late TournamentKind _kind;
+  late Discipline? _discipline = _prefill?.discipline;
 
   Day? _startsOn;
   Day? _endsOn;
@@ -84,7 +84,7 @@ class _TournamentEditScreenState extends ConsumerState<TournamentEditScreen> {
   void dispose() {
     _url.removeListener(_onUrlChanged);
     for (final controller in [
-      _name, _venue, _email, _phone, _url, _notes, _minPlayers,
+      _name, _email, _phone, _url, _notes, _minPlayers,
     ]) {
       controller.dispose();
     }
@@ -106,31 +106,38 @@ class _TournamentEditScreenState extends ConsumerState<TournamentEditScreen> {
     ).length;
   }
 
-  Future<void> _pickDate({required bool start}) async {
-    final initial = (start ? _startsOn : _endsOn) ?? today();
-    final picked = await showDatePicker(
+  Future<void> _pickDateRange() async {
+    DateTimeRange? initial;
+    if (_startsOn != null && _endsOn != null) {
+      initial = DateTimeRange(
+        start: DateTime(_startsOn!.year, _startsOn!.month, _startsOn!.day),
+        end: DateTime(_endsOn!.year, _endsOn!.month, _endsOn!.day),
+      );
+    }
+    final picked = await showDateRangePicker(
       context: context,
-      initialDate: DateTime(initial.year, initial.month, initial.day),
+      initialDateRange: initial,
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+      helpText: 'Termín turnaje od–do',
     );
     if (picked == null) return;
     setState(() {
-      final day = Day.fromDateTime(picked);
-      if (start) {
-        _startsOn = day;
-        if (_endsOn == null || _endsOn!.isBefore(day)) _endsOn = day;
-      } else {
-        _endsOn = day;
-      }
+      _startsOn = Day.fromDateTime(picked.start);
+      _endsOn = Day.fromDateTime(picked.end);
     });
   }
 
   Future<void> _save() async {
     final name = _name.text.trim();
     final scraping = _scraper != null;
+    final venue = ref.read(venueByIdProvider(_venueId));
     if (name.isEmpty || _startsOn == null || _endsOn == null) {
       snack(context, 'Vyplň aspoň název a termín od–do.');
+      return;
+    }
+    if (venue == null) {
+      snack(context, 'Vyber kuželnu.');
       return;
     }
 
@@ -145,9 +152,10 @@ class _TournamentEditScreenState extends ConsumerState<TournamentEditScreen> {
 
     final fields = {
       'name': name,
-      'venue': _venue.text.trim(),
+      'venue': venue.name,
       'venue_id': _venueId,
       'kind': _kind.label,
+      'discipline': _discipline?.label,
       'starts_on': _startsOn!.toSql(),
       'ends_on': _endsOn!.toSql(),
       'min_players': int.tryParse(_minPlayers.text) ?? 2,
@@ -191,18 +199,16 @@ class _TournamentEditScreenState extends ConsumerState<TournamentEditScreen> {
   void _selectVenue(Venue? venue) {
     setState(() {
       _venueId = venue?.id;
-      if (venue != null) {
-        _venue.text = venue.name;
-        if (venue.contactEmail.isNotEmpty) _email.text = venue.contactEmail;
-        if (venue.contactPhone.isNotEmpty) _phone.text = venue.contactPhone;
-        if (venue.sourceUrl.isNotEmpty) _url.text = venue.sourceUrl;
+      // Prefill the home-club website; organizer contacts stay on the
+      // tournament (a venue may host several clubs).
+      if (venue != null && venue.sourceUrl.isNotEmpty) {
+        _url.text = venue.sourceUrl;
       }
     });
   }
 
-  /// Pick a saved venue (fills lane count for the order cap) or add a new one.
-  /// The chosen venue's name still lands in the free-text [_venue] field, so
-  /// the fallback name column stays populated.
+  /// Pick a saved venue (required — its lane count caps ordered places) or add
+  /// a new one inline.
   Widget _venuePicker() {
     final venues = ref.watch(venuesProvider).value ?? const [];
     final selected =
@@ -215,9 +221,7 @@ class _TournamentEditScreenState extends ConsumerState<TournamentEditScreen> {
             initialValue: selected?.id,
             isExpanded: true,
             decoration: const InputDecoration(labelText: 'Kuželna'),
-            hint: _venue.text.isEmpty
-                ? const Text('Vyber kuželnu')
-                : Text(_venue.text),
+            hint: const Text('Vyber kuželnu'),
             items: [
               for (final v in venues)
                 DropdownMenuItem(
@@ -274,34 +278,41 @@ class _TournamentEditScreenState extends ConsumerState<TournamentEditScreen> {
           const SizedBox(height: 12),
           _venuePicker(),
           const SizedBox(height: 12),
-          DropdownButtonFormField<TournamentKind>(
-            initialValue: _kind,
-            decoration: const InputDecoration(labelText: 'Typ'),
-            items: [
-              for (final kind in TournamentKind.values)
-                DropdownMenuItem(value: kind, child: Text(kind.label)),
-            ],
-            onChanged: (kind) => setState(() => _kind = kind!),
-          ),
-          const SizedBox(height: 12),
           Row(children: [
             Expanded(
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.today),
-                label:
-                    Text(_startsOn == null ? 'Začátek' : dayLabel(_startsOn!)),
-                onPressed: () => _pickDate(start: true),
+              child: DropdownButtonFormField<TournamentKind>(
+                initialValue: _kind,
+                decoration: const InputDecoration(labelText: 'Typ'),
+                items: [
+                  for (final kind in TournamentKind.values)
+                    DropdownMenuItem(value: kind, child: Text(kind.label)),
+                ],
+                onChanged: (kind) => setState(() => _kind = kind!),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.event),
-                label: Text(_endsOn == null ? 'Konec' : dayLabel(_endsOn!)),
-                onPressed: () => _pickDate(start: false),
+              child: DropdownButtonFormField<Discipline?>(
+                initialValue: _discipline,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Disciplína'),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('—')),
+                  for (final d in Discipline.values)
+                    DropdownMenuItem(value: d, child: Text(d.label)),
+                ],
+                onChanged: (d) => setState(() => _discipline = d),
               ),
             ),
           ]),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.date_range),
+            label: Text(_startsOn == null || _endsOn == null
+                ? 'Termín od–do'
+                : rangeLabel(_startsOn!, _endsOn!)),
+            onPressed: _pickDateRange,
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: _minPlayers,

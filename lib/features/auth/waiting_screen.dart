@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../data/providers.dart';
+import '../../core/ui.dart';
 
 /// Shown while the profile is pending. Any approved member's one tap flips
 /// the profile stream and AuthGate lets the user in automatically.
@@ -29,7 +29,7 @@ class WaitingScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               OutlinedButton(
-                onPressed: Api.signOut,
+                onPressed: () => confirmSignOut(context),
                 child: const Text('Odhlásit se'),
               ),
             ],

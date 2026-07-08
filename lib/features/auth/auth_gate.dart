@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/ui.dart';
 import '../../data/providers.dart';
 import '../../domain/models.dart';
 import '../shell.dart';
@@ -77,7 +78,7 @@ class _ErrorScreen extends StatelessWidget {
               Text(error, style: Theme.of(context).textTheme.bodySmall),
               const SizedBox(height: 16),
               FilledButton(
-                onPressed: Api.signOut,
+                onPressed: () => confirmSignOut(context),
                 child: const Text('Odhlásit se'),
               ),
             ],
