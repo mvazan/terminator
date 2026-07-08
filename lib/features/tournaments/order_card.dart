@@ -28,18 +28,18 @@ class OrderCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final members = ref.watch(membersProvider).value ?? const [];
-    final placesBySlot =
+    final lanesBySlot =
         ref.watch(orderSlotsProvider).value?[order.id] ??
             const <String, int?>{};
     final slots = (ref.watch(slotsProvider).value ?? const [])
-        .where((s) => placesBySlot.containsKey(s.id))
+        .where((s) => lanesBySlot.containsKey(s.id))
         .toList()
       ..sort(Slot.compare);
     final votes = (ref.watch(orderVotesProvider).value ?? const [])
         .where((v) => v.orderId == order.id)
         .toList();
     final rosters = (ref.watch(rostersProvider).value ?? const [])
-        .where((r) => placesBySlot.containsKey(r.slotId))
+        .where((r) => lanesBySlot.containsKey(r.slotId))
         .toList();
 
     final creator = memberName(members, order.createdBy);
@@ -86,7 +86,7 @@ class OrderCard extends ConsumerWidget {
               _OrderedBody(
                 tournament: tournament,
                 slots: slots,
-                placesBySlot: placesBySlot,
+                lanesBySlot: lanesBySlot,
                 rosters: rosters,
                 members: members,
                 readOnly: readOnly,
@@ -202,7 +202,7 @@ class _OrderedBody extends ConsumerWidget {
   const _OrderedBody({
     required this.tournament,
     required this.slots,
-    required this.placesBySlot,
+    required this.lanesBySlot,
     required this.rosters,
     required this.members,
     this.readOnly = false,
@@ -210,7 +210,7 @@ class _OrderedBody extends ConsumerWidget {
 
   final Tournament tournament;
   final List<Slot> slots;
-  final Map<String, int?> placesBySlot;
+  final Map<String, int?> lanesBySlot;
   final List<RosterEntry> rosters;
   final List<Profile> members;
   final bool readOnly;
@@ -221,7 +221,7 @@ class _OrderedBody extends ConsumerWidget {
         tournament: tournament,
         orderSlots: slots,
         rosters: rosters,
-        placesBySlot: placesBySlot);
+        lanesBySlot: lanesBySlot);
     final uid = currentUserId;
     final days = {for (final s in slots) s.date};
 
@@ -237,7 +237,8 @@ class _OrderedBody extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Objednáno ${places.orderedPlaces} míst · '
+          'Objednáno ${places.orderedLanes} drah'
+          '${tournament.kind.playersPerLane > 1 ? ' (${places.orderedPlaces} míst)' : ''} · '
           'obsazeno ${places.filledPlaces} · '
           'volných ${places.freePlaces}',
           style: Theme.of(context).textTheme.bodyMedium,

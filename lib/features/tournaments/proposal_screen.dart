@@ -25,12 +25,10 @@ class ProposalScreen extends ConsumerStatefulWidget {
 }
 
 class _ProposalScreenState extends ConsumerState<ProposalScreen> {
-  /// Selected slots with the number of places to order for each. Usually the
-  /// kind's lane capacity, but the team often orders more than the currently
-  /// signed-up players — someone joins later even if they never ticked.
+  /// Selected slots with the number of *lanes* to order for each. Starts at
+  /// one lane; the team can bump it up to the venue's lane count.
   late final Map<String, int> _selected = {
-    for (final id in widget.preselected)
-      id: widget.tournament.kind.laneCapacity,
+    for (final id in widget.preselected) id: 1,
   };
   final _note = TextEditingController();
   bool _saving = false;
@@ -51,7 +49,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
       context,
       () => Api.createProposal(
         tournamentId: widget.tournament.id,
-        placesBySlot: _selected,
+        lanesBySlot: _selected,
         note: _note.text.trim(),
         directlyOrdered: widget.directlyOrdered,
       ),
@@ -61,15 +59,13 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     if (ok) Navigator.of(context).pop();
   }
 
-  /// Most places that can be ordered for one start, or null = no limit.
+  /// Most lanes that can be ordered for one start, or null = no limit.
   /// Scraped slot → free lanes at the venue; otherwise the saved venue's
-  /// lane count (both scaled by players-per-lane, so tandem doubles it).
-  int? _maxPlaces(Slot slot, Venue? venue) {
-    final kind = widget.tournament.kind;
-    if (slot.hasVenueInfo) {
-      return kind.maxPlacesForLanes(slot.venueFree!.clamp(0, 1 << 30));
-    }
-    if (venue != null) return kind.maxPlacesForLanes(venue.laneCount);
+  /// lane count. (Player capacity per lane, i.e. tandem doubling, only shows
+  /// up later when assigning people.)
+  int? _maxLanes(Slot slot, Venue? venue) {
+    if (slot.hasVenueInfo) return slot.venueFree!.clamp(0, 1 << 30);
+    if (venue != null) return venue.laneCount;
     return null;
   }
 
@@ -92,9 +88,8 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
 
     final byDay = slotsByDay(slots);
 
-    final capacity = widget.tournament.kind.laneCapacity;
-    final totalPlaces = _selected.values.fold(0, (sum, n) => sum + n);
-    final placesInfo = '${_selected.length} startů = $totalPlaces míst';
+    final totalLanes = _selected.values.fold(0, (sum, n) => sum + n);
+    final placesInfo = '${_selected.length} startů = $totalLanes drah';
 
     return Scaffold(
       appBar: AppBar(
@@ -121,14 +116,13 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
             ),
             for (final slot in byDay[day]!)
               Builder(builder: (context) {
-                final max = _maxPlaces(slot, venue);
+                final max = _maxLanes(slot, venue);
                 return CheckboxListTile(
                 dense: true,
                 value: _selected.containsKey(slot.id),
                 onChanged: (checked) => setState(() {
                   if (checked == true) {
-                    _selected[slot.id] =
-                        max == null ? capacity : capacity.clamp(1, max);
+                    _selected[slot.id] = 1;
                   } else {
                     _selected.remove(slot.id);
                   }
@@ -137,8 +131,8 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
                   children: [
                     Expanded(child: Text(slot.time.display())),
                     if (_selected.containsKey(slot.id))
-                      _PlacesStepper(
-                        places: _selected[slot.id]!,
+                      _LanesStepper(
+                        lanes: _selected[slot.id]!,
                         max: max,
                         onChanged: (n) =>
                             setState(() => _selected[slot.id] = n),
@@ -162,11 +156,11 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
           Text(placesInfo, style: Theme.of(context).textTheme.titleSmall),
           Text(
             venue == null
-                ? 'Počet míst u startu jde zvýšit — klidně objednej víc, '
-                    'než se zatím hlásí.'
-                : 'Počet míst u startu jde zvýšit až po počet drah '
+                ? 'U startu vyber počet drah, které objednáváš.'
+                : 'Počet drah u startu jde zvýšit až po počet drah kuželny '
                     '(${venue.name}: ${venue.laneCount}). U turnajů s webem '
-                    'jen po počet volných drah.',
+                    'jen po počet volných drah.'
+                    '${widget.tournament.kind == TournamentKind.tandem ? '\nV tandemu hrají na jedné dráze 2 hráči.' : ''}',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 12),
@@ -185,35 +179,35 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
   }
 }
 
-/// Compact "− n míst +" control for one selected start. [max] caps the count
+/// Compact "− n drah +" control for one selected start. [max] caps the count
 /// (venue lanes, or free lanes when scraped); null = no limit.
-class _PlacesStepper extends StatelessWidget {
-  const _PlacesStepper({
-    required this.places,
+class _LanesStepper extends StatelessWidget {
+  const _LanesStepper({
+    required this.lanes,
     required this.onChanged,
     this.max,
   });
 
-  final int places;
+  final int lanes;
   final int? max;
   final ValueChanged<int> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final canAdd = max == null || places < max!;
+    final canAdd = max == null || lanes < max!;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
           icon: const Icon(Icons.remove_circle_outline, size: 20),
           visualDensity: VisualDensity.compact,
-          onPressed: places > 1 ? () => onChanged(places - 1) : null,
+          onPressed: lanes > 1 ? () => onChanged(lanes - 1) : null,
         ),
-        Text('$places míst', style: Theme.of(context).textTheme.bodyMedium),
+        Text('$lanes drah', style: Theme.of(context).textTheme.bodyMedium),
         IconButton(
           icon: const Icon(Icons.add_circle_outline, size: 20),
           visualDensity: VisualDensity.compact,
-          onPressed: canAdd ? () => onChanged(places + 1) : null,
+          onPressed: canAdd ? () => onChanged(lanes + 1) : null,
         ),
       ],
     );

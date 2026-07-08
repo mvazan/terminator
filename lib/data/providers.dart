@@ -339,7 +339,7 @@ class Api {
 
   static Future<void> createProposal({
     required String tournamentId,
-    required Map<String, int> placesBySlot, // slot_id -> ordered places
+    required Map<String, int> lanesBySlot, // slot_id -> ordered lanes
     String note = '',
     bool directlyOrdered = false,
   }) async {
@@ -357,7 +357,9 @@ class Api {
         .single();
     final orderId = inserted['id'] as String;
     await _db.from('order_slots').insert([
-      for (final entry in placesBySlot.entries)
+      // order_slots.places stores the ordered LANE count (player capacity is
+      // lanes × kind.playersPerLane, computed in places.dart).
+      for (final entry in lanesBySlot.entries)
         {
           'order_id': orderId,
           'slot_id': entry.key,

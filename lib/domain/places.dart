@@ -1,10 +1,10 @@
 /// Ordered-vs-filled places math.
 ///
 /// Ordering happens outside the app; the app records which starts and how
-/// many places were taken. Capacity per start comes from the tournament
-/// kind (dvojice = 2, …). Ordered places may exceed the players currently
-/// known (5 players in a dvojice tournament → order 6 places; someone is
-/// found later or plays twice), and places may stay empty.
+/// many *lanes* were taken. The number of player places on a start is
+/// lanes × kind.playersPerLane — the same as lanes for most kinds, but double
+/// for tandem (2 players share one lane). Player places may exceed the players
+/// currently known (someone is found later or plays twice) and may stay empty.
 library;
 
 import 'models.dart';
@@ -12,14 +12,17 @@ import 'models.dart';
 class SlotPlaces {
   const SlotPlaces({
     required this.slot,
+    required this.lanes,
     required this.capacity,
     required this.filled,
   });
 
   final Slot slot;
 
-  /// Places ordered for this start: the count entered when recording the
-  /// order, falling back to tournament.kind.laneCapacity.
+  /// Lanes ordered for this start (the count entered when recording).
+  final int lanes;
+
+  /// Player places = lanes × kind.playersPerLane (tandem: 2 per lane).
   final int capacity;
 
   final int filled;
@@ -34,6 +37,10 @@ class OrderPlaces {
 
   final List<SlotPlaces> perSlot;
 
+  /// Total lanes ordered across the slots of the order.
+  int get orderedLanes => perSlot.fold(0, (sum, s) => sum + s.lanes);
+
+  /// Total player places across the slots (tandem-doubled where applicable).
   int get orderedPlaces => perSlot.fold(0, (sum, s) => sum + s.capacity);
 
   int get filledPlaces => perSlot.fold(0, (sum, s) => sum + s.filled);
@@ -41,25 +48,30 @@ class OrderPlaces {
   int get freePlaces => orderedPlaces - filledPlaces;
 }
 
-/// Computes places for the slots of one order. [placesBySlot] holds the
-/// counts entered when the order was recorded (null/missing = kind default).
+/// Computes places for the slots of one order. [lanesBySlot] holds the lane
+/// counts entered when the order was recorded (null/missing = 1 lane).
 OrderPlaces orderPlaces({
   required Tournament tournament,
   required List<Slot> orderSlots,
   required List<RosterEntry> rosters,
-  Map<String, int?> placesBySlot = const {},
+  Map<String, int?> lanesBySlot = const {},
 }) {
   final filledBySlot = <String, int>{};
   for (final r in rosters) {
     filledBySlot[r.slotId] = (filledBySlot[r.slotId] ?? 0) + 1;
   }
+  final perLane = tournament.kind.playersPerLane;
   final sorted = [...orderSlots]..sort(Slot.compare);
   return OrderPlaces(perSlot: [
     for (final slot in sorted)
-      SlotPlaces(
-        slot: slot,
-        capacity: placesBySlot[slot.id] ?? tournament.kind.laneCapacity,
-        filled: filledBySlot[slot.id] ?? 0,
-      ),
+      () {
+        final lanes = lanesBySlot[slot.id] ?? 1;
+        return SlotPlaces(
+          slot: slot,
+          lanes: lanes,
+          capacity: lanes * perLane,
+          filled: filledBySlot[slot.id] ?? 0,
+        );
+      }(),
   ]);
 }
