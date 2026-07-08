@@ -12,6 +12,10 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('1.1.7', '8. 7. 2026', [
+    'Oprava: po přihlášení kódem z e-mailu se turnaje i členové týmu '
+        'teď načtou správně.',
+  ]),
   Release('1.1.6', '8. 7. 2026', [
     'Nový (prázdný) chat se řadí podle času založení, nepadá na konec.',
     'Ťuknutím na verzi v záložce Tým se zobrazí tento přehled novinek.',

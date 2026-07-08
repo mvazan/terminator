@@ -19,11 +19,25 @@ final authStateProvider = StreamProvider<AuthState>(
 
 String? get currentUserId => _db.auth.currentUser?.id;
 
+/// The signed-in user's id, tracked through auth changes. Every RLS-protected
+/// data stream watches this so it is *recreated* on sign-in.
+///
+/// Why this matters: `.stream()` fetches its initial snapshot from PostgREST
+/// with whatever JWT is current at subscription time, and only re-fetches on a
+/// socket reconnect — not on a plain token update. On the OTP-code login path
+/// the app is already running with no session, so streams first opened as anon
+/// return nothing (RLS) and never refill. Rebuilding them on sign-in reopens
+/// each stream under the authenticated JWT. (The magic-link path avoids this
+/// because the session exists before any stream is first read.)
+final _userIdProvider = Provider<String?>((ref) {
+  ref.watch(authStateProvider);
+  return currentUserId;
+});
+
 /// The signed-in user's profile row (null while the user has no profile yet,
 /// i.e. before entering the invite code). Live — flips when approved.
 final myProfileProvider = StreamProvider<Profile?>((ref) {
-  final auth = ref.watch(authStateProvider).value;
-  final uid = auth?.session?.user.id ?? currentUserId;
+  final uid = ref.watch(_userIdProvider);
   if (uid == null) return Stream.value(null);
   return _db
       .from('profiles')
@@ -33,6 +47,7 @@ final myProfileProvider = StreamProvider<Profile?>((ref) {
 });
 
 final membersProvider = StreamProvider<List<Profile>>((ref) {
+  if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
   return _db
       .from('profiles')
       .stream(primaryKey: ['id'])
@@ -48,6 +63,7 @@ final tournamentByIdProvider = Provider.family<Tournament?, String>(
 );
 
 final tournamentsProvider = StreamProvider<List<Tournament>>((ref) {
+  if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
   return _db
       .from('tournaments')
       .stream(primaryKey: ['id'])
@@ -56,11 +72,13 @@ final tournamentsProvider = StreamProvider<List<Tournament>>((ref) {
 });
 
 final slotsProvider = StreamProvider<List<Slot>>((ref) {
+  if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
   return _db.from('slots').stream(primaryKey: ['id']).map(
       (rows) => rows.map(Slot.fromJson).toList());
 });
 
 final availabilityProvider = StreamProvider<List<Availability>>((ref) {
+  if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
   return _db
       .from('availability')
       .stream(primaryKey: ['slot_id', 'user_id'])
@@ -68,6 +86,7 @@ final availabilityProvider = StreamProvider<List<Availability>>((ref) {
 });
 
 final ordersProvider = StreamProvider<List<Order>>((ref) {
+  if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
   return _db.from('orders').stream(primaryKey: ['id']).map(
       (rows) => rows.map(Order.fromJson).toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
@@ -76,6 +95,9 @@ final ordersProvider = StreamProvider<List<Order>>((ref) {
 /// order_id -> slot_id -> ordered places (null = the kind's lane capacity).
 final orderSlotsProvider =
     StreamProvider<Map<String, Map<String, int?>>>((ref) {
+  if (ref.watch(_userIdProvider) == null) {
+    return Stream.value(const <String, Map<String, int?>>{});
+  }
   return _db
       .from('order_slots')
       .stream(primaryKey: ['order_id', 'slot_id'])
@@ -91,6 +113,7 @@ final orderSlotsProvider =
 });
 
 final orderVotesProvider = StreamProvider<List<OrderVote>>((ref) {
+  if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
   return _db
       .from('order_votes')
       .stream(primaryKey: ['order_id', 'user_id'])
@@ -98,6 +121,7 @@ final orderVotesProvider = StreamProvider<List<OrderVote>>((ref) {
 });
 
 final rostersProvider = StreamProvider<List<RosterEntry>>((ref) {
+  if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
   return _db.from('rosters').stream(primaryKey: ['id']).map(
       (rows) => rows.map(RosterEntry.fromJson).toList());
 });
@@ -105,6 +129,7 @@ final rostersProvider = StreamProvider<List<RosterEntry>>((ref) {
 /// Messages of one tournament (both the tournament chat and its day chats).
 final messagesProvider =
     StreamProvider.family<List<ChatMessage>, String>((ref, tournamentId) {
+  if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
   return _db
       .from('messages')
       .stream(primaryKey: ['id'])
@@ -116,6 +141,7 @@ final messagesProvider =
 /// All messages — the chat list needs last-activity and unread counts across
 /// every chat at once (same whole-table strategy as the other streams).
 final allMessagesProvider = StreamProvider<List<ChatMessage>>((ref) {
+  if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
   return _db
       .from('messages')
       .stream(primaryKey: ['id'])
@@ -124,7 +150,7 @@ final allMessagesProvider = StreamProvider<List<ChatMessage>>((ref) {
 
 /// The caller's mutes as "tournamentId|day" keys ('' day = tournament chat).
 final myMutesProvider = StreamProvider<Set<String>>((ref) {
-  final uid = currentUserId;
+  final uid = ref.watch(_userIdProvider);
   if (uid == null) return Stream.value(const <String>{});
   return _db
       .from('chat_mutes')
@@ -143,7 +169,7 @@ String muteKey(String tournamentId, Day? day) =>
 /// are simply absent — treat as enabled via [NotificationPref.fallback]).
 final myNotificationPrefsProvider =
     StreamProvider<Map<NotificationKind, NotificationPref>>((ref) {
-  final uid = currentUserId;
+  final uid = ref.watch(_userIdProvider);
   if (uid == null) return Stream.value(const {});
   return _db
       .from('notification_prefs')
