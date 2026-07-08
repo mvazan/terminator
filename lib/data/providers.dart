@@ -153,6 +153,12 @@ class Api {
   static Future<void> sendMagicLink(String email, String redirectTo) =>
       _db.auth.signInWithOtp(email: email, emailRedirectTo: redirectTo);
 
+  /// Fallback for mail apps that drop the code from the magic link
+  /// (e.g. Seznam's in-app browser): the e-mail also carries a numeric
+  /// code the user can type in.
+  static Future<void> verifyEmailOtp(String email, String code) =>
+      _db.auth.verifyOTP(type: OtpType.email, email: email, token: code);
+
   static Future<void> signOut() => _db.auth.signOut();
 
   static Future<void> joinTeam(String inviteCode, String displayName) =>
