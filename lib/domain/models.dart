@@ -164,6 +164,7 @@ class Tournament {
     required this.sourceUrl,
     required this.notes,
     required this.createdBy,
+    required this.createdAt,
     this.scrapedAt,
     this.archivedAt,
   });
@@ -183,6 +184,7 @@ class Tournament {
   final DateTime? scrapedAt;
   final String notes;
   final String createdBy;
+  final DateTime createdAt;
   final DateTime? archivedAt;
 
   bool get isArchived => archivedAt != null;
@@ -207,6 +209,7 @@ class Tournament {
             : DateTime.parse(json['scraped_at'] as String),
         notes: json['notes'] as String? ?? '',
         createdBy: json['created_by'] as String,
+        createdAt: DateTime.parse(json['created_at'] as String),
         archivedAt: json['archived_at'] == null
             ? null
             : DateTime.parse(json['archived_at'] as String),

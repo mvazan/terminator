@@ -22,6 +22,7 @@ Tournament makeTournament({
       sourceUrl: '',
       notes: '',
       createdBy: 'u1',
+      createdAt: DateTime.utc(2026, 1, 1),
     );
 
 Slot makeSlot(String id, Day date, HourMinute time, {String tournamentId = 't1'}) =>

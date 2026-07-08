@@ -25,15 +25,25 @@ class ChatsScreen extends ConsumerWidget {
     final slotById = {for (final s in slots) s.id: s};
     final now = today();
 
-    // Days with ordered starts, per tournament.
+    // Days with ordered starts, per tournament — remembering when each day
+    // chat came into existence (= when its first order was placed).
     final orderedDays = <String, Set<Day>>{};
+    final chatCreatedAt = <String, DateTime>{
+      for (final t in tournaments) muteKey(t.id, null): t.createdAt,
+    };
     for (final order in orders) {
       if (!order.isActive) continue;
+      final orderTime = order.orderedAt ?? order.createdAt;
       for (final slotId
           in (orderSlots[order.id] ?? const <String, int?>{}).keys) {
         final slot = slotById[slotId];
         if (slot != null) {
           orderedDays.putIfAbsent(order.tournamentId, () => {}).add(slot.date);
+          final key = muteKey(order.tournamentId, slot.date);
+          final existing = chatCreatedAt[key];
+          if (existing == null || orderTime.isBefore(existing)) {
+            chatCreatedAt[key] = orderTime;
+          }
         }
       }
     }
@@ -74,23 +84,17 @@ class ChatsScreen extends ConsumerWidget {
       }
     }
 
-    // Most recently active first; chats without messages keep the
-    // tournament order at the end.
-    int byActivity(_ChatTileData a, _ChatTileData b) {
-      final la = lastAt[muteKey(a.tournament.id, a.day)];
-      final lb = lastAt[muteKey(b.tournament.id, b.day)];
-      if (la != null || lb != null) {
-        if (la == null) return 1;
-        if (lb == null) return -1;
-        return lb.compareTo(la);
-      }
-      final t = a.tournament.startsOn.compareTo(b.tournament.startsOn);
-      if (t != 0) return t;
-      final (da, db) = (a.day, b.day);
-      if (da == null) return -1;
-      if (db == null) return 1;
-      return da.compareTo(db);
+    // Most recently active first. A chat without messages counts as active
+    // at its creation — a brand-new chat starts near the top, not last.
+    DateTime activity(_ChatTileData c) {
+      final key = muteKey(c.tournament.id, c.day);
+      return lastAt[key] ??
+          chatCreatedAt[key] ??
+          DateTime.fromMillisecondsSinceEpoch(0);
     }
+
+    int byActivity(_ChatTileData a, _ChatTileData b) =>
+        activity(b).compareTo(activity(a));
 
     open.sort(byActivity);
     archived.sort(byActivity);
