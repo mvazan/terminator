@@ -128,12 +128,12 @@ class Profile {
 /// 2 players still share one lane. Stored labels are CHECK-constrained in
 /// the tournaments table, so parsing never fails in practice.
 enum TournamentKind {
-  jednotlivci('jednotlivci', 1),
-  dvojice('dvojice', 2),
-  ctverice('čtveřice', 4),
-  tandem('tandem', 2);
+  jednotlivci('jednotlivci', 1, 1),
+  dvojice('dvojice', 2, 1),
+  ctverice('čtveřice', 4, 1),
+  tandem('tandem', 2, 2);
 
-  const TournamentKind(this.label, this.laneCapacity);
+  const TournamentKind(this.label, this.laneCapacity, this.playersPerLane);
 
   /// Czech display label, also the value stored in tournaments.kind.
   final String label;
@@ -141,6 +141,13 @@ enum TournamentKind {
   /// Players per start — team size for jednotlivci/dvojice/čtveřice, or
   /// players sharing one lane for tandem.
   final int laneCapacity;
+
+  /// How many players occupy one lane. 1 for most kinds; tandem is the
+  /// exception — 2 players share a single lane, so N lanes hold 2·N players.
+  final int playersPerLane;
+
+  /// Most places (= players) that fit on `lanes` lanes for this kind.
+  int maxPlacesForLanes(int lanes) => lanes * playersPerLane;
 
   static TournamentKind? tryParse(String value) {
     for (final kind in values) {
@@ -165,6 +172,7 @@ class Tournament {
     required this.notes,
     required this.createdBy,
     required this.createdAt,
+    this.venueId,
     this.scrapedAt,
     this.archivedAt,
   });
@@ -172,6 +180,9 @@ class Tournament {
   final String id;
   final String name;
   final String venue;
+
+  /// Optional link to a saved venue (its lane count caps ordered places).
+  final String? venueId;
   final TournamentKind kind;
   final Day startsOn;
   final Day endsOn;
@@ -196,6 +207,7 @@ class Tournament {
         id: json['id'] as String,
         name: json['name'] as String,
         venue: json['venue'] as String? ?? '',
+        venueId: json['venue_id'] as String?,
         kind: TournamentKind.tryParse(json['kind'] as String) ??
             TournamentKind.dvojice,
         startsOn: Day.parse(json['starts_on'] as String),
@@ -467,5 +479,37 @@ class ChatMessage {
         userId: json['user_id'] as String,
         body: json['body'] as String,
         createdAt: DateTime.parse(json['created_at'] as String),
+      );
+}
+
+class Venue {
+  const Venue({
+    required this.id,
+    required this.name,
+    required this.laneCount,
+    required this.address,
+    required this.contactEmail,
+    required this.contactPhone,
+    required this.sourceUrl,
+  });
+
+  final String id;
+  final String name;
+
+  /// Number of lanes at the alley. Required — everything else is optional.
+  final int laneCount;
+  final String address;
+  final String contactEmail;
+  final String contactPhone;
+  final String sourceUrl;
+
+  factory Venue.fromJson(Map<String, dynamic> json) => Venue(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        laneCount: json['lane_count'] as int,
+        address: json['address'] as String? ?? '',
+        contactEmail: json['contact_email'] as String? ?? '',
+        contactPhone: json['contact_phone'] as String? ?? '',
+        sourceUrl: json['source_url'] as String? ?? '',
       );
 }

@@ -185,6 +185,10 @@ class _TournamentDetailScreenState
             ),
           _InfoCard(tournament: tournament),
           const SizedBox(height: 12),
+          if (!archived) ...[
+            _BestPicksCard(tournament: tournament, heatmap: heatmap),
+            const SizedBox(height: 16),
+          ],
           Text('Kdy můžeš? Odklikni si starty:',
               style: Theme.of(context).textTheme.titleMedium),
           Text(
@@ -204,10 +208,6 @@ class _TournamentDetailScreenState
               readOnly: archived,
             ),
           const SizedBox(height: 16),
-          if (!archived) ...[
-            _BestPicksCard(tournament: tournament, heatmap: heatmap),
-            const SizedBox(height: 16),
-          ],
           if (orders.any((o) => o.status != OrderStatus.cancelled)) ...[
             Text('Návrhy a objednávky',
                 style: Theme.of(context).textTheme.titleMedium),
@@ -498,19 +498,12 @@ class _BestPicksCard extends StatelessWidget {
                 Text('• ${dayLabel(p.slot.date)} ${p.slot.time.display()} — '
                     '${p.count} hráčů'),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                FilledButton.icon(
-                  icon: const Icon(Icons.how_to_vote),
-                  label: const Text('Hlasování'),
-                  onPressed: () => _openProposal(context, direct: false),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton(
-                  onPressed: () => _openProposal(context, direct: true),
-                  child: const Text('Objednat rovnou'),
-                ),
-              ],
+            // Voting ("Hlasování") is hidden for now — its role is being
+            // reconsidered. Direct ordering stays.
+            FilledButton.icon(
+              icon: const Icon(Icons.receipt_long),
+              label: const Text('Zadat objednávku'),
+              onPressed: () => _openProposal(context, direct: true),
             ),
           ],
         ),

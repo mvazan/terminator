@@ -47,6 +47,14 @@ void main() {
     expect(TournamentKind.tryParse('neznámý'), isNull);
   });
 
+  test('maxPlacesForLanes: tandem fits 2 players per lane, others 1', () {
+    // 6 lanes: singles/pairs/quads = 6 places, tandem = 12 (2 share a lane).
+    expect(TournamentKind.jednotlivci.maxPlacesForLanes(6), 6);
+    expect(TournamentKind.dvojice.maxPlacesForLanes(6), 6);
+    expect(TournamentKind.ctverice.maxPlacesForLanes(6), 6);
+    expect(TournamentKind.tandem.maxPlacesForLanes(6), 12);
+  });
+
   test('models: HourMinute and Day parse Postgres formats', () {
     expect(HourMinute.parse('16:30:00'), const HourMinute(16, 30));
     expect(HourMinute.parse('9:05'), const HourMinute(9, 5));

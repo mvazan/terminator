@@ -61,8 +61,21 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     if (ok) Navigator.of(context).pop();
   }
 
+  /// Most places that can be ordered for one start, or null = no limit.
+  /// Scraped slot → free lanes at the venue; otherwise the saved venue's
+  /// lane count (both scaled by players-per-lane, so tandem doubles it).
+  int? _maxPlaces(Slot slot, Venue? venue) {
+    final kind = widget.tournament.kind;
+    if (slot.hasVenueInfo) {
+      return kind.maxPlacesForLanes(slot.venueFree!.clamp(0, 1 << 30));
+    }
+    if (venue != null) return kind.maxPlacesForLanes(venue.laneCount);
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final venue = ref.watch(venueByIdProvider(widget.tournament.venueId));
     final slots = (ref.watch(slotsProvider).value ?? const [])
         .where((s) => s.tournamentId == widget.tournament.id)
         .toList()
@@ -107,13 +120,18 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
                   style: Theme.of(context).textTheme.titleSmall),
             ),
             for (final slot in byDay[day]!)
-              CheckboxListTile(
+              Builder(builder: (context) {
+                final max = _maxPlaces(slot, venue);
+                return CheckboxListTile(
                 dense: true,
                 value: _selected.containsKey(slot.id),
                 onChanged: (checked) => setState(() {
-                  checked == true
-                      ? _selected[slot.id] = capacity
-                      : _selected.remove(slot.id);
+                  if (checked == true) {
+                    _selected[slot.id] =
+                        max == null ? capacity : capacity.clamp(1, max);
+                  } else {
+                    _selected.remove(slot.id);
+                  }
                 }),
                 title: Row(
                   children: [
@@ -121,6 +139,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
                     if (_selected.containsKey(slot.id))
                       _PlacesStepper(
                         places: _selected[slot.id]!,
+                        max: max,
                         onChanged: (n) =>
                             setState(() => _selected[slot.id] = n),
                       ),
@@ -128,7 +147,8 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
                 ),
                 subtitle: Text(
                     '${heatmap.bySlotId[slot.id]?.count ?? 0} hráčů může'),
-              ),
+              );
+              }),
           ],
           const SizedBox(height: 12),
           TextField(
@@ -141,8 +161,12 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
           const SizedBox(height: 16),
           Text(placesInfo, style: Theme.of(context).textTheme.titleSmall),
           Text(
-            'Počet míst u startu jde zvýšit — klidně objednej víc, '
-            'než se zatím hlásí.',
+            venue == null
+                ? 'Počet míst u startu jde zvýšit — klidně objednej víc, '
+                    'než se zatím hlásí.'
+                : 'Počet míst u startu jde zvýšit až po počet drah '
+                    '(${venue.name}: ${venue.laneCount}). U turnajů s webem '
+                    'jen po počet volných drah.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 12),
@@ -161,15 +185,22 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
   }
 }
 
-/// Compact "− n míst +" control for one selected start.
+/// Compact "− n míst +" control for one selected start. [max] caps the count
+/// (venue lanes, or free lanes when scraped); null = no limit.
 class _PlacesStepper extends StatelessWidget {
-  const _PlacesStepper({required this.places, required this.onChanged});
+  const _PlacesStepper({
+    required this.places,
+    required this.onChanged,
+    this.max,
+  });
 
   final int places;
+  final int? max;
   final ValueChanged<int> onChanged;
 
   @override
   Widget build(BuildContext context) {
+    final canAdd = max == null || places < max!;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -182,7 +213,7 @@ class _PlacesStepper extends StatelessWidget {
         IconButton(
           icon: const Icon(Icons.add_circle_outline, size: 20),
           visualDensity: VisualDensity.compact,
-          onPressed: () => onChanged(places + 1),
+          onPressed: canAdd ? () => onChanged(places + 1) : null,
         ),
       ],
     );

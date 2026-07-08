@@ -55,6 +55,22 @@ final membersProvider = StreamProvider<List<Profile>>((ref) {
         ..sort((a, b) => a.displayName.compareTo(b.displayName)));
 });
 
+/// Saved bowling alleys, reusable across tournaments.
+final venuesProvider = StreamProvider<List<Venue>>((ref) {
+  if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
+  return _db.from('venues').stream(primaryKey: ['id']).map(
+      (rows) => rows.map(Venue.fromJson).toList()
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase())));
+});
+
+/// One venue looked up from the live venues stream.
+final venueByIdProvider = Provider.family<Venue?, String?>((ref, id) {
+  if (id == null) return null;
+  return (ref.watch(venuesProvider).value ?? const [])
+      .where((v) => v.id == id)
+      .firstOrNull;
+});
+
 /// Single tournament looked up from the live tournaments stream.
 final tournamentByIdProvider = Provider.family<Tournament?, String>(
   (ref, id) => (ref.watch(tournamentsProvider).value ?? const [])
@@ -217,6 +233,18 @@ class Api {
     if (uid == null) return;
     await _db.from('profiles').update({'fcm_token': token}).eq('id', uid);
   }
+
+  static Future<String> createVenue(Map<String, dynamic> fields) async {
+    final row = await _db
+        .from('venues')
+        .insert({...fields, 'created_by': currentUserId!})
+        .select('id')
+        .single();
+    return row['id'] as String;
+  }
+
+  static Future<void> updateVenue(String id, Map<String, dynamic> fields) =>
+      _db.from('venues').update(fields).eq('id', id);
 
   static Future<String> createTournament({
     required Map<String, dynamic> tournament,

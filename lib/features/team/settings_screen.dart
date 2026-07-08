@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/ui.dart';
 import '../../data/providers.dart';
 import '../../domain/models.dart';
+import '../venues/venues_screen.dart';
 
 /// User settings. First section: per-kind notification control —
 /// enabled / disabled / muted for 1h, 3h, 6h, 12h, or a custom number of
@@ -39,6 +40,16 @@ class SettingsScreen extends ConsumerWidget {
               kind: kind,
               pref: prefs[kind] ?? NotificationPref.fallback(kind),
             ),
+          const Divider(height: 24),
+          ListTile(
+            leading: const Icon(Icons.location_on_outlined),
+            title: const Text('Kuželny'),
+            subtitle: const Text('Počet drah, adresa, kontakty'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const VenuesScreen()),
+            ),
+          ),
           const SizedBox(height: 24),
         ],
       ),

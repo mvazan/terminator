@@ -12,6 +12,15 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('1.1.8', '8. 7. 2026', [
+    'Kuželny: ulož si kuželnu (počet drah, adresa, kontakty) a vyber ji '
+        'u turnaje. Spravují se v Tým → Nastavení → Kuželny.',
+    'Počet objednaných míst na start jde zvýšit nejvýš po počet drah '
+        '(u turnajů s webem po počet volných drah; tandem 2 hráči na dráhu).',
+    'Nejsilnější termíny jsou teď nahoře nad rozvrhem.',
+    'Tlačítko na objednávku se jmenuje „Zadat objednávku"; hlasování je '
+        'zatím skryté.',
+  ]),
   Release('1.1.7', '8. 7. 2026', [
     'Oprava: po přihlášení kódem z e-mailu se turnaje i členové týmu '
         'teď načtou správně.',

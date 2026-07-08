@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/ui.dart';
 import '../../data/providers.dart';
 import '../../domain/day_groups.dart';
 import '../../domain/models.dart';
 import '../../scrape/scraper.dart';
+import '../venues/venue_editor.dart';
 
 /// Create or edit a tournament.
 ///
@@ -16,14 +18,15 @@ import '../../scrape/scraper.dart';
 /// from a past tournament — typically an archived one, "next season" — but
 /// the dates are left blank and nothing else (slots, votes, orders, rosters)
 /// carries over: this is a brand-new tournament, just saving retyping.
-class TournamentEditScreen extends StatefulWidget {
+class TournamentEditScreen extends ConsumerStatefulWidget {
   const TournamentEditScreen({super.key, this.existing, this.duplicateFrom});
 
   final Tournament? existing;
   final Tournament? duplicateFrom;
 
   @override
-  State<TournamentEditScreen> createState() => _TournamentEditScreenState();
+  ConsumerState<TournamentEditScreen> createState() =>
+      _TournamentEditScreenState();
 }
 
 class _GroupDraft {
@@ -34,13 +37,17 @@ class _GroupDraft {
   final List<HourMinute> times;
 }
 
-class _TournamentEditScreenState extends State<TournamentEditScreen> {
+class _TournamentEditScreenState extends ConsumerState<TournamentEditScreen> {
   // Prefill source: editing an existing tournament copies everything
   // including dates; duplicating copies settings only, dates start blank.
   Tournament? get _prefill => widget.existing ?? widget.duplicateFrom;
 
   late final _name = TextEditingController(text: _prefill?.name);
   late final _venue = TextEditingController(text: _prefill?.venue);
+
+  /// Selected saved venue (its lane count caps ordered places). Null = the
+  /// free-text venue name only.
+  late String? _venueId = _prefill?.venueId;
   late final _email = TextEditingController(text: _prefill?.contactEmail);
   late final _phone = TextEditingController(text: _prefill?.contactPhone);
   late final _url = TextEditingController(text: _prefill?.sourceUrl);
@@ -139,6 +146,7 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
     final fields = {
       'name': name,
       'venue': _venue.text.trim(),
+      'venue_id': _venueId,
       'kind': _kind.label,
       'starts_on': _startsOn!.toSql(),
       'ends_on': _endsOn!.toSql(),
@@ -180,6 +188,69 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
     }
   }
 
+  void _selectVenue(Venue? venue) {
+    setState(() {
+      _venueId = venue?.id;
+      if (venue != null) {
+        _venue.text = venue.name;
+        if (venue.contactEmail.isNotEmpty) _email.text = venue.contactEmail;
+        if (venue.contactPhone.isNotEmpty) _phone.text = venue.contactPhone;
+        if (venue.sourceUrl.isNotEmpty) _url.text = venue.sourceUrl;
+      }
+    });
+  }
+
+  /// Pick a saved venue (fills lane count for the order cap) or add a new one.
+  /// The chosen venue's name still lands in the free-text [_venue] field, so
+  /// the fallback name column stays populated.
+  Widget _venuePicker() {
+    final venues = ref.watch(venuesProvider).value ?? const [];
+    final selected =
+        venues.where((v) => v.id == _venueId).firstOrNull;
+
+    return Row(
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String?>(
+            initialValue: selected?.id,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Kuželna'),
+            hint: _venue.text.isEmpty
+                ? const Text('Vyber kuželnu')
+                : Text(_venue.text),
+            items: [
+              for (final v in venues)
+                DropdownMenuItem(
+                  value: v.id,
+                  child: Text('${v.name} · ${v.laneCount} drah',
+                      overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged: (id) => _selectVenue(
+                venues.where((v) => v.id == id).firstOrNull),
+          ),
+        ),
+        IconButton(
+          tooltip: 'Nová kuželna',
+          icon: const Icon(Icons.add_location_alt_outlined),
+          onPressed: () async {
+            final id = await editVenue(context);
+            if (id != null) {
+              final v = ref.read(venueByIdProvider(id));
+              if (v != null) _selectVenue(v);
+            }
+          },
+        ),
+        if (selected != null)
+          IconButton(
+            tooltip: 'Upravit kuželnu',
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: () => editVenue(context, existing: selected),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final scraping = _scraper != null;
@@ -201,26 +272,17 @@ class _TournamentEditScreenState extends State<TournamentEditScreen> {
             decoration: const InputDecoration(labelText: 'Název turnaje'),
           ),
           const SizedBox(height: 12),
-          Row(children: [
-            Expanded(
-              child: TextField(
-                controller: _venue,
-                decoration: const InputDecoration(labelText: 'Kuželna'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: DropdownButtonFormField<TournamentKind>(
-                initialValue: _kind,
-                decoration: const InputDecoration(labelText: 'Typ'),
-                items: [
-                  for (final kind in TournamentKind.values)
-                    DropdownMenuItem(value: kind, child: Text(kind.label)),
-                ],
-                onChanged: (kind) => setState(() => _kind = kind!),
-              ),
-            ),
-          ]),
+          _venuePicker(),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<TournamentKind>(
+            initialValue: _kind,
+            decoration: const InputDecoration(labelText: 'Typ'),
+            items: [
+              for (final kind in TournamentKind.values)
+                DropdownMenuItem(value: kind, child: Text(kind.label)),
+            ],
+            onChanged: (kind) => setState(() => _kind = kind!),
+          ),
           const SizedBox(height: 12),
           Row(children: [
             Expanded(
