@@ -42,6 +42,11 @@ localize the e-mail templates (**Authentication → Email Templates**).
 Caveat when configuring via the Management API: set SMTP first, templates in
 a separate second request — a combined request is silently dropped.
 
+Keep `{{ .Token }}` in the magic-link and confirmation templates: some mail
+apps (e.g. Seznam's in-app browser) drop the `?code=` query when opening the
+app from the link, so the login screen offers "Zadat kód z e-mailu" as a
+fallback — the code in the e-mail is what makes it work.
+
 ## 4. Run the app
 
 ```bash
