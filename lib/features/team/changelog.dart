@@ -12,6 +12,13 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('1.3.1', '9. 7. 2026', [
+    'Turnaje načítané z webu poznáš v seznamu podle ikony zeměkoule.',
+    'Nový typ „trojice" a disciplína „40HS".',
+    'Při archivaci se k názvu turnaje doplní rok, aby se příští ročník '
+        'nepletl.',
+    'Oprava odkazů na pozvánky z kuzelky.cz (otevíraly 404).',
+  ]),
   Release('1.3.0', '9. 7. 2026', [
     'V nastavení upozornění je skryté „Návrhy termínů" (hlasování je zatím '
         'vypnuté) a srozumitelnější popis „Nově vypsané turnaje".',
