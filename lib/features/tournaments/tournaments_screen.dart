@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/ui.dart';
 import '../../data/providers.dart';
 import '../../domain/models.dart';
+import '../../scrape/scraper.dart';
 import '../manage/manage_mode.dart';
 import 'timeline_screen.dart';
 import 'tournament_detail_screen.dart';
@@ -140,8 +141,22 @@ class _TournamentTile extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       child: ListTile(
         leading: DateBadge(t.startsOn),
-        title: Text(t.name,
-            style: const TextStyle(fontWeight: FontWeight.w600)),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(t.name,
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+            ),
+            // Tournaments whose starts/occupancy sync from a recognized web
+            // page get a small cloud marker.
+            if (ScraperRegistry.forUrl(t.sourceUrl) != null)
+              Tooltip(
+                message: 'Synchronizováno z webu',
+                child: Icon(Icons.cloud_done_outlined,
+                    size: 16, color: scheme.outline),
+              ),
+          ],
+        ),
         subtitle: Text(
             '${t.timelineLabel(venueName)} · ${rangeLabel(t.startsOn, t.endsOn)}'),
         trailing: Container(
