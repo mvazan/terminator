@@ -3,14 +3,16 @@
 *Hasta la vista, prázdná dráha.*
 
 Tournament scheduler for a Czech nine-pin bowling (kuželky) team: members tick
-which start slots they can make, the app shows a popularity heatmap, the team
-votes on a proposal (Beru / Nemůžu / Radši jiný den), someone orders the
-starts with the organizer and records how many places were taken, latecomers
-join while places are free, and every tournament and played day has a chat
-that archives itself.
+which start slots they can make, the app shows a popularity heatmap, someone
+records an order (which starts and how many lanes) with the organizer,
+latecomers join while places are free, and every tournament and played day has
+a chat that archives itself. Tournaments pick a saved venue (its lane count
+caps the order); the app can navigate to the venue and, for known organizer
+sites, scrape start times and lane occupancy.
 
-- **Design & implementation plan:** `~/Home/termínátor.md`
+- **User guide (Czech, how to use the app):** [terminator-navod.md](terminator-navod.md)
 - **Czech intro for the team / focus group:** `~/Home/terminator-predstaveni.md`
+- **Design & implementation plan:** `~/Home/termínátor.md`
 - **Backend setup guide (one-time):** [SETUP.md](SETUP.md)
 - **CI/CD guide (GitHub Actions → Supabase, APK releases):** [CICD.md](CICD.md)
 
@@ -29,14 +31,17 @@ that archives itself.
 lib/
   config.dart           # --dart-define backend credentials
   domain/               # pure Dart, unit-tested: models, slot generation,
-                        # heatmap + best picks, timeline weeks, places math,
-                        # chat lock policy
+                        # heatmap + best picks, timeline weeks, lanes/places
+                        # math, chat lock policy
   data/providers.dart   # Riverpod streams over Supabase + all write actions
   features/             # auth gate, my starts, tournaments (heatmap, timeline,
-                        # proposals, orders, rosters), chats, team
+                        # orders, rosters), venues, chats, team, hidden manage
   push/push.dart        # FCM client side (no-op without Firebase dart-defines)
+  scrape/               # per-organizer occupancy scrapers (mkware)
 supabase/
-  migrations/0001_init.sql   # schema, RLS, join_team/approve_member RPCs
+  migrations/0001_schema.sql # single squashed baseline: schema, RLS,
+                             # join_team/approve_member/set_member_hidden RPCs,
+                             # notify webhook triggers
   functions/notify/          # webhook-driven push notifications
 ```
 
