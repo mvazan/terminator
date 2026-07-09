@@ -12,6 +12,9 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('1.3.2', '9. 7. 2026', [
+    'Ikona zeměkoule u turnajů z webu se přesunula do pravého rohu.',
+  ]),
   Release('1.3.1', '9. 7. 2026', [
     'Turnaje načítané z webu poznáš v seznamu podle ikony zeměkoule.',
     'Nový typ „trojice" a disciplína „40HS".',
