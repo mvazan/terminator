@@ -141,35 +141,40 @@ class _TournamentTile extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       child: ListTile(
         leading: DateBadge(t.startsOn),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(t.name,
-                  style: const TextStyle(fontWeight: FontWeight.w600)),
-            ),
-            // Tournaments whose starts/occupancy sync from a recognized web
-            // page get a small cloud marker.
-            if (ScraperRegistry.forUrl(t.sourceUrl) != null)
-              Tooltip(
-                message: 'Synchronizováno z webu',
-                child: Icon(Icons.public,
-                    size: 16, color: scheme.outline),
-              ),
-          ],
-        ),
+        title: Text(t.name,
+            style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(
             '${t.timelineLabel(venueName)} · ${rangeLabel(t.startsOn, t.endsOn)}'),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: chipColor,
-            borderRadius: BorderRadius.circular(10),
+        trailing: SizedBox(
+          height: 48,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // Tournaments whose starts/occupancy sync from a recognized web
+              // page get a small globe marker in the top-right corner.
+              if (ScraperRegistry.forUrl(t.sourceUrl) != null)
+                Tooltip(
+                  message: 'Synchronizováno z webu',
+                  child: Icon(Icons.public, size: 16, color: scheme.outline),
+                )
+              else
+                const SizedBox(height: 16),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: chipColor,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(status,
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: chipText)),
+              ),
+            ],
           ),
-          child: Text(status,
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: chipText)),
         ),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
