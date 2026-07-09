@@ -311,8 +311,17 @@ class Api {
           String id, Map<String, dynamic> fields) =>
       _db.from('tournaments').update(fields).eq('id', id);
 
-  static Future<void> archiveTournament(String id) => updateTournament(
-      id, {'archived_at': DateTime.now().toUtc().toIso8601String()});
+  /// Archives a tournament and stamps the year onto its name (unless already
+  /// there), so next season's fresh copy — created without a year — doesn't
+  /// clash with the archived one.
+  static Future<void> archiveTournament(Tournament t) {
+    final year = t.startsOn.year;
+    final name = t.name.contains('$year') ? t.name : '${t.name} $year';
+    return updateTournament(t.id, {
+      'archived_at': DateTime.now().toUtc().toIso8601String(),
+      'name': name,
+    });
+  }
 
   /// How long scraped occupancy stays fresh before an automatic re-sync.
   static const scrapeTtl = Duration(minutes: 30);

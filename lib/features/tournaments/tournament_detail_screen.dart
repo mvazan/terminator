@@ -276,11 +276,12 @@ class _TournamentDetailScreenState
           title: 'Archivovat turnaj?',
           message: '„${tournament.name}" se přesune do archivu a stane se '
               'jen ke čtení — nepůjde upravovat, přidávat termíny, hlasovat '
-              'ani objednávat.',
+              'ani objednávat. K názvu se doplní rok, aby se příští ročník '
+              'nepletl.',
           confirmLabel: 'Archivovat',
         );
         if (!confirmed || !context.mounted) return;
-        await tryAction(context, () => Api.archiveTournament(tournament.id),
+        await tryAction(context, () => Api.archiveTournament(tournament),
             success: 'Turnaj archivován.');
         if (context.mounted) Navigator.of(context).pop();
       case 'hide':
