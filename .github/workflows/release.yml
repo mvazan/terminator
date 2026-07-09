@@ -1,9 +1,10 @@
-name: Release APK
+name: Release
 
-# Push a tag like v1.0.0 and this builds a signed release APK with the
-# production backend baked in, then publishes it on the GitHub Releases page —
-# the link you share with the team. Bump `version:` in pubspec.yaml before
-# tagging so Android accepts the update over the old install.
+# Push a tag like v1.0.0 and this builds a signed release APK (for direct
+# install / sharing) and a signed AAB (App Bundle, for Google Play internal
+# testing) with the production backend baked in, then publishes both on the
+# GitHub Releases page. Bump `version:` in pubspec.yaml before tagging so
+# Android accepts the update over the old install.
 on:
   push:
     tags: ['v*']
@@ -36,23 +37,30 @@ jobs:
           keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
           EOF
 
-      - name: Build signed APK
-        run: |
-          flutter build apk --release \
-            --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} \
-            --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }} \
-            --dart-define=FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }} \
-            --dart-define=FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }} \
-            --dart-define=FIREBASE_SENDER_ID=${{ secrets.FIREBASE_SENDER_ID }} \
+      - name: Build signed APK + AAB
+        env:
+          DEFINES: >-
+            --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+            --dart-define=SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+            --dart-define=FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
+            --dart-define=FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }}
+            --dart-define=FIREBASE_SENDER_ID=${{ secrets.FIREBASE_SENDER_ID }}
             --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          flutter build apk --release $DEFINES         # direct install / sharing
+          flutter build appbundle --release $DEFINES   # Google Play
 
-      - name: Name the artifact
+      - name: Name the artifacts
         run: |
           cp build/app/outputs/flutter-apk/app-release.apk \
              terminator-${{ github.ref_name }}.apk
+          cp build/app/outputs/bundle/release/app-release.aab \
+             terminator-${{ github.ref_name }}.aab
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: terminator-*.apk
+          files: |
+            terminator-*.apk
+            terminator-*.aab
           generate_release_notes: true
