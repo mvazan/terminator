@@ -131,12 +131,13 @@ class Profile {
 }
 
 /// Tournament format. Drives how many players fit on an ordered lane:
-/// jednotlivci/dvojice/čtveřice put one player per lane; tandem is the
+/// jednotlivci/dvojice/trojice/čtveřice put one player per lane; tandem is the
 /// exception where two players share one lane. Stored labels are
 /// CHECK-constrained in the tournaments table, so parsing never fails.
 enum TournamentKind {
   jednotlivci('jednotlivci', 1),
   dvojice('dvojice', 1),
+  trojice('trojice', 1),
   ctverice('čtveřice', 1),
   tandem('tandem', 2);
 
@@ -161,6 +162,7 @@ enum TournamentKind {
 /// sdruženými"; "jiné" covers anything else. Stored labels are
 /// CHECK-constrained in the tournaments table.
 enum Discipline {
+  hs40('40HS'),
   hs60('60HS'),
   hs100('100HS'),
   hs120('120HS'),
