@@ -338,6 +338,19 @@ create trigger notify_availability
   for each row execute function notify_webhook();
 
 -- ---------------------------------------------------------------------------
+-- Grants
+-- ---------------------------------------------------------------------------
+-- PostgREST checks table-level privileges BEFORE RLS, so the authenticated
+-- role needs CRUD grants on every table (RLS then restricts which rows).
+-- Supabase normally sets these as schema defaults, but `drop schema public`
+-- during the squash wiped them — re-grant them here so a clean rebuild works.
+-- The profiles column-grant tightening below narrows UPDATE afterwards.
+grant usage on schema public to anon, authenticated, service_role;
+grant all on all tables in schema public to authenticated, service_role;
+grant all on all sequences in schema public to authenticated, service_role;
+grant all on all functions in schema public to authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------------
 
