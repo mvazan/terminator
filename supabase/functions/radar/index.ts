@@ -139,13 +139,21 @@ export function parseKuzelky(html: string, now: Date): RadarEntry[] {
     const externalId = doc ??
       `${venue}|${disc}|${term}`.replace(/\s+/g, "_").slice(0, 120);
 
+    // Invitation hrefs are relative to the /turnaje/ page (e.g.
+    // "pozvanky/26/x.pdf" → /turnaje/pozvanky/26/x.pdf), not to the site root.
+    const docUrl = doc == null
+      ? "https://www.kuzelky.cz/turnaje/"
+      : /^https?:\/\//.test(doc)
+      ? doc
+      : doc.startsWith("/")
+      ? `https://www.kuzelky.cz${doc}`
+      : `https://www.kuzelky.cz/turnaje/${doc}`;
+
     entries.push({
       source: "kuzelky",
       externalId,
       name: `${venue} — ${disc}`,
-      url: doc
-        ? `https://www.kuzelky.cz/${doc.replace(/^\//, "")}`
-        : "https://www.kuzelky.cz/turnaje/",
+      url: docUrl,
       discipline: disciplineToken(disc),
       startsOn,
       endsOn,
