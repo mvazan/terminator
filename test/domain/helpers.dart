@@ -3,8 +3,9 @@ import 'package:terminator/domain/models.dart';
 Tournament makeTournament({
   String id = 't1',
   String name = 'Vracov Cup',
-  String venue = 'Vracov',
+  String venueId = 'v1',
   TournamentKind kind = TournamentKind.dvojice,
+  Discipline? discipline,
   required Day startsOn,
   required Day endsOn,
   int minPlayers = 2,
@@ -12,8 +13,9 @@ Tournament makeTournament({
     Tournament(
       id: id,
       name: name,
-      venue: venue,
+      venueId: venueId,
       kind: kind,
+      discipline: discipline,
       startsOn: startsOn,
       endsOn: endsOn,
       minPlayers: minPlayers,

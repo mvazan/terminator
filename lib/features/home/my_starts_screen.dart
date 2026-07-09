@@ -18,6 +18,8 @@ class MyStartsScreen extends ConsumerWidget {
     final slots = ref.watch(slotsProvider).value ?? const [];
     final tournaments = ref.watch(tournamentsProvider).value ?? const [];
     final members = ref.watch(membersProvider).value ?? const [];
+    final venues = ref.watch(venuesProvider).value ?? const [];
+    final venueById = {for (final v in venues) v.id: v};
     final uid = currentUserId;
 
     final slotById = {for (final s in slots) s.id: s};
@@ -53,6 +55,8 @@ class MyStartsScreen extends ConsumerWidget {
               itemCount: mine.length,
               itemBuilder: (context, i) {
                 final start = mine[i];
+                final venue = venueById[start.tournament.venueId];
+                final venueName = venue?.name ?? '?';
                 final teammates = [
                   for (final r in rosters)
                     if (r.slotId == start.slot.id && r.userId != uid)
@@ -65,7 +69,7 @@ class MyStartsScreen extends ConsumerWidget {
                     leading: DateBadge(start.slot.date),
                     title: Text(
                       '${start.slot.time.display()} · '
-                      '${start.tournament.timelineLabel}',
+                      '${start.tournament.timelineLabel(venueName)}',
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     subtitle: Text([
@@ -76,7 +80,8 @@ class MyStartsScreen extends ConsumerWidget {
                     trailing: IconButton(
                       tooltip: 'Přidat do kalendáře',
                       icon: const Icon(Icons.event_available),
-                      onPressed: () => _addToCalendar(context, start),
+                      onPressed: () =>
+                          _addToCalendar(context, start, venue, venueName),
                     ),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
@@ -91,15 +96,17 @@ class MyStartsScreen extends ConsumerWidget {
     );
   }
 
-  void _addToCalendar(
-      BuildContext context, ({Slot slot, Tournament tournament}) start) {
+  void _addToCalendar(BuildContext context,
+      ({Slot slot, Tournament tournament}) start, Venue? venue,
+      String venueName) {
     final d = start.slot.date;
     final t = start.slot.time;
     final begin = DateTime(d.year, d.month, d.day, t.hour, t.minute);
     Add2Calendar.addEvent2Cal(Event(
       title: 'Kuželky: ${start.tournament.name}',
-      description: 'Start ${t.display()} — ${start.tournament.timelineLabel}',
-      location: start.tournament.venue,
+      description:
+          'Start ${t.display()} — ${start.tournament.timelineLabel(venueName)}',
+      location: venue?.address.isNotEmpty == true ? venue!.address : venueName,
       startDate: begin,
       endDate: begin.add(const Duration(hours: 2)),
     ));

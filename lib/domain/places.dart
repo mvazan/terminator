@@ -49,12 +49,12 @@ class OrderPlaces {
 }
 
 /// Computes places for the slots of one order. [lanesBySlot] holds the lane
-/// counts entered when the order was recorded (null/missing = 1 lane).
+/// count entered per slot (defaults to 1 for any slot not in the map).
 OrderPlaces orderPlaces({
   required Tournament tournament,
   required List<Slot> orderSlots,
   required List<RosterEntry> rosters,
-  Map<String, int?> lanesBySlot = const {},
+  Map<String, int> lanesBySlot = const {},
 }) {
   final filledBySlot = <String, int>{};
   for (final r in rosters) {

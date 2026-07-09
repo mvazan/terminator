@@ -67,7 +67,7 @@ void main() {
   });
 
   test('ordered lanes per slot; one place per lane for non-tandem', () {
-    // 4 lanes on s1, 1 lane (default) on s2; dvojice = 1 player per lane.
+    // 4 lanes on s1; s2 omitted from the map falls back to 1 lane.
     final places = orderPlaces(
       tournament: tournament,
       orderSlots: [s1, s2],
@@ -76,7 +76,7 @@ void main() {
         member('r2', 's1', 'u2'),
         member('r3', 's1', 'u3'),
       ],
-      lanesBySlot: {'s1': 4, 's2': null},
+      lanesBySlot: {'s1': 4},
     );
 
     expect(places.orderedLanes, 5); // 4 + default 1

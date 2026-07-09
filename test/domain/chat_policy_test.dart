@@ -38,21 +38,13 @@ void main() {
     );
   });
 
-  test('TournamentKind: tandem is 2 players sharing one lane', () {
-    expect(TournamentKind.jednotlivci.laneCapacity, 1);
-    expect(TournamentKind.dvojice.laneCapacity, 2);
-    expect(TournamentKind.ctverice.laneCapacity, 4);
-    expect(TournamentKind.tandem.laneCapacity, 2);
+  test('TournamentKind: only tandem puts 2 players on one lane', () {
+    expect(TournamentKind.jednotlivci.playersPerLane, 1);
+    expect(TournamentKind.dvojice.playersPerLane, 1);
+    expect(TournamentKind.ctverice.playersPerLane, 1);
+    expect(TournamentKind.tandem.playersPerLane, 2);
     expect(TournamentKind.tryParse('tandem'), TournamentKind.tandem);
     expect(TournamentKind.tryParse('neznámý'), isNull);
-  });
-
-  test('maxPlacesForLanes: tandem fits 2 players per lane, others 1', () {
-    // 6 lanes: singles/pairs/quads = 6 places, tandem = 12 (2 share a lane).
-    expect(TournamentKind.jednotlivci.maxPlacesForLanes(6), 6);
-    expect(TournamentKind.dvojice.maxPlacesForLanes(6), 6);
-    expect(TournamentKind.ctverice.maxPlacesForLanes(6), 6);
-    expect(TournamentKind.tandem.maxPlacesForLanes(6), 12);
   });
 
   test('models: HourMinute and Day parse Postgres formats', () {

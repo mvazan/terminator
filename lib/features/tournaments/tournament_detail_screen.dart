@@ -344,7 +344,8 @@ class _InfoCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${t.timelineLabel} · ${rangeLabel(t.startsOn, t.endsOn)}'),
+            Text('${t.timelineLabel(venue?.name ?? '?')} · '
+                '${rangeLabel(t.startsOn, t.endsOn)}'),
             if (address.isNotEmpty)
               Text(address, style: Theme.of(context).textTheme.bodySmall),
             if (t.scrapedAt != null)

@@ -1,0 +1,223 @@
+# Termínátor — návod k použití 🎳
+
+*Hasta la vista, prázdná dráha.*
+
+Tenhle dokument popisuje, jak se s appkou reálně pracuje — krok za krokem, obrazovka
+po obrazovce. (Pokud hledáš, proč appka vznikla a co se plánuje do budoucna, mrkni na
+[terminator-predstaveni.md](terminator-predstaveni.md).)
+
+## 1. Instalace
+
+Termínátor zatím není v Google Play — instaluje se přímo ze souboru (APK), který ti
+pošle někdo z party (e-mailem, přes Drive, WhatsApp…).
+
+1. Otevři APK soubor v telefonu.
+2. Android se zeptá, jestli povolíš instalaci z neznámých zdrojů — to je v pořádku,
+   potvrď.
+3. Appka se nainstaluje jako běžná aplikace.
+
+iPhone verze zatím není — první vlna je jen pro Android.
+
+## 2. První přihlášení
+
+1. Otevři appku, zadej svůj **e-mail** a klepni na **„Poslat přihlašovací odkaz"**.
+   Žádné heslo nikam nezadáváš.
+2. Přijde ti e-mail s odkazem. Otevři ho **v telefonu** (ne v počítači) a klikni na
+   odkaz — appka se sama otevře a jsi přihlášený/á. Odkaz platí hodinu a funguje jen
+   ten z nejnovějšího e-mailu (když si pošleš víc odkazů, klikni na ten poslední).
+3. Appka tě ještě nezná, takže se zeptá na:
+   - **Kód týmu** — zeptej se toho, kdo appku pro partu spravuje.
+   - **Tvoje jméno**, jak tě parta zná.
+   Potvrď tlačítkem **„Přidat se k týmu"**.
+4. Pokud jsi úplně první, kdo appku pro partu spouští, jsi automaticky schválen/a
+   (zakladatel). Jinak se objeví obrazovka **„Čekáš na schválení"** — někomu z party
+   přijde upozornění a jedním klepnutím tě pustí dál. Nemusíš nic obnovovat, jakmile
+   tě někdo schválí, appka se sama přepne.
+
+Později appka pozná, že jsi přihlášený/á, a rovnou tě pustí dovnitř — tenhle postup
+je jen napoprvé.
+
+### Když odkaz nefunguje
+
+Některé e-mailové aplikace (třeba Seznam) odkaz „snědí" a appka tě jen vrátí zpátky
+na přihlášení. Proto e-mail obsahuje i **6místný kód**. Po odeslání odkazu klepni na
+**„Zadat kód z e-mailu"**, opiš kód a jsi uvnitř — funguje nezávisle na tom, jaký máš
+e-mailový program.
+
+## 3. Orientace v appce
+
+Dole jsou čtyři záložky:
+
+| Záložka | K čemu slouží |
+|---|---|
+| **Moje starty** | Tvoje nadcházející objednané starty — úvodní obrazovka |
+| **Turnaje** | Seznam turnajů, zakládání nových, odklikávání termínů |
+| **Chaty** | Chat k turnaji a chaty jednotlivých hracích dní |
+| **Tým** | Kdo je v partě, schvalování nových členů, nastavení upozornění |
+
+## 4. Moje starty (úvodní obrazovka)
+
+Seznam tvých vlastních **potvrzených/objednaných** startů, které tě čekají — datum,
+čas, kuželna a s kým z party hraješ (řádek „S: Franta, Pepa"). U každého je ikona
+kalendáře — klepnutím si start přidáš rovnou do kalendáře v telefonu.
+
+Pokud je seznam prázdný, appka ti napoví: *„Mrkni do Turnajů, odklikej si termíny, a
+až se objedná, uvidíš tady své starty."*
+
+## 5. Kuželny
+
+Než založíš turnaj, hodí se mít uloženou **kuželnu** — u turnaje je povinná a vybírá
+se ze seznamu. Kuželny spravuješ v **Tým → Nastavení → Kuželny** (nebo rovnou při
+zakládání turnaje tlačítkem **„Nová kuželna"**).
+
+U kuželny zadáš:
+
+- **Název** a **počet drah** (2 / 4 / 6 / 8) — počet drah je povinný, protože podle
+  něj appka hlídá, kolik drah jde na jeden start objednat.
+- Nepovinně **adresu** (pak jde na kuželnu spustit navigaci, viz níže) a **web
+  domácího oddílu**.
+
+Kontakty na pořadatele (e-mail, telefon) se nezadávají u kuželny, ale u konkrétního
+turnaje — na jedné kuželně může hrát víc oddílů s různými kontakty.
+
+## 6. Založení turnaje
+
+V záložce **Turnaje** klepni na **„Nový turnaj"**. Vyplníš:
+
+- **Název** a **kuželnu** (vybereš ze seznamu — je povinná)
+- **Typ** a **disciplínu** (viz níže)
+- **Termín od–do** — jedním výběrem v kalendáři označíš rozmezí dní, kdy se hraje
+- **Min. hráčů na start** — od kolika hráčů appka pošle upozornění „dá se objednat"
+  (výchozí 2)
+- Nepovinně: **e-mail/telefon pořadatele**, **web turnaje** a **poznámky**
+
+### Typy turnajů
+
+| Typ | Význam |
+|---|---|
+| **jednotlivci** | hraje se sám/sama, 1 hráč na dráhu |
+| **dvojice** | dvojice, 1 hráč na dráhu (výchozí typ) |
+| **čtveřice** | čtveřice, 1 hráč na dráhu |
+| **tandem** | jednotlivci, ale netradičně **hrají na jedné dráze dva hráči** |
+
+### Disciplína
+
+Nepovinné pole vedle typu: **60HS / 100HS / 120HS / 180HS** nebo **jiné**. Ukazuje se
+pak u turnaje, třeba „Vracov (dvojice · 100HS)".
+
+### Časy startů
+
+Pokud web turnaje appka nerozpozná (viz níže), sám/sama zadáš, kdy se hraje: vyber
+dny v týdnu (po–ne) a napiš k nim časy, třeba „16 17:30 19". Skupin dnů (třeba
+zvlášť všední dny a víkend) můžeš mít kolik chceš. Appka rovnou ukazuje náhled: *„Vytvoří
+se N startů."*
+
+### Automatické načtení z webu
+
+Pokud appka **rozpozná** web pořadatele (aktuálně jen kkmoravskaslavia.cz), termíny
+i obsazenost drah se načtou samy — žádné ruční zadávání časů. Appka to sama pozná a
+napíše *„✓ Rozpoznáno — termíny a obsazenost se načtou z webu automaticky."* U
+takových turnajů se dá obsazenost kdykoliv ručně obnovit ikonou v detailu turnaje.
+
+## 7. Odklikávání termínů (kdy můžeš)
+
+Otevři turnaj → nahoře jsou **„Nejsilnější termíny"** (viz níže), pod nimi mřížka
+dnů a časů. Klepnutím na políčko **zapneš/vypneš svou dostupnost** — appka si
+pamatuje, na co jsi klikl/a (malá fajfka v políčku = ty).
+
+Číslo v políčku:
+- U **ručně zadaných** turnajů: kolik lidí z party může.
+- U turnajů **z webu**: **„nás/dráhy"** — např. „3/2" = 3 z nás může, 2 dráhy jsou
+  ještě volné u pořadatele.
+
+Políčka, kde je dost lidí na objednání (dosažen „Min. hráčů na start"), mají
+výraznější rámeček. Barva políčka navíc ukazuje, jak moc je termín oblíbený —
+čím víc lidí kliklo, tím sytější barva.
+
+V menu (⋮ vpravo nahoře) si můžeš zapnout **„Zobrazit, kdo je přihlášený"** — pod
+každým dnem se pak objeví jména lidí u jednotlivých časů.
+
+V kartě turnaje jsou taky kontakty: **„navigovat"** (spustí navigaci na adresu
+kuželny, pokud je vyplněná), e-mail a telefon pořadatele a web turnaje.
+
+## 8. Zadání objednávky
+
+Když se v mřížce zvýrazní silné termíny, appka je shrne nahoře v kartě **„Nejsilnější
+termíny"**. Tlačítkem **„Zadat objednávku"** otevřeš výběr startů.
+
+Objednávku samotnou (telefon/e-mail/web s pořadatelem) vždycky vyřídí člověk, appka
+jen zaznamenává výsledek: které starty a **kolik drah** na každém z nich.
+
+- U každého vybraného startu zvolíš **počet drah** (nejvýš tolik, kolik jich kuželna
+  má; u turnajů s webem nejvýš tolik, kolik je zrovna volných).
+- Nahoře appka sečte, kolik drah celkem objednáváš.
+
+## 9. Doplňování hráčů
+
+U objednaného startu appka ukazuje, kolik je **objednáno drah, obsazeno a volno**.
+Kolik hráčů se na dráhy vejde, závisí na typu: obvykle **1 hráč na dráhu**, u
+**tandemu 2 hráči na dráhu**. Objednat můžeš klidně víc, než je aktuálně hráčů —
+někdo se najde později, i kdyby zrovna nehlasoval nebo se neodklikl.
+
+Pokud zbývá volné místo:
+- Klepnutím na **„Přidám se"** se sám/sama přidáš.
+- Klepnutím na **„Přidat…"** přidáš někoho z party — appka nahoře nabídne ty, kdo se
+  na tento start hlásili, pod čarou pak zbytek. Nebo vybereš **„Host (nemá appku) —
+  zadat jméno"** a napíšeš jméno někoho, kdo appku nemá (třeba manžel/manželka, co
+  jde jen zahrát).
+
+Místo může klidně zůstat prázdné, není potřeba ho za každou cenu obsadit.
+
+> Poznámka: hlasování o termínu (Beru / Nemůžu / Radši jiný den) je zatím schované —
+> domlouváte se v chatu turnaje a objednávku pak jen zapíšete.
+
+## 10. Chaty
+
+Ke každému turnaji patří **chat k turnaji** (jsou v něm všichni v partě automaticky)
+a jakmile se objedná konkrétní den, vznikne k němu i **chat hracího dne** (jen pro
+ty, kdo ten den hrají — hodí se na domluvu odvozu apod.).
+
+- Seznam chatů je seřazený podle **poslední aktivity** a u chatů s nepřečtenými
+  zprávami svítí **počet nových**.
+- Zvonek v appbaru chatu chat ztlumí/zapne notifikace jen pro tenhle jeden chat.
+- Chat se sám po pár dnech od konce turnaje/dne uzamkne a přesune do **Archivu**
+  (jde si ho stále přečíst, jen se do něj nedá psát).
+
+Když ti přijde upozornění a klepneš na něj, appka tě otevře rovnou tam, o čem je —
+na daný turnaj nebo přímo do chatu.
+
+## 11. Tým — schvalování a nastavení
+
+Záložka **Tým** ukazuje:
+
+- Tvůj profil nahoře (jméno jde upravit ikonou tužky).
+- Sekci **„Čekají na schválení"**, pokud čeká nový člen — tlačítkem **„Schválit"**
+  ho pustíš dál. Schválit může kdokoliv z party, není potřeba „admin".
+- Seznam všech členů party.
+- Úplně dole verzi aplikace — po klepnutí se zobrazí **„Co je nového"** (přehled
+  změn). A **„Odhlásit se"** (nejdřív se zeptá na potvrzení).
+
+Ikonou ozubeného kola se dostaneš do **Nastavení**, kde spravuješ **Kuželny**
+(viz kapitola 5) a **Upozornění** — pro každý typ zvlášť:
+
+| Upozornění | Výchozí stav |
+|---|---|
+| Nový člen (čeká na schválení) | vypnuto |
+| Nový turnaj | zapnuto |
+| Návrhy termínů | zapnuto |
+| Objednávky | zapnuto |
+| Zprávy v chatech | zapnuto |
+| Dá se objednat (termín dosáhl minima hráčů) | vypnuto |
+
+U každého jde zvolit **Zapnout / Ztlumit na 1–12 h (i vlastní počet hodin) /
+Vypnout**. Ztlumení samo vyprší, není potřeba se vracet a zase zapínat ručně.
+
+## 12. Archivované turnaje
+
+Jakmile se turnaj archivuje (ručně, přes menu **„Archivovat"**), zůstane navždy
+**jen ke čtení** — nedají se měnit termíny, hlasovat ani objednávat, dá se ale
+kdykoliv zpětně podívat, co se hrálo.
+
+Z archivovaného turnaje jde přes menu použít **„Duplikovat jako nový turnaj"** —
+předvyplní se název, kuželna, typ i kontakty na pořadatele pro další ročník, ale
+termíny/hlasy/objednávky se nekopírují — je to čistý start pro novou sezónu.

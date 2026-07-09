@@ -86,6 +86,15 @@ final venueByIdProvider = Provider.family<Venue?, String?>((ref, id) {
       .firstOrNull;
 });
 
+/// venue id -> name, for cheaply labelling many tournaments at once (lists,
+/// season timeline) without a family lookup per row.
+final venueNamesProvider = Provider<Map<String, String>>((ref) {
+  return {
+    for (final v in ref.watch(venuesProvider).value ?? const [])
+      v.id: v.name,
+  };
+});
+
 /// Single tournament looked up from the live tournaments stream.
 final tournamentByIdProvider = Provider.family<Tournament?, String>(
   (ref, id) => (ref.watch(tournamentsProvider).value ?? const [])
@@ -128,21 +137,21 @@ final ordersProvider = StreamProvider<List<Order>>((ref) {
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
 });
 
-/// order_id -> slot_id -> ordered places (null = the kind's lane capacity).
+/// order_id -> slot_id -> ordered lane count.
 final orderSlotsProvider =
-    StreamProvider<Map<String, Map<String, int?>>>((ref) {
+    StreamProvider<Map<String, Map<String, int>>>((ref) {
   if (ref.watch(_userIdProvider) == null) {
-    return Stream.value(const <String, Map<String, int?>>{});
+    return Stream.value(const <String, Map<String, int>>{});
   }
   return _db
       .from('order_slots')
       .stream(primaryKey: ['order_id', 'slot_id'])
       .map((rows) {
-    final map = <String, Map<String, int?>>{};
+    final map = <String, Map<String, int>>{};
     for (final row in rows) {
       map.putIfAbsent(row['order_id'] as String,
-          () => <String, int?>{})[row['slot_id'] as String] =
-          row['places'] as int?;
+          () => <String, int>{})[row['slot_id'] as String] =
+          row['lanes'] as int;
     }
     return map;
   });
@@ -391,13 +400,11 @@ class Api {
         .single();
     final orderId = inserted['id'] as String;
     await _db.from('order_slots').insert([
-      // order_slots.places stores the ordered LANE count (player capacity is
-      // lanes × kind.playersPerLane, computed in places.dart).
       for (final entry in lanesBySlot.entries)
         {
           'order_id': orderId,
           'slot_id': entry.key,
-          'places': entry.value,
+          'lanes': entry.value,
         },
     ]);
   }

@@ -130,32 +130,24 @@ class Profile {
       );
 }
 
-/// Tournament format. The single source of per-start capacity —
-/// jednotlivci/dvojice/čtveřice: team size, the minimum that must be
-/// ordered together. tandem: an individual discipline where, unusually,
-/// 2 players still share one lane. Stored labels are CHECK-constrained in
-/// the tournaments table, so parsing never fails in practice.
+/// Tournament format. Drives how many players fit on an ordered lane:
+/// jednotlivci/dvojice/čtveřice put one player per lane; tandem is the
+/// exception where two players share one lane. Stored labels are
+/// CHECK-constrained in the tournaments table, so parsing never fails.
 enum TournamentKind {
-  jednotlivci('jednotlivci', 1, 1),
-  dvojice('dvojice', 2, 1),
-  ctverice('čtveřice', 4, 1),
-  tandem('tandem', 2, 2);
+  jednotlivci('jednotlivci', 1),
+  dvojice('dvojice', 1),
+  ctverice('čtveřice', 1),
+  tandem('tandem', 2);
 
-  const TournamentKind(this.label, this.laneCapacity, this.playersPerLane);
+  const TournamentKind(this.label, this.playersPerLane);
 
   /// Czech display label, also the value stored in tournaments.kind.
   final String label;
 
-  /// Players per start — team size for jednotlivci/dvojice/čtveřice, or
-  /// players sharing one lane for tandem.
-  final int laneCapacity;
-
   /// How many players occupy one lane. 1 for most kinds; tandem is the
   /// exception — 2 players share a single lane, so N lanes hold 2·N players.
   final int playersPerLane;
-
-  /// Most places (= players) that fit on `lanes` lanes for this kind.
-  int maxPlacesForLanes(int lanes) => lanes * playersPerLane;
 
   static TournamentKind? tryParse(String value) {
     for (final kind in values) {
@@ -192,7 +184,7 @@ class Tournament {
   const Tournament({
     required this.id,
     required this.name,
-    required this.venue,
+    required this.venueId,
     required this.kind,
     this.discipline,
     required this.startsOn,
@@ -204,7 +196,6 @@ class Tournament {
     required this.notes,
     required this.createdBy,
     required this.createdAt,
-    this.venueId,
     this.scrapedAt,
     this.archivedAt,
     this.hiddenAt,
@@ -212,10 +203,10 @@ class Tournament {
 
   final String id;
   final String name;
-  final String venue;
 
-  /// Optional link to a saved venue (its lane count caps ordered places).
-  final String? venueId;
+  /// The venue this tournament is played at (required). The name/address come
+  /// from the venues table via this id — there's no denormalized copy.
+  final String venueId;
   final TournamentKind kind;
 
   /// Throw format (60HS/100HS/…), independent of [kind]. Null = unset.
@@ -242,29 +233,29 @@ class Tournament {
   bool get isHidden => hiddenAt != null;
 
   /// Label used in the season timeline: "Vracov (dvojice)" or, with a
-  /// discipline set, "Vracov (dvojice · 100HS)".
-  String get timelineLabel => discipline == null
-      ? '$venue (${kind.label})'
-      : '$venue (${kind.label} · ${discipline!.label})';
+  /// discipline set, "Vracov (dvojice · 100HS)". The venue name is resolved
+  /// from the venues table by the caller (via venueByIdProvider).
+  String timelineLabel(String venueName) => discipline == null
+      ? '$venueName (${kind.label})'
+      : '$venueName (${kind.label} · ${discipline!.label})';
 
   factory Tournament.fromJson(Map<String, dynamic> json) => Tournament(
         id: json['id'] as String,
         name: json['name'] as String,
-        venue: json['venue'] as String? ?? '',
-        venueId: json['venue_id'] as String?,
+        venueId: json['venue_id'] as String,
         kind: TournamentKind.tryParse(json['kind'] as String) ??
             TournamentKind.dvojice,
         discipline: Discipline.tryParse(json['discipline'] as String?),
         startsOn: Day.parse(json['starts_on'] as String),
         endsOn: Day.parse(json['ends_on'] as String),
         minPlayers: json['min_players'] as int,
-        contactEmail: json['contact_email'] as String? ?? '',
-        contactPhone: json['contact_phone'] as String? ?? '',
-        sourceUrl: json['source_url'] as String? ?? '',
+        contactEmail: json['contact_email'] as String,
+        contactPhone: json['contact_phone'] as String,
+        sourceUrl: json['source_url'] as String,
         scrapedAt: json['scraped_at'] == null
             ? null
             : DateTime.parse(json['scraped_at'] as String),
-        notes: json['notes'] as String? ?? '',
+        notes: json['notes'] as String,
         createdBy: json['created_by'] as String,
         createdAt: DateTime.parse(json['created_at'] as String),
         archivedAt: json['archived_at'] == null
@@ -364,7 +355,7 @@ class Order {
         tournamentId: json['tournament_id'] as String,
         createdBy: json['created_by'] as String,
         status: OrderStatus.values.byName(json['status'] as String),
-        note: json['note'] as String? ?? '',
+        note: json['note'] as String,
         createdAt: DateTime.parse(json['created_at'] as String),
         orderedAt: json['ordered_at'] == null
             ? null
@@ -405,7 +396,7 @@ class OrderVote {
         orderId: json['order_id'] as String,
         userId: json['user_id'] as String,
         vote: VoteSql.parse(json['vote'] as String),
-        note: json['note'] as String? ?? '',
+        note: json['note'] as String,
       );
 }
 
@@ -554,7 +545,7 @@ class Venue {
         id: json['id'] as String,
         name: json['name'] as String,
         laneCount: json['lane_count'] as int,
-        address: json['address'] as String? ?? '',
-        sourceUrl: json['source_url'] as String? ?? '',
+        address: json['address'] as String,
+        sourceUrl: json['source_url'] as String,
       );
 }

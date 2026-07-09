@@ -16,13 +16,13 @@ void main() {
   test('builds columns spanning all tournaments and maps rows to columns', () {
     final vracov = makeTournament(
       id: 'a',
-      venue: 'Vracov',
+      venueId: 'v-vracov',
       startsOn: Day(2026, 4, 27),
       endsOn: Day(2026, 5, 10),
     );
     final olomouc = makeTournament(
       id: 'b',
-      venue: 'Olomouc',
+      venueId: 'v-olomouc',
       kind: TournamentKind.tandem,
       startsOn: Day(2026, 5, 4),
       endsOn: Day(2026, 5, 31),
@@ -42,7 +42,7 @@ void main() {
     final rowB = timeline.rows[1];
     expect(rowB.startCol, 1);
     expect(rowB.endCol, 4);
-    expect(rowB.tournament.timelineLabel, 'Olomouc (tandem)');
+    expect(rowB.tournament.timelineLabel('Olomouc'), 'Olomouc (tandem)');
   });
 
   test('empty input produces an empty timeline', () {

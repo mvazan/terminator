@@ -20,6 +20,7 @@ class TimelineScreen extends ConsumerWidget {
     final tournaments = (ref.watch(tournamentsProvider).value ?? const [])
         .where((t) => !t.isArchived)
         .toList();
+    final venueNames = ref.watch(venueNamesProvider);
     final timeline = Timeline.build(tournaments);
 
     return Scaffold(
@@ -51,6 +52,7 @@ class TimelineScreen extends ConsumerWidget {
                     for (final (i, row) in timeline.rows.indexed)
                       _TimelineRow(
                         row: row,
+                        venueName: venueNames[row.tournament.venueId] ?? '?',
                         columnCount: timeline.columns.length,
                         color: _barColors[i % _barColors.length],
                       ),
@@ -74,11 +76,13 @@ const _barColors = [
 class _TimelineRow extends StatelessWidget {
   const _TimelineRow({
     required this.row,
+    required this.venueName,
     required this.columnCount,
     required this.color,
   });
 
   final TimelineRow row;
+  final String venueName;
   final int columnCount;
   final Color color;
 
@@ -98,7 +102,7 @@ class _TimelineRow extends StatelessWidget {
             SizedBox(
               width: _labelWidth,
               child: Text(
-                row.tournament.timelineLabel,
+                row.tournament.timelineLabel(venueName),
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall,
               ),

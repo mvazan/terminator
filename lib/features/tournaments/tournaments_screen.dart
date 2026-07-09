@@ -15,6 +15,7 @@ class TournamentsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tournaments = ref.watch(tournamentsProvider);
+    final venueNames = ref.watch(venueNamesProvider);
     final now = today();
     final manage = ref.watch(manageUnlockedProvider);
     final hidden = manage
@@ -70,13 +71,13 @@ class TournamentsScreen extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.only(bottom: 88),
             children: [
-              for (final t in active) _TournamentTile(tournament: t, now: now),
+              for (final t in active) _TournamentTile(tournament: t, now: now, venueName: venueNames[t.venueId] ?? "?"),
               if (past.isNotEmpty)
                 ExpansionTile(
                   title: Text('Odehrané a archivované (${past.length})'),
                   children: [
                     for (final t in past)
-                      _TournamentTile(tournament: t, now: now),
+                      _TournamentTile(tournament: t, now: now, venueName: venueNames[t.venueId] ?? "?"),
                   ],
                 ),
               if (hidden.isNotEmpty)
@@ -88,7 +89,7 @@ class TournamentsScreen extends ConsumerWidget {
                       ListTile(
                         leading: const Icon(Icons.visibility_off, size: 20),
                         title: Text(t.name),
-                        subtitle: Text(t.timelineLabel),
+                        subtitle: Text(t.timelineLabel(venueNames[t.venueId] ?? '?')),
                         trailing: TextButton(
                           onPressed: () => tryAction(context,
                               () => Api.setTournamentHidden(t.id, false),
@@ -107,10 +108,12 @@ class TournamentsScreen extends ConsumerWidget {
 }
 
 class _TournamentTile extends StatelessWidget {
-  const _TournamentTile({required this.tournament, required this.now});
+  const _TournamentTile(
+      {required this.tournament, required this.now, required this.venueName});
 
   final Tournament tournament;
   final Day now;
+  final String venueName;
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +143,7 @@ class _TournamentTile extends StatelessWidget {
         title: Text(t.name,
             style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(
-            '${t.timelineLabel} · ${rangeLabel(t.startsOn, t.endsOn)}'),
+            '${t.timelineLabel(venueName)} · ${rangeLabel(t.startsOn, t.endsOn)}'),
         trailing: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(

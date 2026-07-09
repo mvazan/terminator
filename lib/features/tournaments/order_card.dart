@@ -30,7 +30,7 @@ class OrderCard extends ConsumerWidget {
     final members = ref.watch(membersProvider).value ?? const [];
     final lanesBySlot =
         ref.watch(orderSlotsProvider).value?[order.id] ??
-            const <String, int?>{};
+            const <String, int>{};
     final slots = (ref.watch(slotsProvider).value ?? const [])
         .where((s) => lanesBySlot.containsKey(s.id))
         .toList()
@@ -210,7 +210,7 @@ class _OrderedBody extends ConsumerWidget {
 
   final Tournament tournament;
   final List<Slot> slots;
-  final Map<String, int?> lanesBySlot;
+  final Map<String, int> lanesBySlot;
   final List<RosterEntry> rosters;
   final List<Profile> members;
   final bool readOnly;

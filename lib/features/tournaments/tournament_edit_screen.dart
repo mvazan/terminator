@@ -152,7 +152,6 @@ class _TournamentEditScreenState extends ConsumerState<TournamentEditScreen> {
 
     final fields = {
       'name': name,
-      'venue': venue.name,
       'venue_id': _venueId,
       'kind': _kind.label,
       'discipline': _discipline?.label,

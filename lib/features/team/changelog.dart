@@ -12,6 +12,10 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('1.2.4', '9. 7. 2026', [
+    'Údržba a vyčištění pod kapotou (bez viditelných změn).',
+    'Oprava: upozornění (push) po přesunu serveru zase chodí.',
+  ]),
   Release('1.2.3', '8. 7. 2026', [
     'Přesun serveru blíž k nám (rychlejší odezva).',
   ]),

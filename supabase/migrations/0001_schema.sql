@@ -1,20 +1,27 @@
--- Termínátor — canonical schema (clean baseline, no legacy columns).
+-- Termínátor — canonical schema (single clean baseline).
 -- One team space. Access model: magic-link auth + invite code + member
 -- approval. All approved members are equal (no admin role). Archived
 -- tournaments are read-only, enforced here in RLS, not just in the UI.
+--
+-- This is a squash of the original 0001 + eight incremental migrations, done
+-- while the DB was empty. History dropped on purpose; columns are declared
+-- inline and intermediate churn (added-then-dropped policies/columns) is gone.
 
 create extension if not exists pgcrypto;
 create extension if not exists pg_net;
 
 -- ---------------------------------------------------------------------------
--- Tables
+-- Tables  (order matters: FKs must reference already-created tables)
 -- ---------------------------------------------------------------------------
 
--- Private team configuration. No RLS policies on purpose: clients can never
--- read it; only security-definer functions touch it.
+-- Private team configuration. No RLS write policy: clients never write it.
+-- Approved members may read it (needed for the manage-mode PIN).
 create table team_settings (
   id boolean primary key default true check (id),
-  invite_code text not null
+  invite_code text not null,
+  -- Shared PIN gating the hidden "manage" mode (unlock gesture + this PIN).
+  -- Not a security boundary — decluttering only. Seeded below.
+  manage_pin text not null
 );
 
 create table profiles (
@@ -24,17 +31,37 @@ create table profiles (
   status text not null default 'pending' check (status in ('pending', 'approved')),
   approved_by uuid references profiles (id),
   approved_at timestamptz,
+  -- soft-hide from the everyday UI (reversible; via set_member_hidden())
+  hidden_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- Bowling alleys, reused across tournaments so the lane count + address are
+-- entered once. Only lane_count is required. Organizer contacts live on the
+-- tournament (one venue may host several clubs), so only the home-club
+-- website lives here.
+create table venues (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  lane_count int not null check (lane_count > 0),
+  address text not null default '',
+  source_url text not null default '',
+  created_by uuid not null references profiles (id),
   created_at timestamptz not null default now()
 );
 
 -- kind values mirror TournamentKind in lib/domain/models.dart; per-start
--- capacity is derived from kind in the app (no stored max_players).
+-- player capacity is derived from kind in the app. discipline is a second,
+-- optional axis (throw format). The venue name is read via venue_id (no
+-- denormalized free-text copy).
 create table tournaments (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  venue text not null default '',
+  venue_id uuid not null references venues (id),
   kind text not null default 'dvojice'
     check (kind in ('jednotlivci', 'dvojice', 'čtveřice', 'tandem')),
+  discipline text
+    check (discipline in ('60HS', '100HS', '120HS', '180HS', 'jiné')),
   starts_on date not null,
   ends_on date not null check (ends_on >= starts_on),
   min_players int not null default 2 check (min_players > 0),
@@ -45,8 +72,14 @@ create table tournaments (
   notes text not null default '',
   created_by uuid not null references profiles (id),
   created_at timestamptz not null default now(),
-  archived_at timestamptz
+  archived_at timestamptz,
+  -- soft-hide the tournament (and, in the UI, its chats/orders)
+  hidden_at timestamptz,
+  -- per-tournament cooldown state for grouped "dá se objednat" pushes,
+  -- flipped atomically by the notify function
+  threshold_notified_at timestamptz
 );
+create index tournaments_venue_idx on tournaments (venue_id);
 
 create table slots (
   id uuid primary key default gen_random_uuid(),
@@ -56,7 +89,8 @@ create table slots (
   -- venue occupancy from web scraping (null = manual slot, no info)
   venue_capacity int,
   venue_occupied int,
-  -- set by the notify function when the min-players push was sent (dedup)
+  -- per-slot dedup: set once when this slot first crossed min_players, so a
+  -- slot never notifies twice (distinct from the per-tournament cooldown above)
   threshold_notified_at timestamptz,
   -- also serves lookups by (tournament_id, date); used by scrape upserts
   unique (tournament_id, date, time)
@@ -85,6 +119,9 @@ create index orders_tournament_idx on orders (tournament_id);
 create table order_slots (
   order_id uuid not null references orders (id) on delete cascade,
   slot_id uuid not null references slots (id) on delete cascade,
+  -- lanes ordered for this start. Player capacity = lanes × players-per-lane
+  -- (tandem = 2 per lane, everything else 1), computed in the app.
+  lanes int not null default 1 check (lanes > 0),
   primary key (order_id, slot_id)
 );
 create index order_slots_slot_idx on order_slots (slot_id);
@@ -232,16 +269,42 @@ begin
 end;
 $$;
 
+-- Soft-hide (status -> pending, so re-showing needs re-approval) or un-hide a
+-- member. SECURITY DEFINER so members can hide others without a broad grant on
+-- the profiles table. Approved members only.
+create or replace function set_member_hidden(p_user_id uuid, p_hidden boolean)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if not is_approved() then
+    raise exception 'not_approved';
+  end if;
+
+  if p_hidden then
+    update profiles
+    set hidden_at = now(), status = 'pending', approved_by = null,
+        approved_at = null
+    where id = p_user_id;
+  else
+    update profiles set hidden_at = null where id = p_user_id;
+  end if;
+end;
+$$;
+
 -- Webhook fan-out: every event the notify Edge Function cares about is
 -- delivered by a pg_net POST from the triggers below. The x-webhook-secret
--- header must match the WEBHOOK_SECRET function secret.
+-- header must match the WEBHOOK_SECRET secret.
+-- NOTE: the project URL is hardcoded — if the project ref ever changes (region
+-- move), update it here AND redeploy. (This bit us once: after the Ireland →
+-- Frankfurt move the old URL lingered and silently dropped every push.)
 create or replace function notify_webhook()
 returns trigger
 language plpgsql security definer set search_path = public
 as $$
 begin
   perform net.http_post(
-    url := 'https://rpjfoopecntfyvmtrnfm.supabase.co/functions/v1/notify',
+    url := 'https://txieiufeccpnnceunyxo.supabase.co/functions/v1/notify',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'x-webhook-secret', '3f3681ba6f2a83b0e2c0ad6f3619d27bb856d3ba8dd44ee4'
@@ -278,8 +341,9 @@ create trigger notify_availability
 -- Row Level Security
 -- ---------------------------------------------------------------------------
 
-alter table team_settings      enable row level security;  -- no policies: locked
+alter table team_settings      enable row level security;
 alter table profiles           enable row level security;
+alter table venues             enable row level security;
 alter table tournaments        enable row level security;
 alter table slots              enable row level security;
 alter table availability       enable row level security;
@@ -291,10 +355,14 @@ alter table messages           enable row level security;
 alter table chat_mutes         enable row level security;
 alter table notification_prefs enable row level security;
 
+-- team_settings: read-only for approved members (manage-mode PIN); no write.
+create policy team_settings_select on team_settings for select
+  using (is_approved());
+
 -- profiles: everyone sees their own row (needed while pending); approved
 -- members see the whole team. Members edit only their own name/token —
--- column-level grants keep status/approved_* out of reach (approval goes
--- through approve_member() only).
+-- column-level grants keep status/approved_*/hidden_at out of reach (approval
+-- via approve_member(), hiding via set_member_hidden(), both SECURITY DEFINER).
 revoke update on profiles from authenticated;
 grant update (display_name, fcm_token) on profiles to authenticated;
 
@@ -302,6 +370,15 @@ create policy profiles_select on profiles for select
   using (id = auth.uid() or is_approved());
 create policy profiles_update_own on profiles for update
   using (id = auth.uid()) with check (id = auth.uid());
+
+-- venues: approved members can read, add, edit. No delete (referenced by
+-- tournaments).
+create policy venues_select on venues for select
+  using (is_approved());
+create policy venues_insert on venues for insert
+  with check (is_approved());
+create policy venues_update on venues for update
+  using (is_approved()) with check (is_approved());
 
 -- tournaments: full access for approved members; archiving itself stays
 -- possible (and reversible) via update.
@@ -409,6 +486,14 @@ create policy notification_prefs_own on notification_prefs for all
 -- ---------------------------------------------------------------------------
 
 alter publication supabase_realtime add table
-  profiles, tournaments, slots, availability,
+  profiles, venues, tournaments, slots, availability,
   orders, order_slots, order_votes, rosters, messages,
   chat_mutes, notification_prefs;
+
+-- ---------------------------------------------------------------------------
+-- Seed  (idempotent; won't clobber a changed code/PIN on re-run)
+-- ---------------------------------------------------------------------------
+
+insert into team_settings (id, invite_code, manage_pin)
+select true, 'veverky', '2468'
+where not exists (select 1 from team_settings);
