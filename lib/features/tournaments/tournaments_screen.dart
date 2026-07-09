@@ -152,7 +152,7 @@ class _TournamentTile extends StatelessWidget {
             if (ScraperRegistry.forUrl(t.sourceUrl) != null)
               Tooltip(
                 message: 'Synchronizováno z webu',
-                child: Icon(Icons.cloud_done_outlined,
+                child: Icon(Icons.public,
                     size: 16, color: scheme.outline),
               ),
           ],
