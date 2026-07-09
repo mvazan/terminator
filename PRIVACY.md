@@ -1,6 +1,6 @@
 # Zásady ochrany osobních údajů — Termínátor
 
-_Poslední aktualizace: 9. 7. 2026_
+_Poslední aktualizace: 10. 7. 2026_
 
 Termínátor je soukromá aplikace pro jeden kuželkářský tým, sloužící ke
 koordinaci turnajů. Přístup je pouze na pozvání (kód týmu a schválení
@@ -15,6 +15,10 @@ koordinaci turnajů. Přístup je pouze na pozvání (kód týmu a schválení
   zprávy v týmovém chatu, sestavy. Vidí je pouze schválení členové týmu.
 - **Token pro push notifikace (FCM)** — technický identifikátor zařízení,
   aby aplikace mohla posílat upozornění. Neváže se na žádné reklamní profily.
+- **Diagnostická data o pádech** — když aplikace narazí na chybu, odešle se
+  technický záznam (typ chyby, model zařízení, verze systému a aplikace), aby
+  šlo chybu najít a opravit. Neobsahuje obsah tvých zpráv ani přihlašovací
+  údaje a neslouží k marketingu.
 
 ## K čemu údaje slouží
 
@@ -27,13 +31,15 @@ nastavení.
 Data jsou uložena v službě **Supabase** (PostgreSQL, region EU — Frankfurt).
 Přenos je šifrovaný (HTTPS). Push notifikace odesílá **Firebase Cloud
 Messaging** (Google). E-maily s přihlašovacím odkazem odesílá poskytovatel
-SMTP (Gmail).
+SMTP (Gmail). Diagnostická data o pádech aplikace zpracovává služba
+**Sentry** (Functional Software, Inc.) výhradně pro hlášení a opravu chyb.
 
 ## Sdílení údajů
 
 Údaje **nesdílíme ani neprodáváme** třetím stranám. Jsou přístupné pouze
 schváleným členům téhož týmu v rámci aplikace a výše uvedeným technickým
-poskytovatelům (Supabase, Google/Firebase) nezbytným pro provoz.
+poskytovatelům (Supabase, Google/Firebase, Sentry) nezbytným pro provoz
+a pro hlášení chyb.
 
 ## Uchování a smazání
 
@@ -43,4 +49,4 @@ skrýt/odebrat přímo v aplikaci.
 
 ## Kontakt
 
-Dotazy k ochraně údajů: **ai-dev-1@ngft.com**
+Dotazy k ochraně údajů: **milos.vazan@gmail.com**

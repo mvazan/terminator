@@ -22,6 +22,10 @@ class AppConfig {
   static const firebaseProjectId =
       String.fromEnvironment('FIREBASE_PROJECT_ID');
 
+  /// Sentry crash/error reporting DSN. Optional — without it Sentry stays off
+  /// (debug builds run clean). The DSN is a public client key, safe to bake in.
+  static const sentryDsn = String.fromEnvironment('SENTRY_DSN');
+
   /// Deep link the magic-link e-mail redirects back to (registered in
   /// AndroidManifest and in the Supabase dashboard's redirect URLs).
   static const authRedirectUrl = 'cz.kuzelky.terminator://login-callback';
@@ -34,4 +38,6 @@ class AppConfig {
       firebaseAppId.isNotEmpty &&
       firebaseSenderId.isNotEmpty &&
       firebaseProjectId.isNotEmpty;
+
+  static bool get hasSentry => sentryDsn.isNotEmpty;
 }

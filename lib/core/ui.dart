@@ -3,8 +3,10 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../config.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
 
@@ -45,7 +47,12 @@ Future<bool> tryAction(BuildContext context, Future<void> Function() action,
     await action();
     if (success != null && context.mounted) snack(context, success);
     return true;
-  } catch (e) {
+  } catch (e, stack) {
+    // Report the swallowed failure as a non-fatal (scrape/Supabase/network
+    // errors surface here); no-op when Sentry isn't configured.
+    if (AppConfig.hasSentry) {
+      await Sentry.captureException(e, stackTrace: stack);
+    }
     if (context.mounted) snack(context, 'Nepovedlo se: $e');
     return false;
   }

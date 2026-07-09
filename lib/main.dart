@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config.dart';
@@ -10,6 +11,24 @@ import 'push/push.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Sentry (optional): with a DSN it wraps startup so uncaught Flutter/Dart
+  // errors are reported; without one it's a no-op and the app starts normally.
+  if (AppConfig.hasSentry) {
+    await SentryFlutter.init(
+      (options) {
+        options.dsn = AppConfig.sentryDsn;
+        options.sendDefaultPii = false; // no IP/user data beyond the error
+      },
+      appRunner: _bootstrap,
+    );
+  } else {
+    await _bootstrap();
+  }
+}
+
+/// Backend init + runApp — shared so Sentry's appRunner and the no-Sentry path
+/// run exactly the same startup.
+Future<void> _bootstrap() async {
   if (AppConfig.hasSupabase) {
     await Supabase.initialize(
       url: AppConfig.supabaseUrl,
