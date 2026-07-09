@@ -25,27 +25,26 @@ void main() {
     expect(first.free, 4);
   });
 
-  test('221: pairs (2x120HS) — kind is dvojice, lane occupancy read per lane',
-      () {
+  test('221: pairs (2x120HS) — capacity counts player places, not starts', () {
     final r = parseTurnajeKuzelkyHtml(fixture('221'));
 
     expect(r.name, '17. ročník Memoriálu Stanislava Zálešáka');
-    // The 2 in "2x120HS" means dvojice — two players share one ordered lane,
-    // which the app's TournamentKind handles; the scraper still counts lanes.
     expect(r.kind, TournamentKind.dvojice);
     expect(r.discipline, Discipline.hs120);
 
     final byTime = {for (final s in r.slots) '${s.date} ${s.time}': s};
-    // 20.7. 17:00 — two lanes, both taken.
+    // "2x" means two players per start, so each start row is 2 places. 20.7.
+    // 17:00 has two taken starts → 4 places, all taken.
     final full = byTime['2026-07-20 17:00'];
     expect(full, isNotNull);
-    expect(full!.capacity, 2);
-    expect(full.occupied, 2);
+    expect(full!.capacity, 4);
+    expect(full.occupied, 4);
     expect(full.free, 0);
-    // 20.7. 20:00 — two lanes, both free.
+    // 20.7. 20:00 — two free starts → 4 places free (shown as 0/4).
     final open = byTime['2026-07-20 20:00'];
-    expect(open!.capacity, 2);
-    expect(open.free, 2);
+    expect(open!.capacity, 4);
+    expect(open.occupied, 0);
+    expect(open.free, 4);
   });
 
   test('page without a reservation grid parses to empty slots', () {

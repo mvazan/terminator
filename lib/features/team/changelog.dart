@@ -12,6 +12,11 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('1.3.3', '9. 7. 2026', [
+    'Oprava obsazenosti u turnajů z turnajekuzelky.cz: u „dvojic" a „čtveřic" '
+        'se počítají místa hráčů, ne starty — 2×120HS se dvěma volnými starty '
+        'ukáže 0/4.',
+  ]),
   Release('1.3.2', '9. 7. 2026', [
     'Ikona zeměkoule u turnajů z webu se přesunula do pravého rohu.',
   ]),

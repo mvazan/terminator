@@ -76,11 +76,19 @@ ScrapeResult parseTurnajeKuzelkyHtml(String html) {
   }
 
   return ScrapeResult(
-    slots: aggregateTerms(terms),
+    // The "N×" in the format is how many players share one start (dvojice → 2),
+    // so a start's places = starts × N. Two free 2× starts at 16:00 → 0/4.
+    slots: aggregateTerms(terms, playersPerTerm: _parsePlayersPerStart(html)),
     name: _parseName(html),
     kind: _parseKind(html),
     discipline: _parseDiscipline(html),
   );
+}
+
+/// The leading "N" of "2x120HS" — players per start. Defaults to 1 if unknown.
+int _parsePlayersPerStart(String html) {
+  final m = _gamepadPattern.firstMatch(html);
+  return m == null ? 1 : (int.tryParse(m.group(1)!) ?? 1);
 }
 
 /// "Memoriál Pavla Mila – Termíny | Turnaje kuželky" → "Memoriál Pavla Mila".
@@ -105,6 +113,8 @@ TournamentKind? _parseKind(String html) {
       return TournamentKind.jednotlivci;
     case '2':
       return TournamentKind.dvojice;
+    case '3':
+      return TournamentKind.trojice;
     case '4':
       return TournamentKind.ctverice;
     default:

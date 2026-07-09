@@ -39,8 +39,13 @@ class VenueSlot {
   int get free => capacity - occupied;
 }
 
-/// Groups raw lane-starts into per-(date, time) occupancy.
-List<VenueSlot> aggregateTerms(List<VenueTerm> terms) {
+/// Groups raw terms into per-(date, time) occupancy.
+///
+/// [playersPerTerm] scales each term into player places. On mkware one term is
+/// one lane (1 player), so the default is 1. On turnajekuzelky a term is a
+/// start and the format's "N×" says how many players share it (dvojice → 2), so
+/// there the caller passes N — e.g. two free 2× starts at 16:00 become 0/4.
+List<VenueSlot> aggregateTerms(List<VenueTerm> terms, {int playersPerTerm = 1}) {
   final byKey = <String, List<VenueTerm>>{};
   for (final term in terms) {
     byKey.putIfAbsent('${term.date}|${term.time}', () => []).add(term);
@@ -50,8 +55,8 @@ List<VenueSlot> aggregateTerms(List<VenueTerm> terms) {
       VenueSlot(
         date: group.first.date,
         time: group.first.time,
-        capacity: group.length,
-        occupied: group.where((t) => t.occupied).length,
+        capacity: group.length * playersPerTerm,
+        occupied: group.where((t) => t.occupied).length * playersPerTerm,
       ),
   ]..sort((a, b) => compareDayTime(a.date, a.time, b.date, b.time));
   return slots;
