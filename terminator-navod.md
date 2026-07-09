@@ -82,14 +82,21 @@ turnaje — na jedné kuželně může hrát víc oddílů s různými kontakty.
 
 ## 6. Založení turnaje
 
-V záložce **Turnaje** klepni na **„Nový turnaj"**. Vyplníš:
+V záložce **Turnaje** klepni na **„Nový turnaj"**.
 
+> **Tip:** Máš odkaz na turnaj (rezervační stránku)? Vlož ho **hned do prvního
+> pole nahoře** — u rozpoznaných webů appka předvyplní název, typ, disciplínu
+> i termíny. Pak už jen doplníš kuželnu a zkontroluješ zbytek.
+
+Vyplníš:
+
+- **Web turnaje** (nahoře) — nepovinné, ale u rozpoznaných stránek ušetří práci
 - **Název** a **kuželnu** (vybereš ze seznamu — je povinná)
 - **Typ** a **disciplínu** (viz níže)
 - **Termín od–do** — jedním výběrem v kalendáři označíš rozmezí dní, kdy se hraje
 - **Min. hráčů na start** — od kolika hráčů appka pošle upozornění „dá se objednat"
   (výchozí 2)
-- Nepovinně: **e-mail/telefon pořadatele**, **web turnaje** a **poznámky**
+- Nepovinně: **e-mail/telefon pořadatele** a **poznámky**
 
 ### Typy turnajů
 
@@ -114,10 +121,12 @@ se N startů."*
 
 ### Automatické načtení z webu
 
-Pokud appka **rozpozná** web pořadatele (aktuálně jen kkmoravskaslavia.cz), termíny
-i obsazenost drah se načtou samy — žádné ruční zadávání časů. Appka to sama pozná a
-napíše *„✓ Rozpoznáno — termíny a obsazenost se načtou z webu automaticky."* U
-takových turnajů se dá obsazenost kdykoliv ručně obnovit ikonou v detailu turnaje.
+Pokud appka **rozpozná** web pořadatele (aktuálně **kkmoravskaslavia.cz** a
+**turnajekuzelky.cz**), po vložení odkazu do pole „Web turnaje" nahoře předvyplní
+název, typ i disciplínu a načte termíny včetně obsazenosti drah — žádné ruční
+zadávání časů. Appka to pozná a napíše *„✓ Rozpoznáno…"*. Předvyplněné údaje jde
+klidně upravit. U takových turnajů se dá obsazenost kdykoliv ručně obnovit ikonou
+v detailu turnaje.
 
 ## 7. Odklikávání termínů (kdy můžeš)
 

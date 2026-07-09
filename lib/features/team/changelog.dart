@@ -12,6 +12,11 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('1.2.6', '9. 7. 2026', [
+    'Načítání turnajů z webu turnajekuzelky.cz (termíny i obsazenost).',
+    'Při zakládání turnaje stačí nahoře vložit odkaz — název, typ, '
+        'disciplínu i termíny předvyplní appka.',
+  ]),
   Release('1.2.5', '9. 7. 2026', [
     'Ťuknutí na upozornění „nový člen" teď otevře záložku Tým.',
   ]),

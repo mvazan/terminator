@@ -63,6 +63,10 @@ class _TournamentEditScreenState extends ConsumerState<TournamentEditScreen> {
     _GroupDraft({6, 7}),
   ];
   bool _saving = false;
+  bool _prefilling = false;
+  // The URL we already auto-prefilled from, so re-renders don't refetch or
+  // clobber fields the user edited afterwards.
+  String? _prefilledUrl;
 
   bool get _isEdit => widget.existing != null;
   TournamentScraper? get _scraper => ScraperRegistry.forUrl(_url.text);
@@ -78,7 +82,45 @@ class _TournamentEditScreenState extends ConsumerState<TournamentEditScreen> {
     _url.addListener(_onUrlChanged);
   }
 
-  void _onUrlChanged() => setState(() {});
+  void _onUrlChanged() {
+    setState(() {});
+    // When a recognized reservation URL is entered, pull the tournament's
+    // name/kind/discipline/dates from it so the rest of the form is prefilled.
+    final url = _url.text.trim();
+    if (!_isEdit &&
+        _scraper != null &&
+        url != _prefilledUrl &&
+        !_prefilling) {
+      _prefillFromWeb(url);
+    }
+  }
+
+  Future<void> _prefillFromWeb(String url) async {
+    setState(() => _prefilling = true);
+    try {
+      final result = await ScraperRegistry.forUrl(url)!.fetch(Uri.parse(url));
+      if (!mounted || _url.text.trim() != url) return;
+      setState(() {
+        _prefilledUrl = url;
+        // Only fill empty/untouched fields — never clobber the user's input.
+        if (_name.text.trim().isEmpty && result.name != null) {
+          _name.text = result.name!;
+        }
+        if (result.kind != null) _kind = result.kind!;
+        if (result.discipline != null) _discipline = result.discipline;
+        if (_startsOn == null && result.slots.isNotEmpty) {
+          _startsOn = result.slots.first.date;
+          _endsOn = result.slots.last.date;
+        }
+      });
+      if (mounted) snack(context, 'Načteno z webu — zkontroluj a doplň.');
+    } catch (_) {
+      // Network/parse failure: leave the form as-is, user fills manually.
+      if (mounted) setState(() => _prefilledUrl = url);
+    } finally {
+      if (mounted) setState(() => _prefilling = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -269,6 +311,37 @@ class _TournamentEditScreenState extends ConsumerState<TournamentEditScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Web/reservation URL first: for a recognized site (mkware,
+          // turnajekuzelky) it prefills name/kind/discipline/dates + slots, so
+          // filling top-down means less typing.
+          TextField(
+            controller: _url,
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            decoration: InputDecoration(
+              labelText: 'Web turnaje (rezervační stránka)',
+              prefixIcon: _prefilling
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2)))
+                  : const Icon(Icons.link),
+              helperText: scraping
+                  ? (_isEdit
+                      ? '✓ Rozpoznáno (${_scraper!.name}) — termíny se '
+                          'synchronizují v detailu turnaje.'
+                      : '✓ Rozpoznáno (${_scraper!.name}) — načtu název, typ '
+                          'i termíny. Zbytek doplň níže.')
+                  : (_url.text.trim().isEmpty
+                      ? 'Máš odkaz na turnaj? Vlož ho a předvyplním, '
+                          'co půjde. Nemáš? Nech prázdné a vyplň ručně.'
+                      : 'Neznámý web — vyplň turnaj ručně níže.'),
+              helperMaxLines: 2,
+            ),
+          ),
+          const SizedBox(height: 12),
           TextField(
             controller: _name,
             textCapitalization: TextCapitalization.sentences,
@@ -343,23 +416,6 @@ class _TournamentEditScreenState extends ConsumerState<TournamentEditScreen> {
               ),
             ),
           ]),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _url,
-            keyboardType: TextInputType.url,
-            autocorrect: false,
-            decoration: InputDecoration(
-              labelText: 'Web turnaje (rezervační stránka)',
-              helperText: scraping
-                  ? '✓ Rozpoznáno (${_scraper!.name}) — termíny a obsazenost '
-                      'se načtou z webu automaticky.'
-                  : (_url.text.trim().isEmpty
-                      ? 'Nepovinné. U kkmoravskaslavia.cz se termíny '
-                          'načtou samy.'
-                      : 'Neznámý web — termíny zadej ručně níže.'),
-              helperMaxLines: 2,
-            ),
-          ),
           const SizedBox(height: 12),
           TextField(
             controller: _notes,

@@ -7,6 +7,7 @@ library;
 
 import '../domain/models.dart';
 import 'mkware.dart';
+import 'turnajekuzelky.dart';
 
 /// One bookable lane-start scraped from the page.
 class VenueTerm {
@@ -56,13 +57,30 @@ List<VenueSlot> aggregateTerms(List<VenueTerm> terms) {
   return slots;
 }
 
+/// The parsed page: the occupancy grid plus whatever tournament details the
+/// page exposes (name, kind, discipline). Detail fields are null when the
+/// page/scraper doesn't provide them — the form then leaves them for the user.
+class ScrapeResult {
+  const ScrapeResult({
+    required this.slots,
+    this.name,
+    this.kind,
+    this.discipline,
+  });
+
+  final List<VenueSlot> slots;
+  final String? name;
+  final TournamentKind? kind;
+  final Discipline? discipline;
+}
+
 abstract class TournamentScraper {
   /// Human-readable name shown in the UI ("kkmoravskaslavia.cz / mkware").
   String get name;
 
-  /// Downloads and parses the page. Throws on network errors; returns an
-  /// empty list when the page has no reservation grid.
-  Future<List<VenueSlot>> fetch(Uri url);
+  /// Downloads and parses the page. Throws on network errors; returns empty
+  /// slots when the page has no reservation grid.
+  Future<ScrapeResult> fetch(Uri url);
 }
 
 class ScraperRegistry {
@@ -73,6 +91,9 @@ class ScraperRegistry {
     if (uri.host.endsWith('kkmoravskaslavia.cz') ||
         uri.path.contains('/mkware/')) {
       return MkwareScraper();
+    }
+    if (uri.host.endsWith('turnajekuzelky.cz')) {
+      return TurnajeKuzelkyScraper();
     }
     return null;
   }

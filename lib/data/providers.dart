@@ -331,7 +331,8 @@ class Api {
     final scraper = ScraperRegistry.forUrl(sourceUrl);
     if (scraper == null) return 0;
 
-    final venueSlots = await scraper.fetch(Uri.parse(sourceUrl));
+    final result = await scraper.fetch(Uri.parse(sourceUrl));
+    final venueSlots = result.slots;
     if (venueSlots.isEmpty) {
       throw Exception('stránka neobsahuje rezervační tabulku');
     }

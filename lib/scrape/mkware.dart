@@ -22,14 +22,15 @@ class MkwareScraper implements TournamentScraper {
   String get name => 'mkware (kkmoravskaslavia.cz)';
 
   @override
-  Future<List<VenueSlot>> fetch(Uri url) async {
+  Future<ScrapeResult> fetch(Uri url) async {
     final response = await _client.get(url).timeout(
           const Duration(seconds: 20),
         );
     if (response.statusCode != 200) {
       throw Exception('Stránka vrátila ${response.statusCode}');
     }
-    return aggregateTerms(parseMkwareHtml(response.body));
+    // mkware pages carry only the grid — no tournament name/kind to detect.
+    return ScrapeResult(slots: aggregateTerms(parseMkwareHtml(response.body)));
   }
 }
 

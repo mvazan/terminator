@@ -37,7 +37,7 @@ lib/
   features/             # auth gate, my starts, tournaments (heatmap, timeline,
                         # orders, rosters), venues, chats, team, hidden manage
   push/push.dart        # FCM client side (no-op without Firebase dart-defines)
-  scrape/               # per-organizer occupancy scrapers (mkware)
+  scrape/               # per-organizer scrapers (mkware, turnajekuzelky.cz)
 supabase/
   migrations/0001_schema.sql # single squashed baseline: schema, RLS,
                              # join_team/approve_member/set_member_hidden RPCs,
