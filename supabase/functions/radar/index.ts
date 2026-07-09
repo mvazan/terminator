@@ -166,15 +166,94 @@ async function fetchText(url: string, decode?: "cp1250"): Promise<string> {
   return await res.text();
 }
 
+// ---------------------------------------------------------------------------
+// kkmoravskaslavia (mkware) — no listing page; walked by ?idt=N.
+// ---------------------------------------------------------------------------
+
+const MKWARE_URL = (id: number) =>
+  `https://kkmoravskaslavia.cz/mkware/turnaj-tjsokolmistrin.php?idt=${id}`;
+// How many consecutive empty ids to tolerate before deciding we've reached the
+// end (organizers may skip an id).
+const MKWARE_GAP_TOLERANCE = 3;
+// Hard cap per run, so a bug can't walk forever.
+const MKWARE_MAX_PROBE = 30;
+
+/** Parses one mkware detail page; null when the id has no tournament. */
+function parseMkwareDetail(html: string, id: number): RadarEntry | null {
+  const h2 = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/);
+  const name = h2 ? h2[1].replace(/<[^>]+>/g, "").trim() : "";
+  const dateIds = [...html.matchAll(/id="(\d{4}-\d{2}-\d{2})-/g)].map((m) =>
+    m[1]
+  );
+  // Valid only if it has a title AND a start grid.
+  if (!name || dateIds.length === 0) return null;
+
+  dateIds.sort();
+  const disc = disciplineToken(
+    html.match(/turnaj\s+\w+\s+na\s+(\d+)\s*HS/i)?.[0] ??
+      html.match(/(\d+x\d+HS)/)?.[1] ?? "",
+  );
+  return {
+    source: "mkware",
+    externalId: String(id),
+    name,
+    url: MKWARE_URL(id),
+    discipline: disc,
+    startsOn: dateIds[0],
+    endsOn: dateIds[dateIds.length - 1],
+  };
+}
+
+/** Walks idt upward from the stored cursor; returns new tournaments found. */
+async function scanMkware(): Promise<RadarEntry[]> {
+  const { data: cursor } = await supabase
+    .from("radar_cursor")
+    .select("last_id")
+    .eq("source", "mkware")
+    .maybeSingle();
+  const lastId = cursor?.last_id ?? 0;
+  if (lastId === 0) return []; // unseeded → don't crawl the back-catalogue
+
+  const found: RadarEntry[] = [];
+  let gap = 0;
+  let highestValid = lastId;
+  for (let step = 1; step <= MKWARE_MAX_PROBE; step++) {
+    const id = lastId + step;
+    let html: string;
+    try {
+      html = await fetchText(MKWARE_URL(id));
+    } catch {
+      break; // network hiccup: stop, try again next run
+    }
+    const entry = parseMkwareDetail(html, id);
+    if (entry) {
+      found.push(entry);
+      highestValid = id;
+      gap = 0;
+    } else if (++gap >= MKWARE_GAP_TOLERANCE) {
+      break;
+    }
+  }
+
+  // Advance the cursor to the highest valid id we saw, so we don't re-probe it.
+  if (highestValid > lastId) {
+    await supabase.from("radar_cursor").update({ last_id: highestValid })
+      .eq("source", "mkware");
+  }
+  return found;
+}
+
 async function run(): Promise<{ scanned: number; added: number }> {
   const now = new Date();
-  const [tkHtml, kzHtml] = await Promise.all([
+  const [tkHtml, kzHtml, mkware] = await Promise.all([
     fetchText("https://turnajekuzelky.cz/"),
     fetchText("https://www.kuzelky.cz/turnaje/", "cp1250"),
+    scanMkware(),
   ]);
   const entries = [
     ...parseTurnajeKuzelky(tkHtml),
     ...parseKuzelky(kzHtml, now),
+    ...mkware,
   ];
 
   // Already-known per source (exact) and every dedup_key ever seen (fuzzy).
