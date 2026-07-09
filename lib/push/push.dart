@@ -35,6 +35,11 @@ class Push {
   static Map<String, dynamic>? _pendingRoute;
   static bool _shellReady = false;
 
+  /// Set by MainShell so a tap can switch bottom-nav tabs (e.g. new_member →
+  /// Tým). Indices match the tab order in MainShell.
+  static void Function(int tab)? _switchTab;
+  static const _teamTab = 3;
+
   static Future<void> init() async {
     if (!AppConfig.hasFirebase) {
       debugPrint('Push disabled: no FIREBASE_* dart-defines.');
@@ -89,9 +94,11 @@ class Push {
     }
   }
 
-  /// MainShell reports when it's on screen; a pending tap route fires then.
-  static void shellReady(bool ready) {
+  /// MainShell reports when it's on screen (and how to switch tabs); a pending
+  /// tap route fires then.
+  static void shellReady(bool ready, {void Function(int tab)? switchTab}) {
     _shellReady = ready;
+    _switchTab = ready ? switchTab : null;
     if (!ready) return;
     final pending = _pendingRoute;
     _pendingRoute = null;
@@ -108,14 +115,22 @@ class Push {
   }
 
   static void _route(Map<String, dynamic> data) {
-    final tournamentId = data['tournament_id'] as String?;
-    if (tournamentId == null) return;
-
     final navigator = navigatorKey.currentState;
     if (navigator == null || !_shellReady) {
       _pendingRoute = data; // fires once MainShell appears
       return;
     }
+
+    // new_member has no tournament — it just points at the Tým tab, where
+    // pending members get approved.
+    if (data['kind'] == 'new_member') {
+      navigator.popUntil((r) => r.isFirst); // back to the shell
+      _switchTab?.call(_teamTab);
+      return;
+    }
+
+    final tournamentId = data['tournament_id'] as String?;
+    if (tournamentId == null) return;
 
     final day = data['day'] as String?;
     final Widget screen = data['kind'] == 'chat'

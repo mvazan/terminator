@@ -12,6 +12,9 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('1.2.5', '9. 7. 2026', [
+    'Ťuknutí na upozornění „nový člen" teď otevře záložku Tým.',
+  ]),
   Release('1.2.4', '9. 7. 2026', [
     'Údržba a vyčištění pod kapotou (bez viditelných změn).',
     'Oprava: upozornění (push) po přesunu serveru zase chodí.',

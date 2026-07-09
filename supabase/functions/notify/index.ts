@@ -244,6 +244,7 @@ async function handle(payload: WebhookPayload) {
         await teamTokens("new_member", [record.id as string]),
         "Nový člen čeká na schválení",
         `${record.display_name} se chce přidat. Schval ho v záložce Tým.`,
+        { kind: "new_member" },
       );
       return;
     }

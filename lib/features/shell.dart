@@ -20,8 +20,12 @@ class _MainShellState extends State<MainShell> {
   void initState() {
     super.initState();
     // Notification taps navigate only once the signed-in shell is on screen;
-    // this also fires a tap that cold-started the app.
-    WidgetsBinding.instance.addPostFrameCallback((_) => Push.shellReady(true));
+    // this also fires a tap that cold-started the app. switchTab lets a tap
+    // change the bottom-nav tab (e.g. new_member → Tým).
+    WidgetsBinding.instance.addPostFrameCallback((_) => Push.shellReady(true,
+        switchTab: (i) {
+          if (mounted) setState(() => _tab = i);
+        }));
   }
 
   @override
