@@ -35,11 +35,13 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 8),
+          // "Návrhy termínů" is hidden while proposal voting itself is hidden.
           for (final kind in NotificationKind.values)
-            _NotificationKindTile(
-              kind: kind,
-              pref: prefs[kind] ?? NotificationPref.fallback(kind),
-            ),
+            if (kind != NotificationKind.proposal)
+              _NotificationKindTile(
+                kind: kind,
+                pref: prefs[kind] ?? NotificationPref.fallback(kind),
+              ),
           const Divider(height: 24),
           ListTile(
             leading: const Icon(Icons.location_on_outlined),
@@ -90,7 +92,8 @@ const _kindLabels = {
   ),
   NotificationKind.newPublicTournament: (
     'Nově vypsané turnaje',
-    'Nový turnaj na turnajekuzelky.cz (výchozí vypnuto)',
+    'Appka hlídá weby s turnaji a dá vědět, když někdo vypíše nový '
+        '(výchozí vypnuto)',
     Icons.travel_explore_outlined,
   ),
 };

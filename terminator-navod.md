@@ -213,10 +213,10 @@ Ikonou ozubeného kola se dostaneš do **Nastavení**, kde spravuješ **Kuželny
 |---|---|
 | Nový člen (čeká na schválení) | vypnuto |
 | Nový turnaj | zapnuto |
-| Návrhy termínů | zapnuto |
 | Objednávky | zapnuto |
 | Zprávy v chatech | zapnuto |
 | Dá se objednat (termín dosáhl minima hráčů) | vypnuto |
+| Nově vypsané turnaje (appka hlídá weby a dá vědět o nových) | vypnuto |
 
 U každého jde zvolit **Zapnout / Ztlumit na 1–12 h (i vlastní počet hodin) /
 Vypnout**. Ztlumení samo vyprší, není potřeba se vracet a zase zapínat ručně.
