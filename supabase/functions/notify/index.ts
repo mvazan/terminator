@@ -154,15 +154,19 @@ type NotificationKind =
   | "proposal"
   | "order"
   | "chat"
-  | "threshold";
+  | "threshold"
+  | "new_public_tournament";
 
 // Kinds that are opt-in: silent unless the member enabled them in settings.
 //
 // The kind list and the default-off rule live in THREE places that must stay
 // in sync: this file, NotificationKind in lib/domain/models.dart, and the
-// kind CHECK constraint in supabase/migrations/0002_notification_prefs.sql
-// (adding a kind needs a new migration extending it).
-const DEFAULT_OFF: NotificationKind[] = ["new_member", "threshold"];
+// kind CHECK constraint in supabase/migrations (0001 baseline + later ones).
+const DEFAULT_OFF: NotificationKind[] = [
+  "new_member",
+  "threshold",
+  "new_public_tournament",
+];
 
 /**
  * All approved members' tokens for one notification kind, honoring
@@ -256,6 +260,18 @@ async function handle(payload: WebhookPayload) {
         "Nový turnaj 🎳",
         `${record.name} — odklikej si termíny!`,
         { kind: "new_tournament", tournament_id: record.id as string },
+      );
+      return;
+    }
+
+    case "tournament_radar": {
+      if (payload.type !== "INSERT" || record.suppressed === true) return;
+      const disc = record.discipline ? ` (${record.discipline})` : "";
+      await sendToTokens(
+        await teamTokens("new_public_tournament", []),
+        "Nově vypsaný turnaj 🗓️",
+        `${record.name}${disc} — nový turnaj na turnajekuzelky.cz.`,
+        { kind: "new_public_tournament", url: record.url as string },
       );
       return;
     }

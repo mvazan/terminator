@@ -88,6 +88,11 @@ const _kindLabels = {
     'Termín dosáhl minima hráčů',
     Icons.notifications_active_outlined,
   ),
+  NotificationKind.newPublicTournament: (
+    'Nově vypsané turnaje',
+    'Nový turnaj na turnajekuzelky.cz (výchozí vypnuto)',
+    Icons.travel_explore_outlined,
+  ),
 };
 
 class _NotificationKindTile extends StatefulWidget {

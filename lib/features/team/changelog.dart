@@ -12,6 +12,11 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('1.2.8', '9. 7. 2026', [
+    'Nové upozornění „Nově vypsané turnaje" (výchozí vypnuto) — appka 2× '
+        'denně hlídá turnajekuzelky.cz a kuzelky.cz a dá vědět o nových. '
+        'Zapneš v Tým → Nastavení.',
+  ]),
   Release('1.2.7', '9. 7. 2026', [
     'Předvyplnění z odkazu funguje i pro kkmoravskaslavia.cz (název, typ, '
         'disciplína).',

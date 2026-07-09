@@ -440,16 +440,20 @@ enum NotificationKind {
   proposal('proposal'),
   order('order'),
   chat('chat'),
-  threshold('threshold');
+  threshold('threshold'),
+  newPublicTournament('new_public_tournament');
 
   const NotificationKind(this.sqlName);
 
   final String sqlName;
 
   /// Whether the kind is on for members who never touched settings.
-  /// newMember and threshold are opt-in (user decision 2026-07-06).
-  bool get defaultEnabled =>
-      this != NotificationKind.newMember && this != NotificationKind.threshold;
+  /// newMember, threshold and newPublicTournament are opt-in.
+  bool get defaultEnabled => !const {
+        NotificationKind.newMember,
+        NotificationKind.threshold,
+        NotificationKind.newPublicTournament,
+      }.contains(this);
 
   static NotificationKind? tryParse(String value) {
     for (final kind in values) {

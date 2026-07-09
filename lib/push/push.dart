@@ -9,6 +9,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart'
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config.dart';
+import '../core/ui.dart';
 import '../data/providers.dart';
 import '../domain/models.dart';
 import '../features/chats/chat_screen.dart';
@@ -115,6 +116,14 @@ class Push {
   }
 
   static void _route(Map<String, dynamic> data) {
+    // A radar push carries an external URL — just open it in the browser.
+    // Independent of the in-app nav, so it works even from a cold start.
+    final url = data['url'] as String?;
+    if (url != null && url.isNotEmpty) {
+      launchWeb(url);
+      return;
+    }
+
     final navigator = navigatorKey.currentState;
     if (navigator == null || !_shellReady) {
       _pendingRoute = data; // fires once MainShell appears
