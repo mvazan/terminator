@@ -92,8 +92,7 @@ const _kindLabels = {
   ),
   NotificationKind.newPublicTournament: (
     'Nově vypsané turnaje',
-    'Appka hlídá weby s turnaji a dá vědět, když někdo vypíše nový '
-        '(výchozí vypnuto)',
+    'Appka hlídá weby s turnaji a dá vědět, když někdo vypíše nový',
     Icons.travel_explore_outlined,
   ),
 };
