@@ -29,8 +29,13 @@ class MkwareScraper implements TournamentScraper {
     if (response.statusCode != 200) {
       throw Exception('Stránka vrátila ${response.statusCode}');
     }
-    // mkware pages carry only the grid — no tournament name/kind to detect.
-    return ScrapeResult(slots: aggregateTerms(parseMkwareHtml(response.body)));
+    final html = response.body;
+    return ScrapeResult(
+      slots: aggregateTerms(parseMkwareHtml(html)),
+      name: parseMkwareName(html),
+      kind: parseMkwareKind(html),
+      discipline: parseMkwareDiscipline(html),
+    );
   }
 }
 
@@ -39,6 +44,41 @@ final _rowPattern = RegExp(
   dotAll: true,
 );
 final _timePattern = RegExp(r'(\d{1,2}:\d{2})\s*-');
+
+// The page names the tournament in an <h2> and describes the format in free
+// text, e.g. "… turnaj dvojic na 100 HS dle pravidel ČKA."
+final _h2Pattern = RegExp(r'<h2[^>]*>(.*?)</h2>', dotAll: true);
+final _formatPattern = RegExp(
+  r'turnaj\s+(jednotlivc\w*|dvojic\w*|čtveřic\w*|tandem\w*)\s+na\s+(\d+)\s*HS',
+  caseSensitive: false,
+);
+
+/// Tournament name from the page's <h2>, tags stripped.
+String? parseMkwareName(String html) {
+  final m = _h2Pattern.firstMatch(html);
+  if (m == null) return null;
+  final name = m.group(1)!.replaceAll(RegExp(r'<[^>]+>'), '').trim();
+  return name.isEmpty ? null : name;
+}
+
+/// Kind from the "turnaj X na …" description.
+TournamentKind? parseMkwareKind(String html) {
+  final m = _formatPattern.firstMatch(html);
+  if (m == null) return null;
+  final word = m.group(1)!.toLowerCase();
+  if (word.startsWith('jednotlivc')) return TournamentKind.jednotlivci;
+  if (word.startsWith('dvojic')) return TournamentKind.dvojice;
+  if (word.startsWith('čtveřic')) return TournamentKind.ctverice;
+  if (word.startsWith('tandem')) return TournamentKind.tandem;
+  return null;
+}
+
+/// Discipline from the "… na N HS" description.
+Discipline? parseMkwareDiscipline(String html) {
+  final m = _formatPattern.firstMatch(html);
+  if (m == null) return null;
+  return Discipline.tryParse('${m.group(2)}HS');
+}
 
 /// Pure parser — unit-tested against a fixture of the real page.
 List<VenueTerm> parseMkwareHtml(String html) {

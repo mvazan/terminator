@@ -12,6 +12,10 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('1.2.7', '9. 7. 2026', [
+    'Předvyplnění z odkazu funguje i pro kkmoravskaslavia.cz (název, typ, '
+        'disciplína).',
+  ]),
   Release('1.2.6', '9. 7. 2026', [
     'Načítání turnajů z webu turnajekuzelky.cz (termíny i obsazenost).',
     'Při zakládání turnaje stačí nahoře vložit odkaz — název, typ, '

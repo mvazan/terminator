@@ -48,6 +48,21 @@ void main() {
     expect(parseMkwareHtml('<html><body>closed</body></html>'), isEmpty);
   });
 
+  test('detects name, kind and discipline from the page header/description',
+      () {
+    expect(parseMkwareName(html), 'Memoriál Josefa Vinklara 2026 - TJ Sokol '
+        'Mistřín');
+    expect(parseMkwareKind(html), TournamentKind.dvojice); // "turnaj dvojic"
+    expect(parseMkwareDiscipline(html), Discipline.hs100); // "na 100 HS"
+  });
+
+  test('metadata parsers return null when the page lacks them', () {
+    const bare = '<html><body>closed</body></html>';
+    expect(parseMkwareName(bare), isNull);
+    expect(parseMkwareKind(bare), isNull);
+    expect(parseMkwareDiscipline(bare), isNull);
+  });
+
   group('ScraperRegistry', () {
     test('recognizes kkmoravskaslavia and mkware paths', () {
       expect(
