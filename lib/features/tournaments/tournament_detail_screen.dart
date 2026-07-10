@@ -155,10 +155,14 @@ class _TournamentDetailScreenState
                 const PopupMenuItem(
                     value: 'archive', child: Text('Archivovat')),
               ],
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                  value: 'hide_for_me',
+                  child: Text('Skrýt (nezajímá mě)')),
               if (manage) ...[
                 const PopupMenuDivider(),
                 const PopupMenuItem(
-                    value: 'hide', child: Text('Skrýt turnaj (s chaty)')),
+                    value: 'hide', child: Text('Skrýt pro celý tým (s chaty)')),
               ],
             ],
           ),
@@ -297,6 +301,20 @@ class _TournamentDetailScreenState
         await tryAction(
             context, () => Api.setTournamentHidden(tournament.id, true),
             success: 'Turnaj skryt.');
+        if (context.mounted) Navigator.of(context).pop();
+      case 'hide_for_me':
+        final confirmed = await confirmDialog(
+          context,
+          title: 'Skrýt turnaj?',
+          message: '„${tournament.name}" zmizí z tvého seznamu a chatů a '
+              'nebudeš k němu dostávat upozornění. Ostatních se to netýká. '
+              'Vrátit to jde v seznamu turnajů.',
+          confirmLabel: 'Skrýt',
+        );
+        if (!confirmed || !context.mounted) return;
+        await tryAction(
+            context, () => Api.setTournamentHiddenForMe(tournament.id, true),
+            success: 'Turnaj skryt (jen pro tebe).');
         if (context.mounted) Navigator.of(context).pop();
     }
   }

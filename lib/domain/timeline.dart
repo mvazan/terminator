@@ -26,6 +26,8 @@ class TimelineRow {
     required this.tournament,
     required this.startCol,
     required this.endCol,
+    required this.startDay,
+    required this.endDay,
   });
 
   final Tournament tournament;
@@ -33,6 +35,26 @@ class TimelineRow {
   /// Inclusive column indexes into [Timeline.columns].
   final int startCol;
   final int endCol;
+
+  /// Day-of-week offset (0 = Monday … 6 = Sunday) of the tournament's first day
+  /// within [startCol], and of its last day within [endCol]. Lets the timeline
+  /// fill only part of a boundary week's cell (a Fri–Sun tournament fills the
+  /// right 3/7 of its single week cell).
+  final int startDay;
+  final int endDay;
+
+  /// Fraction (0..1) of [col]'s cell that the bar covers. Full weeks → 1.0;
+  /// the start cell is filled from [startDay] rightward, the end cell up to and
+  /// including [endDay]. A single-week tournament intersects both trims.
+  double fillFrom(int col) {
+    if (col < startCol || col > endCol) return 0;
+    final from = col == startCol ? startDay : 0;
+    final to = col == endCol ? endDay : 6;
+    return (to - from + 1) / 7;
+  }
+
+  /// Left inset fraction (0..1) for [col] — the start cell begins at [startDay].
+  double insetAt(int col) => col == startCol ? startDay / 7 : 0;
 }
 
 class Timeline {
@@ -72,6 +94,8 @@ class Timeline {
           tournament: t,
           startCol: colOf(t.startsOn),
           endCol: colOf(t.endsOn),
+          startDay: t.startsOn.weekday - 1,
+          endDay: t.endsOn.weekday - 1,
         ),
     ];
 

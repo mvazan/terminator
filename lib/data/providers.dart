@@ -111,9 +111,23 @@ final allTournamentsProvider = StreamProvider<List<Tournament>>((ref) {
         ..sort((a, b) => a.startsOn.compareTo(b.startsOn)));
 });
 
+/// The caller's own "not interested" hides — tournament ids they've hidden for
+/// themselves (distinct from the team-wide [Tournament.isHidden]).
+final myHiddenTournamentsProvider = StreamProvider<Set<String>>((ref) {
+  final uid = ref.watch(_userIdProvider);
+  if (uid == null) return Stream.value(const <String>{});
+  return _db
+      .from('tournament_hides')
+      .stream(primaryKey: ['user_id', 'tournament_id'])
+      .eq('user_id', uid)
+      .map((rows) => {for (final row in rows) row['tournament_id'] as String});
+});
+
 final tournamentsProvider = Provider<AsyncValue<List<Tournament>>>((ref) {
-  return ref.watch(allTournamentsProvider).whenData(
-      (all) => all.where((t) => !t.isHidden).toList());
+  final mine = ref.watch(myHiddenTournamentsProvider).value ?? const <String>{};
+  return ref.watch(allTournamentsProvider).whenData((all) => all
+      .where((t) => !t.isHidden && !mine.contains(t.id))
+      .toList());
 });
 
 final slotsProvider = StreamProvider<List<Slot>>((ref) {
@@ -193,10 +207,30 @@ final allMessagesProvider = StreamProvider<List<ChatMessage>>((ref) {
       .map((rows) => rows.map(ChatMessage.fromJson).toList());
 });
 
-/// The caller's mutes as "tournamentId|day" keys ('' day = tournament chat).
+/// Sentinel "tournament id" for the one team-wide chat, so it reuses the same
+/// mute/read/unread machinery keyed on tournamentId. No real tournament UUID
+/// collides with this literal. The team chat lives in its own `team_messages`
+/// table (see 0008) — this id is only a UI/mute key, never sent to the server.
+const teamChatId = teamChatSentinelId;
+
+/// The team-wide chat, oldest first. Stored in its own table so old app
+/// versions never see it.
+final teamMessagesProvider = StreamProvider<List<ChatMessage>>((ref) {
+  if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
+  return _db
+      .from('team_messages')
+      .stream(primaryKey: ['id'])
+      .order('created_at', ascending: true)
+      .map((rows) => rows.map(ChatMessage.fromTeamJson).toList());
+});
+
+/// The caller's chat mutes as "tournamentId|day" keys ('' day = tournament
+/// chat). The team chat is muted via a separate table, folded in here under the
+/// [teamChatId] sentinel key so the UI can treat all mutes uniformly.
 final myMutesProvider = StreamProvider<Set<String>>((ref) {
   final uid = ref.watch(_userIdProvider);
   if (uid == null) return Stream.value(const <String>{});
+  final teamMuted = ref.watch(_teamChatMutedProvider).value ?? false;
   return _db
       .from('chat_mutes')
       .stream(primaryKey: ['id'])
@@ -204,7 +238,19 @@ final myMutesProvider = StreamProvider<Set<String>>((ref) {
       .map((rows) => {
             for (final row in rows)
               '${row['tournament_id']}|${row['day'] ?? ''}',
+            if (teamMuted) muteKey(teamChatId, null),
           });
+});
+
+/// Whether the caller has muted the team-wide chat (its own tiny table).
+final _teamChatMutedProvider = StreamProvider<bool>((ref) {
+  final uid = ref.watch(_userIdProvider);
+  if (uid == null) return Stream.value(false);
+  return _db
+      .from('team_chat_mutes')
+      .stream(primaryKey: ['user_id'])
+      .eq('user_id', uid)
+      .map((rows) => rows.isNotEmpty);
 });
 
 String muteKey(String tournamentId, Day? day) =>
@@ -264,6 +310,23 @@ class Api {
       _db.from('tournaments').update({
         'hidden_at': hidden ? DateTime.now().toUtc().toIso8601String() : null,
       }).eq('id', id);
+
+  /// Per-user "not interested" hide: drops the tournament from *my* list and
+  /// chats and silences its pushes for me only — others are unaffected.
+  static Future<void> setTournamentHiddenForMe(String id, bool hidden) async {
+    final uid = currentUserId!;
+    if (hidden) {
+      await _db
+          .from('tournament_hides')
+          .upsert({'user_id': uid, 'tournament_id': id});
+    } else {
+      await _db
+          .from('tournament_hides')
+          .delete()
+          .eq('user_id', uid)
+          .eq('tournament_id', id);
+    }
+  }
 
   static Future<void> updateMyName(String name) async {
     await _db
@@ -458,6 +521,21 @@ class Api {
         'user_id': currentUserId!,
         'body': body,
       });
+
+  static Future<void> sendTeamMessage(String body) =>
+      _db.from('team_messages').insert({
+        'user_id': currentUserId!,
+        'body': body,
+      });
+
+  static Future<void> setTeamChatMuted(bool muted) async {
+    final uid = currentUserId!;
+    if (muted) {
+      await _db.from('team_chat_mutes').upsert({'user_id': uid});
+    } else {
+      await _db.from('team_chat_mutes').delete().eq('user_id', uid);
+    }
+  }
 
   /// enabled=true + mutedUntil=null  -> back to normal (row upserted anyway,
   /// which is fine — it equals the default).

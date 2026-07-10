@@ -210,6 +210,19 @@ async function teamTokens(
     .map((p) => ({ userId: p.id, token: p.fcm_token as string }));
 }
 
+/**
+ * User ids who hid this tournament for themselves ("not interested") — they
+ * should get none of its pushes. Pass the result into teamTokens' exclude list.
+ */
+async function hidersOf(tournamentId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("tournament_hides")
+    .select("user_id")
+    .eq("tournament_id", tournamentId);
+  if (error) throw error;
+  return (data ?? []).map((r) => r.user_id as string);
+}
+
 function dayLabel(sqlDate: string): string {
   const names = ["ne", "po", "út", "st", "čt", "pá", "so"];
   const d = new Date(`${sqlDate}T00:00:00Z`);
@@ -287,28 +300,31 @@ async function handle(payload: WebhookPayload) {
         status === "cancelled" && oldStatus !== "cancelled";
       if (!isNewProposal && !isOrdered && !isCancelled) return;
 
-      const name = await tournamentName(record.tournament_id);
+      const [name, hiders] = await Promise.all([
+        tournamentName(record.tournament_id),
+        hidersOf(record.tournament_id as string),
+      ]);
       const orderData = {
         kind: "order",
         tournament_id: record.tournament_id as string,
       };
       if (isNewProposal) {
         await sendToTokens(
-          await teamTokens("proposal", [record.created_by as string]),
+          await teamTokens("proposal", [record.created_by as string, ...hiders]),
           `Návrh: ${name}`,
           "Beru / Nemůžu / Radši jiný den — hlasuj v aplikaci.",
           orderData,
         );
       } else if (isOrdered) {
         await sendToTokens(
-          await teamTokens("order", [record.created_by as string]),
+          await teamTokens("order", [record.created_by as string, ...hiders]),
           `Objednáno: ${name}`,
           "Termín je objednaný — přidej se, dokud je místo!",
           orderData,
         );
       } else {
         await sendToTokens(
-          await teamTokens("order", []),
+          await teamTokens("order", hiders),
           `Zrušeno: ${name}`,
           "Návrh/objednávka byla zrušena.",
           orderData,
@@ -328,13 +344,16 @@ async function handle(payload: WebhookPayload) {
         ? mutesQuery.is("day", null)
         : mutesQuery.eq("day", day);
 
-      // Tournament name, this chat's mutes, and the author are independent.
-      const [name, { data: mutes }, { data: author }] = await Promise.all([
-        tournamentName(tournamentId),
-        mutesQuery,
-        supabase.from("profiles")
-          .select("display_name").eq("id", record.user_id).single(),
-      ]);
+      // Tournament name, this chat's mutes, hiders, and the author are all
+      // independent lookups.
+      const [name, { data: mutes }, hiders, { data: author }] = await Promise
+        .all([
+          tournamentName(tournamentId),
+          mutesQuery,
+          hidersOf(tournamentId),
+          supabase.from("profiles")
+            .select("display_name").eq("id", record.user_id).single(),
+        ]);
 
       const title = day === null
         ? `${name}`
@@ -343,6 +362,7 @@ async function handle(payload: WebhookPayload) {
         await teamTokens("chat", [
           record.user_id as string,
           ...(mutes ?? []).map((m) => m.user_id as string),
+          ...hiders,
         ]),
         title,
         `${author?.display_name ?? "?"}: ${record.body}`,
@@ -351,6 +371,25 @@ async function handle(payload: WebhookPayload) {
           tournament_id: tournamentId,
           ...(day === null ? {} : { day }),
         },
+      );
+      return;
+    }
+
+    case "team_messages": {
+      if (payload.type !== "INSERT") return;
+      const [{ data: muters }, { data: author }] = await Promise.all([
+        supabase.from("team_chat_mutes").select("user_id"),
+        supabase.from("profiles")
+          .select("display_name").eq("id", record.user_id).single(),
+      ]);
+      await sendToTokens(
+        await teamTokens("chat", [
+          record.user_id as string,
+          ...(muters ?? []).map((m) => m.user_id as string),
+        ]),
+        "Celý tým",
+        `${author?.display_name ?? "?"}: ${record.body}`,
+        { kind: "team_chat" },
       );
       return;
     }

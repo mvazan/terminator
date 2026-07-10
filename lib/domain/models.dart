@@ -525,7 +525,23 @@ class ChatMessage {
         body: json['body'] as String,
         createdAt: DateTime.parse(json['created_at'] as String),
       );
+
+  /// A row from the separate `team_messages` table (the team-wide chat), which
+  /// has no tournament/day — [teamChatSentinelId] stands in so it flows through
+  /// the same chat UI and mute/read keys.
+  factory ChatMessage.fromTeamJson(Map<String, dynamic> json) => ChatMessage(
+        id: json['id'] as String,
+        tournamentId: teamChatSentinelId,
+        day: null,
+        userId: json['user_id'] as String,
+        body: json['body'] as String,
+        createdAt: DateTime.parse(json['created_at'] as String),
+      );
 }
+
+/// See [teamChatId] in providers — kept here too so the model layer, which
+/// can't import providers, can stamp team messages with the same sentinel.
+const teamChatSentinelId = 'team';
 
 class Venue {
   const Venue({

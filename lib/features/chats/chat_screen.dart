@@ -7,13 +7,22 @@ import '../../data/providers.dart';
 import '../../domain/chat_policy.dart';
 import '../../domain/models.dart';
 
-/// One chat: the tournament chat (day == null) or a day chat.
+/// One chat: the tournament chat (day == null), a day chat, or — when [isTeam]
+/// is set — the standing team-wide chat (its own table, never locks).
 /// Locked chats (subject passed + grace period) are read-only.
 class ChatScreen extends ConsumerStatefulWidget {
-  const ChatScreen({super.key, required this.tournamentId, this.day});
+  const ChatScreen({super.key, required this.tournamentId, this.day})
+      : isTeam = false;
+
+  /// The team-wide chat: no tournament, no day, never locked.
+  const ChatScreen.team({super.key})
+      : tournamentId = teamChatId,
+        day = null,
+        isTeam = true;
 
   final String tournamentId;
   final Day? day;
+  final bool isTeam;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -34,7 +43,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (body.isEmpty || _sending) return;
     setState(() => _sending = true);
     try {
-      await Api.sendMessage(widget.tournamentId, widget.day, body);
+      await (widget.isTeam
+          ? Api.sendTeamMessage(body)
+          : Api.sendMessage(widget.tournamentId, widget.day, body));
       _input.clear();
     } catch (e) {
       if (mounted) snack(context, 'Zprávu se nepovedlo odeslat: $e');
@@ -45,13 +56,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tournament =
-        ref.watch(tournamentByIdProvider(widget.tournamentId));
+    final tournament = widget.isTeam
+        ? null
+        : ref.watch(tournamentByIdProvider(widget.tournamentId));
     final members = ref.watch(membersProvider).value ?? const [];
-    final messages = (ref.watch(messagesProvider(widget.tournamentId)).value ??
-            const <ChatMessage>[])
-        .where((m) => m.day == widget.day)
-        .toList();
+    final messages = widget.isTeam
+        ? (ref.watch(teamMessagesProvider).value ?? const <ChatMessage>[])
+        : (ref.watch(messagesProvider(widget.tournamentId)).value ??
+                const <ChatMessage>[])
+            .where((m) => m.day == widget.day)
+            .toList();
     final mutes = ref.watch(myMutesProvider).value ?? const <String>{};
     final muted = mutes.contains(muteKey(widget.tournamentId, widget.day));
 
@@ -69,11 +83,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final locked = tournament != null &&
         isChatLocked(
             tournament: tournament, day: widget.day, today: today());
-    final title = tournament == null
-        ? 'Chat'
-        : (widget.day == null
-            ? tournament.name
-            : '${tournament.name} — ${dayLabel(widget.day!)}');
+    final title = widget.isTeam
+        ? 'Celý tým'
+        : (tournament == null
+            ? 'Chat'
+            : (widget.day == null
+                ? tournament.name
+                : '${tournament.name} — ${dayLabel(widget.day!)}'));
     final uid = currentUserId;
 
     return Scaffold(
@@ -87,7 +103,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 : Icons.notifications_active_outlined),
             onPressed: () => tryAction(
               context,
-              () => Api.setMuted(widget.tournamentId, widget.day, !muted),
+              () => widget.isTeam
+                  ? Api.setTeamChatMuted(!muted)
+                  : Api.setMuted(widget.tournamentId, widget.day, !muted),
               success: muted ? 'Upozornění zapnuta.' : 'Chat ztlumen.',
             ),
           ),

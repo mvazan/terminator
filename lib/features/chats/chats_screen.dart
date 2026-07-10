@@ -48,13 +48,15 @@ class ChatsScreen extends ConsumerWidget {
       }
     }
 
-    // Last activity and unread count per chat ("tournamentId|day" key).
+    // Last activity and unread count per chat ("tournamentId|day" key). The
+    // team-wide chat rides along under the teamChatId sentinel key.
     final messages = ref.watch(allMessagesProvider).value ?? const [];
+    final teamMessages = ref.watch(teamMessagesProvider).value ?? const [];
     final reads = ref.watch(chatReadsProvider);
     final uid = currentUserId;
     final lastAt = <String, DateTime>{};
     final unread = <String, int>{};
-    for (final msg in messages) {
+    for (final msg in [...messages, ...teamMessages]) {
       final key = muteKey(msg.tournamentId, msg.day);
       final last = lastAt[key];
       if (last == null || msg.createdAt.isAfter(last)) {
@@ -66,6 +68,9 @@ class ChatsScreen extends ConsumerWidget {
         unread[key] = (unread[key] ?? 0) + 1;
       }
     }
+    final teamKey = muteKey(teamChatId, null);
+    final teamMuted = mutes.contains(teamKey);
+    final teamUnread = unread[teamKey] ?? 0;
 
     final open = <_ChatTileData>[];
     final archived = <_ChatTileData>[];
@@ -99,14 +104,15 @@ class ChatsScreen extends ConsumerWidget {
     open.sort(byActivity);
     archived.sort(byActivity);
 
+    // The team-wide chat always sits at the very top of the list.
+    final teamTile = _TeamChatTile(muted: teamMuted, unread: teamUnread);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Chaty')),
-      body: (open.isEmpty && archived.isEmpty)
-          ? const Center(
-              child: Text('Žádné chaty.\nZaloží se s prvním turnajem.',
-                  textAlign: TextAlign.center))
-          : ListView(
+      body: ListView(
               children: [
+                teamTile,
+                const Divider(height: 1),
                 for (final chat in open)
                   _ChatTile(
                     data: chat,
@@ -134,6 +140,48 @@ class _ChatTileData {
 
   final Tournament tournament;
   final Day? day;
+}
+
+/// The standing team-wide chat, pinned at the top of the chat list.
+class _TeamChatTile extends StatelessWidget {
+  const _TeamChatTile({required this.muted, required this.unread});
+
+  final bool muted;
+  final int unread;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ListTile(
+      leading: Badge(
+        isLabelVisible: unread > 0,
+        label: Text('$unread'),
+        child: Icon(Icons.forum, color: scheme.primary),
+      ),
+      title: Text(
+        'Celý tým',
+        style: TextStyle(
+          color: scheme.primary,
+          fontWeight: unread > 0 ? FontWeight.w700 : FontWeight.w600,
+        ),
+      ),
+      subtitle: const Text('společný chat celé party'),
+      trailing: IconButton(
+        icon: Icon(
+          muted
+              ? Icons.notifications_off
+              : Icons.notifications_active_outlined,
+          size: 20,
+        ),
+        tooltip: muted ? 'Zapnout upozornění' : 'Ztlumit',
+        onPressed: () =>
+            tryAction(context, () => Api.setTeamChatMuted(!muted)),
+      ),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const ChatScreen.team()),
+      ),
+    );
+  }
 }
 
 class _ChatTile extends StatelessWidget {

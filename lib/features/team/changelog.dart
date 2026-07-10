@@ -12,6 +12,16 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('1.3.4', '10. 7. 2026', [
+    'Nový chat „Celý tým" — společný chat celé party, vždy nahoře v seznamu '
+        'chatů.',
+    'Skrývání turnajů, které tě nezajímají: ikona oka v seznamu turnajů '
+        'ukáže všechny se zaškrtávátky. Skrytý turnaj zmizí jen tobě — '
+        'i s chatem a upozorněními.',
+    'Sezónní kalendář vybarvuje týdny přesně podle dní (turnaj pá–ne už '
+        'nezabírá celý týden).',
+    'Automatické hlášení chyb, ať je umíme rychleji opravit.',
+  ]),
   Release('1.3.3', '9. 7. 2026', [
     'Oprava obsazenosti u turnajů z turnajekuzelky.cz: u „dvojic" a „čtveřic" '
         'se počítají místa hráčů, ne starty — 2×120HS se dvěma volnými starty '

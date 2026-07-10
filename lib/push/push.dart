@@ -138,6 +138,12 @@ class Push {
       return;
     }
 
+    // The team-wide chat also has no tournament — open it directly.
+    if (data['kind'] == 'team_chat') {
+      navigator.push(MaterialPageRoute(builder: (_) => const ChatScreen.team()));
+      return;
+    }
+
     final tournamentId = data['tournament_id'] as String?;
     if (tournamentId == null) return;
 
