@@ -122,6 +122,9 @@ class _TimelineRow extends StatelessWidget {
                 child: row.fillFrom(col) == 0
                     ? null
                     : Row(
+                        // Stretch, or the childless ColoredBox collapses to
+                        // zero height and the bar vanishes.
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Expanded(
                             flex: (row.insetAt(col) * 1000).round(),
