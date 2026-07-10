@@ -12,6 +12,10 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('1.3.5', '10. 7. 2026', [
+    'Oprava: v sezónním kalendáři se zase kreslí barevné pruhy turnajů '
+        '(v 1.3.4 zmizely).',
+  ]),
   Release('1.3.4', '10. 7. 2026', [
     'Nový chat „Celý tým" — společný chat celé party, vždy nahoře v seznamu '
         'chatů.',
