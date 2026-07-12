@@ -21,6 +21,25 @@ class WeekColumn {
       '${monday.day}.${monday.month}.–${sunday.day}.${sunday.month}.';
 }
 
+/// A vertical day mark inside a tournament's bar: the tournament has starts
+/// (slots) on that day, or — stronger — an active order there.
+enum DayMarkerKind { start, ordered }
+
+class DayMarker {
+  const DayMarker({
+    required this.col,
+    required this.dayIndex,
+    required this.kind,
+  });
+
+  /// Column index into [Timeline.columns].
+  final int col;
+
+  /// 0 = Monday … 6 = Sunday within that week.
+  final int dayIndex;
+  final DayMarkerKind kind;
+}
+
 class TimelineRow {
   const TimelineRow({
     required this.tournament,
@@ -28,9 +47,17 @@ class TimelineRow {
     required this.endCol,
     required this.startDay,
     required this.endDay,
+    this.markers = const [],
   });
 
   final Tournament tournament;
+
+  /// Day marks (starts/orders) for this tournament, precomputed per column.
+  final List<DayMarker> markers;
+
+  /// Markers falling into [col] — lists are tiny, a linear filter is fine.
+  List<DayMarker> markersIn(int col) =>
+      [for (final m in markers) if (m.col == col) m];
 
   /// Inclusive column indexes into [Timeline.columns].
   final int startCol;
@@ -67,7 +94,15 @@ class Timeline {
 
   /// Builds the timeline covering every week any tournament touches.
   /// Rows keep the given tournament order (caller sorts, typically by start).
-  factory Timeline.build(List<Tournament> tournaments) {
+  ///
+  /// [startDaysByTournament] / [orderedDaysByTournament] mark days that have
+  /// starts (slots) resp. an active order — rendered as vertical lines in the
+  /// bar. A day that is both start and ordered renders as ordered.
+  factory Timeline.build(
+    List<Tournament> tournaments, {
+    Map<String, Set<Day>> startDaysByTournament = const {},
+    Map<String, Set<Day>> orderedDaysByTournament = const {},
+  }) {
     if (tournaments.isEmpty) {
       return const Timeline(columns: [], rows: []);
     }
@@ -88,6 +123,21 @@ class Timeline {
 
     int colOf(Day day) => weekStart(day).differenceInDays(first) ~/ 7;
 
+    List<DayMarker> markersOf(Tournament t) {
+      final ordered = orderedDaysByTournament[t.id] ?? const <Day>{};
+      final starts = startDaysByTournament[t.id] ?? const <Day>{};
+      return [
+        for (final d in {...starts, ...ordered})
+          DayMarker(
+            col: colOf(d),
+            dayIndex: d.weekday - 1,
+            kind: ordered.contains(d)
+                ? DayMarkerKind.ordered
+                : DayMarkerKind.start,
+          ),
+      ];
+    }
+
     final rows = [
       for (final t in tournaments)
         TimelineRow(
@@ -96,6 +146,7 @@ class Timeline {
           endCol: colOf(t.endsOn),
           startDay: t.startsOn.weekday - 1,
           endDay: t.endsOn.weekday - 1,
+          markers: markersOf(t),
         ),
     ];
 

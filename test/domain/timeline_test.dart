@@ -93,4 +93,57 @@ void main() {
     expect(timeline.isEmpty, isTrue);
     expect(timeline.columns, isEmpty);
   });
+
+  group('day markers', () {
+    test('land in the right column and day index across week boundaries', () {
+      // Wed 22.4. → Tue 5.5.2026 spans three week columns.
+      final t = makeTournament(
+        id: 'a',
+        venueId: 'v',
+        startsOn: Day(2026, 4, 22),
+        endsOn: Day(2026, 5, 5),
+      );
+      final row = Timeline.build([
+        t
+      ], startDaysByTournament: {
+        'a': {Day(2026, 4, 24), Day(2026, 5, 4)}, // Fri wk0, Mon wk2
+      }).rows.single;
+
+      expect(row.markers, hasLength(2));
+      final friday = row.markersIn(0).single;
+      expect(friday.dayIndex, 4);
+      expect(friday.kind, DayMarkerKind.start);
+      final monday = row.markersIn(2).single;
+      expect(monday.dayIndex, 0);
+      expect(row.markersIn(1), isEmpty);
+    });
+
+    test('an ordered day overrides its start marker', () {
+      final t = makeTournament(
+        id: 'a',
+        venueId: 'v',
+        startsOn: Day(2026, 4, 20),
+        endsOn: Day(2026, 4, 26),
+      );
+      final row = Timeline.build([
+        t
+      ], startDaysByTournament: {
+        'a': {Day(2026, 4, 23)},
+      }, orderedDaysByTournament: {
+        'a': {Day(2026, 4, 23)},
+      }).rows.single;
+
+      expect(row.markers.single.kind, DayMarkerKind.ordered);
+    });
+
+    test('no marker maps -> empty markers, old call sites keep working', () {
+      final t = makeTournament(
+        id: 'a',
+        venueId: 'v',
+        startsOn: Day(2026, 4, 20),
+        endsOn: Day(2026, 4, 26),
+      );
+      expect(Timeline.build([t]).rows.single.markers, isEmpty);
+    });
+  });
 }

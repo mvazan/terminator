@@ -29,3 +29,17 @@ Tournament makeTournament({
 
 Slot makeSlot(String id, Day date, HourMinute time, {String tournamentId = 't1'}) =>
     Slot(id: id, tournamentId: tournamentId, date: date, time: time);
+
+Order makeOrder({
+  String id = 'o1',
+  String tournamentId = 't1',
+  OrderStatus status = OrderStatus.ordered,
+}) =>
+    Order(
+      id: id,
+      tournamentId: tournamentId,
+      createdBy: 'u1',
+      status: status,
+      note: '',
+      createdAt: DateTime.utc(2026, 1, 1),
+    );
