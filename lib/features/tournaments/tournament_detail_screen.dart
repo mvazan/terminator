@@ -340,14 +340,18 @@ class _TournamentDetailScreenState
       case 'hide_for_me':
         // Hiding also clears my ticks — warn when there are any to lose.
         final myTicks = _myTickCount(tournament.id);
+        final tickWarning = switch (myTicks) {
+          0 => '',
+          1 => '\n\nZruší se i tvůj zaškrtnutý termín.',
+          >= 2 && <= 4 => '\n\nZruší se i tvoje $myTicks zaškrtnuté termíny.',
+          _ => '\n\nZruší se i tvých $myTicks zaškrtnutých termínů.',
+        };
         final confirmed = await confirmDialog(
           context,
           title: 'Skrýt turnaj?',
           message: '„${tournament.name}" zmizí z tvého seznamu a chatů a '
               'nebudeš k němu dostávat upozornění. Ostatních se to netýká. '
-              'Vrátit to jde v seznamu turnajů.'
-              '${myTicks > 0 ? '\n\nZruší se i tvých $myTicks '
-                  'zaškrtnutých termínů.' : ''}',
+              'Vrátit to jde v seznamu turnajů.$tickWarning',
           confirmLabel: 'Skrýt',
         );
         if (!confirmed || !context.mounted) return;

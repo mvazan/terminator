@@ -48,11 +48,8 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
-        children: [
-          const _OfflineBanner(),
-          Expanded(child: IndexedStack(index: _tab, children: _screens)),
-        ],
+      body: _OfflineWrapper(
+        child: IndexedStack(index: _tab, children: _screens),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
@@ -84,17 +81,23 @@ class _MainShellState extends State<MainShell> {
   }
 }
 
-/// Slim banner shown while the realtime socket is down for more than a few
-/// seconds — the screens below keep showing the last cached data (read-only).
-/// Debounced so routine reconnects don't flash it.
-class _OfflineBanner extends ConsumerStatefulWidget {
-  const _OfflineBanner();
+/// Shows a slim banner above [child] while the realtime socket is down for
+/// more than a few seconds — the screens below keep showing the last cached
+/// data (read-only). Debounced so routine reconnects don't flash it.
+///
+/// The banner consumes the status-bar inset itself (SafeArea) and REMOVES the
+/// top padding from [child] — the tab screens' own AppBars would otherwise
+/// pad for a status bar the banner already sits under, doubling the gap.
+class _OfflineWrapper extends ConsumerStatefulWidget {
+  const _OfflineWrapper({required this.child});
+
+  final Widget child;
 
   @override
-  ConsumerState<_OfflineBanner> createState() => _OfflineBannerState();
+  ConsumerState<_OfflineWrapper> createState() => _OfflineWrapperState();
 }
 
-class _OfflineBannerState extends ConsumerState<_OfflineBanner> {
+class _OfflineWrapperState extends ConsumerState<_OfflineWrapper> {
   bool _show = false;
   Timer? _debounce;
 
@@ -119,32 +122,45 @@ class _OfflineBannerState extends ConsumerState<_OfflineBanner> {
   Widget build(BuildContext context) {
     ref.listen(realtimeConnectedProvider,
         (_, next) => _onConnected(next.value ?? true));
-    if (!_show) return const SizedBox.shrink();
+    if (!_show) return widget.child;
 
     final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surfaceContainerHighest,
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Row(
-            children: [
-              Icon(Icons.cloud_off, size: 16, color: scheme.onSurfaceVariant),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Offline — zobrazují se poslední známá data.',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: scheme.onSurfaceVariant),
-                ),
+    return Column(
+      children: [
+        Material(
+          color: scheme.surfaceContainerHighest,
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Row(
+                children: [
+                  Icon(Icons.cloud_off,
+                      size: 16, color: scheme.onSurfaceVariant),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Offline — zobrazují se poslední známá data.',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
-      ),
+        Expanded(
+          child: MediaQuery.removePadding(
+            context: context,
+            removeTop: true,
+            child: widget.child,
+          ),
+        ),
+      ],
     );
   }
 }

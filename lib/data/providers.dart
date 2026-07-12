@@ -382,20 +382,21 @@ class Api {
     }
   }
 
-  /// Batch of hide/unhide changes, committed when eye mode closes — at most
-  /// one bulk upsert + one bulk delete instead of a call per tournament.
+  /// Batch of hide/unhide changes, committed when eye mode closes — a
+  /// constant number of round trips regardless of how many tournaments
+  /// changed (upsert, slots lookup, availability delete, unhide delete).
   /// Hidden tournaments also get my availability cleared (see above).
+  /// No-op when signed out (the dispose-time commit can race sign-out).
   static Future<void> setTournamentHidesBatch({
     required Set<String> hide,
     required Set<String> unhide,
   }) async {
-    final uid = currentUserId!;
+    final uid = currentUserId;
+    if (uid == null) return;
     if (hide.isNotEmpty) {
       await _db.from('tournament_hides').upsert(
           [for (final id in hide) {'user_id': uid, 'tournament_id': id}]);
-      for (final id in hide) {
-        await _clearMyAvailability(id);
-      }
+      await _clearMyAvailabilityIn(hide.toList());
     }
     if (unhide.isNotEmpty) {
       await _db
@@ -408,15 +409,23 @@ class Api {
 
   /// Drops the caller's availability ticks in one tournament (own rows only —
   /// availability's delete policy allows exactly that).
-  static Future<void> _clearMyAvailability(String tournamentId) async {
-    final rows =
-        await _db.from('slots').select('id').eq('tournament_id', tournamentId);
+  static Future<void> _clearMyAvailability(String tournamentId) =>
+      _clearMyAvailabilityIn([tournamentId]);
+
+  static Future<void> _clearMyAvailabilityIn(
+      List<String> tournamentIds) async {
+    final uid = currentUserId;
+    if (uid == null || tournamentIds.isEmpty) return;
+    final rows = await _db
+        .from('slots')
+        .select('id')
+        .inFilter('tournament_id', tournamentIds);
     final ids = [for (final r in rows) r['id'] as String];
     if (ids.isEmpty) return;
     await _db
         .from('availability')
         .delete()
-        .eq('user_id', currentUserId!)
+        .eq('user_id', uid)
         .inFilter('slot_id', ids);
   }
 

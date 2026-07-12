@@ -10,13 +10,24 @@ import 'package:http/http.dart' as http;
 
 DateTime _lastCall = DateTime.fromMillisecondsSinceEpoch(0);
 
+/// Serializes all geocode calls: concurrent callers chain onto this future,
+/// so the 1 req/s throttle below can't be raced (a plain check-then-sleep
+/// would let two waiters wake at the same instant and fire together).
+Future<void> _queue = Future.value();
+
 /// Resolves [address] to coordinates, or null when unknown/unreachable.
 /// Never throws — a venue without a pin is fine, the map just skips it.
-Future<({double lat, double lng})?> geocodeAddress(String address) async {
+Future<({double lat, double lng})?> geocodeAddress(String address) {
+  final result = _queue.then((_) => _geocodeNow(address));
+  _queue = result.then((_) {}, onError: (_) {});
+  return result;
+}
+
+Future<({double lat, double lng})?> _geocodeNow(String address) async {
   final query = address.trim();
   if (query.isEmpty) return null;
 
-  // Nominatim policy: max 1 req/s. Serialize and space out calls.
+  // Nominatim policy: max 1 req/s. Space calls out (already serialized).
   final sinceLast = DateTime.now().difference(_lastCall);
   const minGap = Duration(milliseconds: 1100);
   if (sinceLast < minGap) {
