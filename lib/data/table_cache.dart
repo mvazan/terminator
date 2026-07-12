@@ -19,6 +19,11 @@ typedef Rows = List<Map<String, dynamic>>;
 
 Directory? _dirCache;
 
+/// Set by [clearTableCache]; pending debounced writers check it so a timer
+/// firing after the wipe can't re-persist team data on a signed-out device.
+/// Re-enabled when a fresh stream subscribes (next sign-in).
+bool _writesEnabled = true;
+
 Future<Directory> _cacheDir() async {
   if (_dirCache != null) return _dirCache!;
   final support = await getApplicationSupportDirectory();
@@ -33,6 +38,7 @@ Future<File> _fileFor(String key) async =>
 /// Wipes all cached tables — called on sign-out so a shared/returned device
 /// doesn't keep team data readable.
 Future<void> clearTableCache() async {
+  _writesEnabled = false;
   try {
     final dir = await _cacheDir();
     if (await dir.exists()) await dir.delete(recursive: true);
@@ -51,6 +57,8 @@ Stream<Rows> cachedRows({
   required Stream<Rows> Function() live,
 }) {
   return Stream.multi((controller) {
+    // A fresh subscription means a (re-)signed-in session — writing is safe.
+    _writesEnabled = true;
     StreamSubscription<Rows>? sub;
     Timer? writeTimer;
     Timer? retryTimer;
@@ -81,7 +89,7 @@ Stream<Rows> cachedRows({
       writeTimer?.cancel();
       writeTimer = Timer(const Duration(seconds: 2), () async {
         final rows = latest;
-        if (rows == null) return;
+        if (rows == null || !_writesEnabled) return;
         try {
           final file = await _fileFor(key);
           await file.writeAsString(jsonEncode(rows));

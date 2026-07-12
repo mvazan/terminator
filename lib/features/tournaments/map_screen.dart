@@ -163,21 +163,29 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 child: Text('Žádný nadcházející turnaj.'),
               )
             else
-              for (final t in upcoming)
-                ListTile(
-                  leading: DateBadge(t.startsOn),
-                  title: Text(t.name),
-                  subtitle: Text(rangeLabel(t.startsOn, t.endsOn)),
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            TournamentDetailScreen(tournamentId: t.id),
+              // Scrollable so many tournaments can't overflow the sheet.
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final t in upcoming)
+                      ListTile(
+                        leading: DateBadge(t.startsOn),
+                        title: Text(t.name),
+                        subtitle: Text(rangeLabel(t.startsOn, t.endsOn)),
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => TournamentDetailScreen(
+                                  tournamentId: t.id),
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
+                  ],
                 ),
+              ),
             const SizedBox(height: 8),
           ],
         ),

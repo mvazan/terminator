@@ -25,10 +25,26 @@ class TournamentsScreen extends ConsumerStatefulWidget {
   ConsumerState<TournamentsScreen> createState() => _TournamentsScreenState();
 }
 
-class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
+class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
+    with WidgetsBindingObserver {
   /// Eye mode: show also the tournaments I hid, each with a checkbox to
   /// hide/unhide in bulk. Off = hidden ones simply disappear.
   bool _showHidden = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // The screen lives in an IndexedStack and is never disposed by
+    // navigation; if the OS kills the backgrounded process, dispose() never
+    // runs either. Committing on pause is the only reliable way pending
+    // eye-mode edits survive leaving the app.
+    if (state == AppLifecycleState.paused) _commitSilently();
+  }
 
   /// tournamentId -> desired hidden-for-me. Pending while eye mode is on
   /// (taps are local-only; ONE batched request goes out when it closes),
@@ -83,10 +99,12 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
         confirmLabel: 'Skrýt',
       );
       if (!confirmed) return; // stay in eye mode, keep pending edits
+      // The screen can be swapped out while the dialog is up (sign-out,
+      // auth flip) — dispose has already committed then, nothing to do.
+      if (!mounted) return;
     }
     setState(() => _showHidden = false);
     if (diff.hide.isEmpty && diff.unhide.isEmpty) return;
-    if (!mounted) return;
     await tryAction(
       context,
       () => Api.setTournamentHidesBatch(hide: diff.hide, unhide: diff.unhide),
@@ -96,19 +114,23 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
     });
   }
 
+  /// Fire-and-forget commit of pending edits — used where no dialogs are
+  /// possible (app pause, dispose). Errors just leave server state.
+  void _commitSilently() {
+    final diff = _pendingDiff(_lastMyHiddenIds);
+    if (diff.hide.isEmpty && diff.unhide.isEmpty) return;
+    try {
+      Api.setTournamentHidesBatch(hide: diff.hide, unhide: diff.unhide)
+          .catchError((_) {});
+    } catch (_) {
+      // Supabase unavailable (tests, teardown) — nothing to do.
+    }
+  }
+
   @override
   void dispose() {
-    // Leaving the screen with eye mode open still commits — fire and forget
-    // (no context for dialogs/snackbars; errors just leave server state).
-    final diff = _pendingDiff(_lastMyHiddenIds);
-    if (diff.hide.isNotEmpty || diff.unhide.isNotEmpty) {
-      try {
-        Api.setTournamentHidesBatch(hide: diff.hide, unhide: diff.unhide)
-            .catchError((_) {});
-      } catch (_) {
-        // Supabase unavailable (tests, teardown) — nothing to do.
-      }
-    }
+    WidgetsBinding.instance.removeObserver(this);
+    _commitSilently();
     super.dispose();
   }
 

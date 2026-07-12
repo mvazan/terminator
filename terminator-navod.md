@@ -57,7 +57,7 @@ Dole jsou čtyři záložky:
 
 V seznamu turnajů je hlavním nadpisem **kuželna** (název turnaje je pod ní).
 U turnaje vidíš, **kolik lidí z party se hlásí** a kolik jich má nejsilnější
-den; **modrý proužek vlevo** značí, že tam máš něco zakliknuté ty.
+den; **barevný proužek vlevo** značí, že tam máš něco zakliknuté ty.
 
 Nahoře v Turnajích najdeš tři ikony:
 - **Oko** — skrývání turnajů, které tě nezajímají: zobrazí všechny se
@@ -175,7 +175,7 @@ kuželny, pokud je vyplněná), e-mail a telefon pořadatele a web turnaje.
 
 ## 8. Zadání objednávky
 
-Když se v mřížce zvýrazní silné termíny, appka je shrne nahoře v kartě **„Nejsilnější
+Když se v mřížce objeví fajfky (dost lidí na objednání), appka je shrne nahoře v kartě **„Nejsilnější
 termíny"**. Tlačítkem **„Zadat objednávku"** otevřeš výběr startů.
 
 Objednávku samotnou (telefon/e-mail/web s pořadatelem) vždycky vyřídí člověk, appka

@@ -57,11 +57,18 @@ class _VenueFormState extends ConsumerState<_VenueForm> {
       return;
     }
     setState(() => _saving = true);
+    final address = _address.text.trim();
+    final addressChanged =
+        widget.existing != null && widget.existing!.address != address;
     final fields = {
       'name': name,
       'lane_count': _lanes,
-      'address': _address.text.trim(),
+      'address': address,
       'source_url': _url.text.trim(),
+      // A changed address invalidates the old pin — clear coords now so the
+      // map never points at the previous place; the geocode below refills.
+      if (addressChanged) 'lat': null,
+      if (addressChanged) 'lng': null,
     };
     final existing = widget.existing;
     String? id = existing?.id;
@@ -75,10 +82,8 @@ class _VenueFormState extends ConsumerState<_VenueForm> {
     if (ok && id != null) {
       // Geocode for the map — new venue, changed address, or missing coords.
       // Fire-and-forget: a save never fails because Nominatim is down.
-      final address = _address.text.trim();
-      final needsCoords = existing == null ||
-          existing.address != address ||
-          !existing.hasCoords;
+      final needsCoords =
+          existing == null || addressChanged || !existing.hasCoords;
       if (address.isNotEmpty && needsCoords) {
         final venueId = id!;
         unawaited(geocodeAddress(address).then((coords) async {
