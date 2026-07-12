@@ -2,6 +2,8 @@
 /// launches, name lookups.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -47,12 +49,23 @@ void snack(BuildContext context, String message) {
 
 /// Runs [action]; on failure shows the error as a snackbar.
 /// Returns true when the action succeeded.
+///
+/// [timeout] guards against a dead/slow connection — Supabase calls have no
+/// timeout of their own, so without this a tap can hang forever. The
+/// underlying call isn't cancelled; if it lands late, the realtime echo
+/// reconciles the UI (same trust model as everywhere else).
 Future<bool> tryAction(BuildContext context, Future<void> Function() action,
-    {String? success}) async {
+    {String? success, Duration timeout = const Duration(seconds: 10)}) async {
   try {
-    await action();
+    await action().timeout(timeout);
     if (success != null && context.mounted) snack(context, success);
     return true;
+  } on TimeoutException {
+    if (context.mounted) {
+      snack(context,
+          'Nepovedlo se — server neodpovídá. Zkontroluj připojení.');
+    }
+    return false;
   } catch (e, stack) {
     // Report the swallowed failure as a non-fatal (scrape/Supabase/network
     // errors surface here); no-op when Sentry isn't configured.

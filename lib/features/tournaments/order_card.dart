@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/busy.dart';
 import '../../core/ui.dart';
 import '../../data/providers.dart';
 import '../../domain/models.dart';
@@ -137,7 +138,7 @@ class OrderCard extends ConsumerWidget {
   }
 }
 
-class _ProposalVoting extends StatelessWidget {
+class _ProposalVoting extends StatefulWidget {
   const _ProposalVoting({
     required this.order,
     required this.votes,
@@ -149,6 +150,19 @@ class _ProposalVoting extends StatelessWidget {
   final List<OrderVote> votes;
   final List<Profile> members;
   final bool readOnly;
+
+  @override
+  State<_ProposalVoting> createState() => _ProposalVotingState();
+}
+
+class _ProposalVotingState extends State<_ProposalVoting> {
+  /// Vote write in flight — disables the segments against double-fires.
+  bool _voting = false;
+
+  Order get order => widget.order;
+  List<OrderVote> get votes => widget.votes;
+  List<Profile> get members => widget.members;
+  bool get readOnly => widget.readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -172,12 +186,16 @@ class _ProposalVoting extends StatelessWidget {
           ],
           emptySelectionAllowed: true,
           selected: {?myVote},
-          onSelectionChanged: readOnly
+          onSelectionChanged: readOnly || _voting
               ? null
-              : (selection) {
-                  if (selection.isNotEmpty) {
-                    tryAction(
+              : (selection) async {
+                  if (selection.isEmpty) return;
+                  setState(() => _voting = true);
+                  try {
+                    await tryAction(
                         context, () => Api.vote(order.id, selection.first));
+                  } finally {
+                    if (mounted) setState(() => _voting = false);
                   }
                 },
         ),
@@ -324,11 +342,13 @@ class _SlotRoster extends StatelessWidget {
                 ),
               if (!readOnly && slotPlaces.hasFreePlace) ...[
                 if (!imIn)
-                  ActionChip(
+                  BusyActionChip(
                     avatar: const Icon(Icons.person_add, size: 16),
                     label: const Text('Přidám se'),
-                    onPressed: () =>
-                        tryAction(context, () => Api.joinSlot(slot.id)),
+                    onPressed: () async {
+                      await tryAction(
+                          context, () => Api.joinSlot(slot.id));
+                    },
                   ),
                 ActionChip(
                   avatar: const Icon(Icons.group_add, size: 16),

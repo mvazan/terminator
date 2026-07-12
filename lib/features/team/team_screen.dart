@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../core/busy.dart';
 import '../../core/ui.dart';
 import '../../data/providers.dart';
 import '../../domain/models.dart';
@@ -73,11 +74,12 @@ class TeamScreen extends ConsumerWidget {
               ListTile(
                 leading: const Icon(Icons.hourglass_top),
                 title: Text(m.displayName),
-                trailing: FilledButton(
-                  onPressed: () => tryAction(
-                      context, () => Api.approveMember(m.id),
-                      success: '${m.displayName} schválen(a). Vítej!'),
-                  child: const Text('Schválit'),
+                trailing: BusyFilledButton(
+                  label: const Text('Schválit'),
+                  onPressed: () async {
+                    await tryAction(context, () => Api.approveMember(m.id),
+                        success: '${m.displayName} schválen(a). Vítej!');
+                  },
                 ),
               ),
             const Divider(),
@@ -113,12 +115,14 @@ class TeamScreen extends ConsumerWidget {
                 leading: const Icon(Icons.visibility_off, size: 20),
                 title: Text(m.displayName),
                 subtitle: const Text('po zobrazení čeká na schválení'),
-                trailing: TextButton(
-                  onPressed: () => tryAction(
-                      context, () => Api.setMemberHidden(m.id, false),
-                      success: '${m.displayName} zobrazen(a) — '
-                          'čeká na schválení.'),
-                  child: const Text('Zobrazit'),
+                trailing: BusyTextButton(
+                  label: const Text('Zobrazit'),
+                  onPressed: () async {
+                    await tryAction(
+                        context, () => Api.setMemberHidden(m.id, false),
+                        success: '${m.displayName} zobrazen(a) — '
+                            'čeká na schválení.');
+                  },
                 ),
               ),
           ],

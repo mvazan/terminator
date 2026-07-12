@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/busy.dart';
 import '../../core/ui.dart';
 import '../../data/local_prefs.dart';
 import '../../data/providers.dart';
@@ -166,7 +167,7 @@ class _TeamChatTile extends StatelessWidget {
         ),
       ),
       subtitle: const Text('společný chat celé party'),
-      trailing: IconButton(
+      trailing: BusyIconButton(
         icon: Icon(
           muted
               ? Icons.notifications_off
@@ -174,8 +175,9 @@ class _TeamChatTile extends StatelessWidget {
           size: 20,
         ),
         tooltip: muted ? 'Zapnout upozornění' : 'Ztlumit',
-        onPressed: () =>
-            tryAction(context, () => Api.setTeamChatMuted(!muted)),
+        onPressed: () async {
+          await tryAction(context, () => Api.setTeamChatMuted(!muted));
+        },
       ),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const ChatScreen.team()),
@@ -220,7 +222,7 @@ class _ChatTile extends StatelessWidget {
           : 'chat hracího dne · účastníci'),
       trailing: locked
           ? const Icon(Icons.lock_outline, size: 18)
-          : IconButton(
+          : BusyIconButton(
               icon: Icon(
                 muted
                     ? Icons.notifications_off
@@ -228,8 +230,10 @@ class _ChatTile extends StatelessWidget {
                 size: 20,
               ),
               tooltip: muted ? 'Zapnout upozornění' : 'Ztlumit',
-              onPressed: () => tryAction(
-                  context, () => Api.setMuted(t.id, day, !muted)),
+              onPressed: () async {
+                await tryAction(
+                    context, () => Api.setMuted(t.id, day, !muted));
+              },
             ),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
