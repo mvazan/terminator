@@ -248,6 +248,20 @@ class _TournamentDetailScreenState
     );
   }
 
+  /// How many slots of [tournamentId] the current user has ticked — feeds the
+  /// "hiding clears your ticks" warning.
+  int _myTickCount(String tournamentId) {
+    final uid = currentUserId;
+    if (uid == null) return 0;
+    final slotIds = {
+      for (final s in ref.read(slotsProvider).value ?? const <Slot>[])
+        if (s.tournamentId == tournamentId) s.id,
+    };
+    return (ref.read(availabilityProvider).value ?? const [])
+        .where((a) => a.userId == uid && slotIds.contains(a.slotId))
+        .length;
+  }
+
   Future<void> _menuAction(
       BuildContext context, String action, Tournament tournament) async {
     switch (action) {
@@ -307,12 +321,16 @@ class _TournamentDetailScreenState
             success: 'Turnaj skryt.');
         if (context.mounted) Navigator.of(context).pop();
       case 'hide_for_me':
+        // Hiding also clears my ticks — warn when there are any to lose.
+        final myTicks = _myTickCount(tournament.id);
         final confirmed = await confirmDialog(
           context,
           title: 'Skrýt turnaj?',
           message: '„${tournament.name}" zmizí z tvého seznamu a chatů a '
               'nebudeš k němu dostávat upozornění. Ostatních se to netýká. '
-              'Vrátit to jde v seznamu turnajů.',
+              'Vrátit to jde v seznamu turnajů.'
+              '${myTicks > 0 ? '\n\nZruší se i tvých $myTicks '
+                  'zaškrtnutých termínů.' : ''}',
           confirmLabel: 'Skrýt',
         );
         if (!confirmed || !context.mounted) return;

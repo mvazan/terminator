@@ -313,12 +313,15 @@ class Api {
 
   /// Per-user "not interested" hide: drops the tournament from *my* list and
   /// chats and silences its pushes for me only — others are unaffected.
+  /// Hiding also clears my availability ticks there (one-way; unhide does
+  /// not restore them) — callers warn when ticks exist.
   static Future<void> setTournamentHiddenForMe(String id, bool hidden) async {
     final uid = currentUserId!;
     if (hidden) {
       await _db
           .from('tournament_hides')
           .upsert({'user_id': uid, 'tournament_id': id});
+      await _clearMyAvailability(id);
     } else {
       await _db
           .from('tournament_hides')
@@ -326,6 +329,44 @@ class Api {
           .eq('user_id', uid)
           .eq('tournament_id', id);
     }
+  }
+
+  /// Batch of hide/unhide changes, committed when eye mode closes — at most
+  /// one bulk upsert + one bulk delete instead of a call per tournament.
+  /// Hidden tournaments also get my availability cleared (see above).
+  static Future<void> setTournamentHidesBatch({
+    required Set<String> hide,
+    required Set<String> unhide,
+  }) async {
+    final uid = currentUserId!;
+    if (hide.isNotEmpty) {
+      await _db.from('tournament_hides').upsert(
+          [for (final id in hide) {'user_id': uid, 'tournament_id': id}]);
+      for (final id in hide) {
+        await _clearMyAvailability(id);
+      }
+    }
+    if (unhide.isNotEmpty) {
+      await _db
+          .from('tournament_hides')
+          .delete()
+          .eq('user_id', uid)
+          .inFilter('tournament_id', unhide.toList());
+    }
+  }
+
+  /// Drops the caller's availability ticks in one tournament (own rows only —
+  /// availability's delete policy allows exactly that).
+  static Future<void> _clearMyAvailability(String tournamentId) async {
+    final rows =
+        await _db.from('slots').select('id').eq('tournament_id', tournamentId);
+    final ids = [for (final r in rows) r['id'] as String];
+    if (ids.isEmpty) return;
+    await _db
+        .from('availability')
+        .delete()
+        .eq('user_id', currentUserId!)
+        .inFilter('slot_id', ids);
   }
 
   static Future<void> updateMyName(String name) async {
