@@ -7,6 +7,7 @@ import '../../domain/heatmap.dart';
 import '../../domain/models.dart';
 import '../../scrape/scraper.dart';
 import '../manage/manage_mode.dart';
+import 'map_screen.dart';
 import 'timeline_screen.dart';
 import 'tournament_detail_screen.dart';
 import 'tournament_edit_screen.dart';
@@ -155,6 +156,13 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
                 setState(() => _showHidden = true);
               }
             },
+          ),
+          IconButton(
+            tooltip: 'Mapa kuželen',
+            icon: const Icon(Icons.map_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const MapScreen()),
+            ),
           ),
           IconButton(
             tooltip: 'Sezónní kalendář',

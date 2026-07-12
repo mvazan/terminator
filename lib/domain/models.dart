@@ -556,6 +556,8 @@ class Venue {
     required this.laneCount,
     required this.address,
     required this.sourceUrl,
+    this.lat,
+    this.lng,
   });
 
   final String id;
@@ -569,11 +571,19 @@ class Venue {
   /// (one venue may host several clubs with different contacts).
   final String sourceUrl;
 
+  /// Map coordinates, geocoded from [address] (null until geocoded).
+  final double? lat;
+  final double? lng;
+
+  bool get hasCoords => lat != null && lng != null;
+
   factory Venue.fromJson(Map<String, dynamic> json) => Venue(
         id: json['id'] as String,
         name: json['name'] as String,
         laneCount: json['lane_count'] as int,
         address: json['address'] as String,
         sourceUrl: json['source_url'] as String,
+        lat: (json['lat'] as num?)?.toDouble(),
+        lng: (json['lng'] as num?)?.toDouble(),
       );
 }

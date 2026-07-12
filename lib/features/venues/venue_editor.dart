@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/ui.dart';
 import '../../data/providers.dart';
+import '../../domain/geocoding.dart';
 import '../../domain/models.dart';
 
 /// Lane counts offered in the picker (bowling alleys come in even sizes).
@@ -69,6 +72,22 @@ class _VenueFormState extends ConsumerState<_VenueForm> {
         await Api.updateVenue(existing.id, fields);
       }
     });
+    if (ok && id != null) {
+      // Geocode for the map — new venue, changed address, or missing coords.
+      // Fire-and-forget: a save never fails because Nominatim is down.
+      final address = _address.text.trim();
+      final needsCoords = existing == null ||
+          existing.address != address ||
+          !existing.hasCoords;
+      if (address.isNotEmpty && needsCoords) {
+        final venueId = id!;
+        unawaited(geocodeAddress(address).then((coords) async {
+          if (coords == null) return;
+          await Api.updateVenue(
+              venueId, {'lat': coords.lat, 'lng': coords.lng});
+        }).catchError((_) {}));
+      }
+    }
     if (!mounted) return;
     setState(() => _saving = false);
     if (ok) Navigator.of(context).pop(id);
