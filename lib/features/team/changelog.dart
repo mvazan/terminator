@@ -12,6 +12,13 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.0.0', '13. 7. 2026', [
+    'Appka teď umí víc týmů: při prvním přihlášení jde „Založit nový tým" — '
+        'dostaneš kód pro partu a PIN správy. Nový tým aktivuje správce '
+        'aplikace.',
+    'Kód pro pozvání party je vidět v záložce Tým.',
+    'Data týmů jsou úplně oddělená — každá parta vidí jen to svoje.',
+  ]),
   Release('1.3.6', '13. 7. 2026', [
     'Seznam turnajů: kuželna je hlavní nadpis, u turnaje vidíš kolik lidí '
         'se hlásí (i nejsilnější den) a levý proužek značí, že máš něco '

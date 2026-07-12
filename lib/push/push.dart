@@ -156,9 +156,10 @@ class Push {
       return;
     }
 
-    // new_member has no tournament — it just points at the Tým tab, where
-    // pending members get approved.
-    if (data['kind'] == 'new_member') {
+    // new_member/new_team have no tournament — they just point at the Tým
+    // tab, where pending members (and, for the superadmin, teams) get
+    // approved.
+    if (data['kind'] == 'new_member' || data['kind'] == 'new_team') {
       navigator.popUntil((r) => r.isFirst); // back to the shell
       _switchTab?.call(_teamTab);
       return;

@@ -168,7 +168,8 @@ type NotificationKind =
   | "order"
   | "chat"
   | "threshold"
-  | "new_public_tournament";
+  | "new_public_tournament"
+  | "new_team";
 
 // Kinds that are opt-in: silent unless the member enabled them in settings.
 //
@@ -190,13 +191,18 @@ const DEFAULT_OFF: NotificationKind[] = [
 async function teamTokens(
   kind: NotificationKind,
   exclude: (string | null | undefined)[] = [],
+  // Scope recipients to one team. Omitted = global (radar: public data,
+  // per-user opt-in prefs already gate it).
+  teamId?: string,
 ): Promise<{ userId: string; token: string; silent: boolean }[]> {
+  let profilesQuery = supabase
+    .from("profiles")
+    .select("id, fcm_token")
+    .eq("status", "approved")
+    .not("fcm_token", "is", null);
+  if (teamId) profilesQuery = profilesQuery.eq("team_id", teamId);
   const [profilesResult, prefsResult] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("id, fcm_token")
-      .eq("status", "approved")
-      .not("fcm_token", "is", null),
+    profilesQuery,
     supabase
       .from("notification_prefs")
       .select("user_id, enabled, muted_until, silent")
@@ -222,6 +228,45 @@ async function teamTokens(
     .filter((p) =>
       optIn ? activeRows.has(p.id) : !excluded.has(p.id)
     )
+    .map((p) => ({
+      userId: p.id,
+      token: p.fcm_token as string,
+      silent: silentUsers.has(p.id),
+    }));
+}
+
+/**
+ * Superadmins' tokens (team approvals go only to them), honoring their
+ * notification_prefs like everyone else's.
+ */
+async function superadminTokens(
+  kind: NotificationKind,
+): Promise<{ userId: string; token: string; silent: boolean }[]> {
+  const [profilesResult, prefsResult] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, fcm_token")
+      .eq("superadmin", true)
+      .not("fcm_token", "is", null),
+    supabase
+      .from("notification_prefs")
+      .select("user_id, enabled, muted_until, silent")
+      .eq("kind", kind),
+  ]);
+  if (profilesResult.error) throw profilesResult.error;
+  if (prefsResult.error) throw prefsResult.error;
+
+  const now = Date.now();
+  const excluded = new Set<string>();
+  const silentUsers = new Set<string>();
+  for (const pref of prefsResult.data ?? []) {
+    const muted = pref.muted_until !== null &&
+      Date.parse(pref.muted_until) > now;
+    if (!pref.enabled || muted) excluded.add(pref.user_id);
+    if (pref.enabled && !muted && pref.silent) silentUsers.add(pref.user_id);
+  }
+  return (profilesResult.data ?? [])
+    .filter((p) => !excluded.has(p.id))
     .map((p) => ({
       userId: p.id,
       token: p.fcm_token as string,
@@ -264,10 +309,17 @@ type WebhookPayload = {
   old_record: Record<string, unknown> | null;
 };
 
-async function tournamentName(id: unknown): Promise<string> {
-  const { data } = await supabase.from("tournaments").select("name")
+/** Tournament name + owning team, one fetch — every per-tournament push
+ * needs both (title + recipient scoping). */
+async function tournamentInfo(
+  id: unknown,
+): Promise<{ name: string; teamId?: string }> {
+  const { data } = await supabase.from("tournaments").select("name, team_id")
     .eq("id", id).single();
-  return (data?.name as string) ?? "turnaj";
+  return {
+    name: (data?.name as string) ?? "turnaj",
+    teamId: data?.team_id as string | undefined,
+  };
 }
 
 async function handle(payload: WebhookPayload) {
@@ -277,7 +329,8 @@ async function handle(payload: WebhookPayload) {
     case "profiles": {
       if (payload.type !== "INSERT" || record.status !== "pending") return;
       await sendToTokens(
-        await teamTokens("new_member", [record.id as string]),
+        await teamTokens("new_member", [record.id as string],
+          record.team_id as string | undefined),
         "Nový člen čeká na schválení",
         `${record.display_name} se chce přidat. Schval ho v záložce Tým.`,
         { kind: "new_member" },
@@ -285,10 +338,22 @@ async function handle(payload: WebhookPayload) {
       return;
     }
 
+    case "teams": {
+      if (payload.type !== "INSERT" || record.status !== "pending") return;
+      await sendToTokens(
+        await superadminTokens("new_team"),
+        "Nový tým čeká na schválení",
+        `${record.name} — schval ho v záložce Tým.`,
+        { kind: "new_team" },
+      );
+      return;
+    }
+
     case "tournaments": {
       if (payload.type !== "INSERT") return;
       await sendToTokens(
-        await teamTokens("new_tournament", [record.created_by as string]),
+        await teamTokens("new_tournament", [record.created_by as string],
+          record.team_id as string | undefined),
         "Nový turnaj 🎳",
         `${record.name} — odklikej si termíny!`,
         { kind: "new_tournament", tournament_id: record.id as string },
@@ -319,8 +384,8 @@ async function handle(payload: WebhookPayload) {
         status === "cancelled" && oldStatus !== "cancelled";
       if (!isNewProposal && !isOrdered && !isCancelled) return;
 
-      const [name, hiders] = await Promise.all([
-        tournamentName(record.tournament_id),
+      const [{ name, teamId }, hiders] = await Promise.all([
+        tournamentInfo(record.tournament_id),
         hidersOf(record.tournament_id as string),
       ]);
       const orderData = {
@@ -329,21 +394,23 @@ async function handle(payload: WebhookPayload) {
       };
       if (isNewProposal) {
         await sendToTokens(
-          await teamTokens("proposal", [record.created_by as string, ...hiders]),
+          await teamTokens("proposal",
+            [record.created_by as string, ...hiders], teamId),
           `Návrh: ${name}`,
           "Beru / Nemůžu / Radši jiný den — hlasuj v aplikaci.",
           orderData,
         );
       } else if (isOrdered) {
         await sendToTokens(
-          await teamTokens("order", [record.created_by as string, ...hiders]),
+          await teamTokens("order",
+            [record.created_by as string, ...hiders], teamId),
           `Objednáno: ${name}`,
           "Termín je objednaný — přidej se, dokud je místo!",
           orderData,
         );
       } else {
         await sendToTokens(
-          await teamTokens("order", hiders),
+          await teamTokens("order", hiders, teamId),
           `Zrušeno: ${name}`,
           "Návrh/objednávka byla zrušena.",
           orderData,
@@ -363,11 +430,11 @@ async function handle(payload: WebhookPayload) {
         ? mutesQuery.is("day", null)
         : mutesQuery.eq("day", day);
 
-      // Tournament name, this chat's mutes, hiders, and the author are all
+      // Tournament info, this chat's mutes, hiders, and the author are all
       // independent lookups.
-      const [name, { data: mutes }, hiders, { data: author }] = await Promise
-        .all([
-          tournamentName(tournamentId),
+      const [{ name, teamId }, { data: mutes }, hiders, { data: author }] =
+        await Promise.all([
+          tournamentInfo(tournamentId),
           mutesQuery,
           hidersOf(tournamentId),
           supabase.from("profiles")
@@ -382,7 +449,7 @@ async function handle(payload: WebhookPayload) {
           record.user_id as string,
           ...(mutes ?? []).map((m) => m.user_id as string),
           ...hiders,
-        ]),
+        ], teamId),
         title,
         `${author?.display_name ?? "?"}: ${record.body}`,
         {
@@ -405,7 +472,7 @@ async function handle(payload: WebhookPayload) {
         await teamTokens("chat", [
           record.user_id as string,
           ...(muters ?? []).map((m) => m.user_id as string),
-        ]),
+        ], record.team_id as string | undefined),
         "Celý tým",
         `${author?.display_name ?? "?"}: ${record.body}`,
         { kind: "team_chat" },
@@ -426,7 +493,7 @@ async function handle(payload: WebhookPayload) {
         supabase.from("availability")
           .select("*", { count: "exact", head: true })
           .eq("slot_id", slotId),
-        supabase.from("tournaments").select("name, min_players")
+        supabase.from("tournaments").select("name, min_players, team_id")
           .eq("id", slot.tournament_id).single(),
       ]);
       if (!tournament || (count ?? 0) < tournament.min_players) return;
@@ -490,7 +557,8 @@ async function handle(payload: WebhookPayload) {
           `${summary}. Navrhni objednávku!`;
 
       await sendToTokens(
-        await teamTokens("threshold", [record.user_id as string]),
+        await teamTokens("threshold", [record.user_id as string],
+          tournament.team_id as string | undefined),
         `${tournament.name}: dá se objednat!`,
         body,
         {

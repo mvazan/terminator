@@ -36,6 +36,12 @@ class AuthGate extends ConsumerWidget {
       data: (p) {
         if (p == null) return const JoinScreen();
         if (p.status == ProfileStatus.pending) return const WaitingScreen();
+        // Approved member of a not-yet-approved team (fresh founder): wait
+        // for the superadmin. Flips live via the teams stream.
+        final team = ref.watch(myTeamProvider);
+        if (team != null && !team.approved) {
+          return const WaitingScreen(reason: WaitingReason.teamApproval);
+        }
         return const MainShell();
       },
     );

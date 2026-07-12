@@ -16,6 +16,7 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final prefs = ref.watch(myNotificationPrefsProvider).value ?? const {};
+    final superadmin = ref.watch(myProfileProvider).value?.superadmin ?? false;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Nastavení')),
@@ -35,9 +36,11 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 8),
-          // "Návrhy termínů" is hidden while proposal voting itself is hidden.
+          // "Návrhy termínů" is hidden while proposal voting itself is
+          // hidden; "Nový tým" only ever reaches the superadmin.
           for (final kind in NotificationKind.values)
-            if (kind != NotificationKind.proposal)
+            if (kind != NotificationKind.proposal &&
+                (kind != NotificationKind.newTeam || superadmin))
               _NotificationKindTile(
                 kind: kind,
                 pref: prefs[kind] ?? NotificationPref.fallback(kind),
@@ -94,6 +97,11 @@ const _kindLabels = {
     'Nově vypsané turnaje',
     'Appka hlídá weby s turnaji a dá vědět, když někdo vypíše nový',
     Icons.travel_explore_outlined,
+  ),
+  NotificationKind.newTeam: (
+    'Nový tým',
+    'Někdo založil tým a čeká na schválení (jen správce aplikace)',
+    Icons.group_add_outlined,
   ),
 };
 

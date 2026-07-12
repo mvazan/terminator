@@ -21,6 +21,9 @@ class TeamScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final me = ref.watch(myProfileProvider).value;
+    final team = ref.watch(myTeamProvider);
+    final pendingTeams =
+        (me?.superadmin ?? false) ? ref.watch(pendingTeamsProvider) : const <Team>[];
     final members = ref.watch(membersProvider).value ?? const [];
     final pending = [for (final m in members) if (!m.isApproved) m];
     final approved = [for (final m in members) if (m.isApproved) m];
@@ -63,7 +66,37 @@ class TeamScreen extends ConsumerWidget {
                 onPressed: () => _editName(context, me),
               ),
             ),
+          // The team's invite code, always at hand for inviting the rest of
+          // the party (long-tap the code text to copy via SelectableText).
+          if (team != null)
+            ListTile(
+              leading: const Icon(Icons.qr_code_2),
+              title: Text(team.name),
+              subtitle: SelectableText('Kód pro pozvání: ${team.inviteCode}'),
+            ),
           const Divider(),
+          // Superadmin only: teams awaiting activation.
+          if (pendingTeams.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Text('Týmy ke schválení',
+                  style: Theme.of(context).textTheme.titleSmall),
+            ),
+            for (final t in pendingTeams)
+              ListTile(
+                leading: const Icon(Icons.group_add_outlined),
+                title: Text(t.name),
+                subtitle: Text('kód: ${t.inviteCode}'),
+                trailing: BusyFilledButton(
+                  label: const Text('Schválit'),
+                  onPressed: () async {
+                    await tryAction(context, () => Api.approveTeam(t.id),
+                        success: 'Tým ${t.name} schválen.');
+                  },
+                ),
+              ),
+            const Divider(),
+          ],
           if (pending.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),

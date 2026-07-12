@@ -102,6 +102,8 @@ class Profile {
     required this.id,
     required this.displayName,
     required this.status,
+    this.teamId,
+    this.superadmin = false,
     this.fcmToken,
     this.hiddenAt,
   });
@@ -109,6 +111,12 @@ class Profile {
   final String id;
   final String displayName;
   final ProfileStatus status;
+
+  /// The one team the member belongs to (null only pre-2.0 backend).
+  final String? teamId;
+
+  /// App owner — approves newly created teams.
+  final bool superadmin;
   final String? fcmToken;
 
   /// When set, the member is hidden from the everyday UI (soft, reversible).
@@ -123,10 +131,38 @@ class Profile {
         status: json['status'] == 'approved'
             ? ProfileStatus.approved
             : ProfileStatus.pending,
+        teamId: json['team_id'] as String?,
+        superadmin: json['superadmin'] as bool? ?? false,
         fcmToken: json['fcm_token'] as String?,
         hiddenAt: json['hidden_at'] == null
             ? null
             : DateTime.parse(json['hidden_at'] as String),
+      );
+}
+
+/// One tenant: a team with its own invite code, manage PIN and data space.
+/// New teams wait for the superadmin's approval before becoming usable.
+class Team {
+  const Team({
+    required this.id,
+    required this.name,
+    required this.inviteCode,
+    required this.managePin,
+    required this.approved,
+  });
+
+  final String id;
+  final String name;
+  final String inviteCode;
+  final String managePin;
+  final bool approved;
+
+  factory Team.fromJson(Map<String, dynamic> json) => Team(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        inviteCode: json['invite_code'] as String,
+        managePin: json['manage_pin'] as String,
+        approved: json['status'] == 'approved',
       );
 }
 
@@ -443,7 +479,9 @@ enum NotificationKind {
   order('order'),
   chat('chat'),
   threshold('threshold'),
-  newPublicTournament('new_public_tournament');
+  newPublicTournament('new_public_tournament'),
+  // Superadmin only: a new team awaits approval.
+  newTeam('new_team');
 
   const NotificationKind(this.sqlName);
 

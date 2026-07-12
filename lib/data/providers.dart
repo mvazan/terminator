@@ -65,14 +65,36 @@ final membersProvider = Provider<AsyncValue<List<Profile>>>((ref) {
       (all) => all.where((p) => !p.isHidden).toList());
 });
 
-/// Shared PIN gating the hidden manage mode. Approved members may read it.
+/// All teams visible to the caller: members see their own team, the
+/// superadmin sees every team (needed for the approval UI).
+final _teamsProvider = StreamProvider<List<Team>>((ref) {
+  if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
+  return cachedRows(
+    key: 'teams',
+    live: () => _db.from('teams').stream(primaryKey: ['id']),
+  ).map((rows) => rows.map(Team.fromJson).toList());
+});
+
+/// The caller's own team, live — the pending→approved flip re-routes the
+/// AuthGate without a restart.
+final myTeamProvider = Provider<Team?>((ref) {
+  final teamId = ref.watch(myProfileProvider).value?.teamId;
+  if (teamId == null) return null;
+  return (ref.watch(_teamsProvider).value ?? const [])
+      .where((t) => t.id == teamId)
+      .firstOrNull;
+});
+
+/// Teams awaiting the superadmin's approval (empty for regular members —
+/// RLS only shows them their own team).
+final pendingTeamsProvider = Provider<List<Team>>((ref) =>
+    [for (final t in ref.watch(_teamsProvider).value ?? const <Team>[])
+      if (!t.approved) t]);
+
+/// Shared PIN gating the hidden manage mode — the caller's own team's PIN.
 final managePinProvider = FutureProvider<String?>((ref) async {
   if (ref.watch(_userIdProvider) == null) return null;
-  final row = await _db
-      .from('team_settings')
-      .select('manage_pin')
-      .maybeSingle();
-  return row?['manage_pin'] as String?;
+  return ref.watch(myTeamProvider)?.managePin;
 });
 
 /// Saved bowling alleys, reusable across tournaments.
@@ -344,6 +366,25 @@ class Api {
         'p_invite_code': inviteCode,
         'p_display_name': displayName,
       });
+
+  /// Creates a new (pending) team; returns its generated invite code and
+  /// manage PIN so the founder can save/share them. The team waits for the
+  /// superadmin's approval before its members can use the app.
+  static Future<({String inviteCode, String managePin})> createTeam(
+      String teamName, String displayName) async {
+    final result = await _db.rpc('create_team', params: {
+      'p_team_name': teamName,
+      'p_display_name': displayName,
+    }) as Map<String, dynamic>;
+    return (
+      inviteCode: result['invite_code'] as String,
+      managePin: result['manage_pin'] as String,
+    );
+  }
+
+  /// Superadmin only — activates a pending team.
+  static Future<void> approveTeam(String teamId) =>
+      _db.rpc('approve_team', params: {'p_team_id': teamId});
 
   static Future<void> approveMember(String userId) =>
       _db.rpc('approve_member', params: {'p_user_id': userId});
