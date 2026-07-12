@@ -1,5 +1,9 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../data/providers.dart';
 import '../push/push.dart';
 import 'chats/chats_screen.dart';
 import 'home/my_starts_screen.dart';
@@ -44,7 +48,12 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _tab, children: _screens),
+      body: Column(
+        children: [
+          const _OfflineBanner(),
+          Expanded(child: IndexedStack(index: _tab, children: _screens)),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
         onDestinationSelected: (i) => setState(() => _tab = i),
@@ -70,6 +79,71 @@ class _MainShellState extends State<MainShell> {
             label: 'Tým',
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Slim banner shown while the realtime socket is down for more than a few
+/// seconds — the screens below keep showing the last cached data (read-only).
+/// Debounced so routine reconnects don't flash it.
+class _OfflineBanner extends ConsumerStatefulWidget {
+  const _OfflineBanner();
+
+  @override
+  ConsumerState<_OfflineBanner> createState() => _OfflineBannerState();
+}
+
+class _OfflineBannerState extends ConsumerState<_OfflineBanner> {
+  bool _show = false;
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onConnected(bool connected) {
+    _debounce?.cancel();
+    if (connected) {
+      if (_show) setState(() => _show = false);
+    } else {
+      _debounce = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _show = true);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen(realtimeConnectedProvider,
+        (_, next) => _onConnected(next.value ?? true));
+    if (!_show) return const SizedBox.shrink();
+
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerHighest,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            children: [
+              Icon(Icons.cloud_off, size: 16, color: scheme.onSurfaceVariant),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Offline — zobrazují se poslední známá data.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: scheme.onSurfaceVariant),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -5,12 +5,15 @@
 /// keeps the API surface minimal and every screen live-updating for free.
 library;
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../domain/heatmap.dart';
 import '../domain/models.dart';
 import '../scrape/scraper.dart';
+import 'table_cache.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
@@ -40,20 +43,21 @@ final _userIdProvider = Provider<String?>((ref) {
 final myProfileProvider = StreamProvider<Profile?>((ref) {
   final uid = ref.watch(_userIdProvider);
   if (uid == null) return Stream.value(null);
-  return _db
-      .from('profiles')
-      .stream(primaryKey: ['id'])
-      .eq('id', uid)
-      .map((rows) => rows.isEmpty ? null : Profile.fromJson(rows.first));
+  return cachedRows(
+    key: 'my_profile',
+    live: () => _db.from('profiles').stream(primaryKey: ['id']).eq('id', uid),
+  ).map((rows) => rows.isEmpty ? null : Profile.fromJson(rows.first));
 });
 
 /// All members incl. hidden — only the manage mode needs this. Everyday UI
 /// uses [membersProvider], which drops hidden members.
 final allMembersProvider = StreamProvider<List<Profile>>((ref) {
   if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
-  return _db.from('profiles').stream(primaryKey: ['id']).map((rows) =>
-      rows.map(Profile.fromJson).toList()
-        ..sort((a, b) => a.displayName.compareTo(b.displayName)));
+  return cachedRows(
+    key: 'profiles',
+    live: () => _db.from('profiles').stream(primaryKey: ['id']),
+  ).map((rows) => rows.map(Profile.fromJson).toList()
+    ..sort((a, b) => a.displayName.compareTo(b.displayName)));
 });
 
 final membersProvider = Provider<AsyncValue<List<Profile>>>((ref) {
@@ -74,9 +78,11 @@ final managePinProvider = FutureProvider<String?>((ref) async {
 /// Saved bowling alleys, reusable across tournaments.
 final venuesProvider = StreamProvider<List<Venue>>((ref) {
   if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
-  return _db.from('venues').stream(primaryKey: ['id']).map(
-      (rows) => rows.map(Venue.fromJson).toList()
-        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase())));
+  return cachedRows(
+    key: 'venues',
+    live: () => _db.from('venues').stream(primaryKey: ['id']),
+  ).map((rows) => rows.map(Venue.fromJson).toList()
+    ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase())));
 });
 
 /// One venue looked up from the live venues stream.
@@ -115,9 +121,11 @@ final tournamentByIdProvider = Provider.family<Tournament?, String>(
 /// uses [tournamentsProvider], which drops hidden ones.
 final allTournamentsProvider = StreamProvider<List<Tournament>>((ref) {
   if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
-  return _db.from('tournaments').stream(primaryKey: ['id']).map((rows) =>
-      rows.map(Tournament.fromJson).toList()
-        ..sort((a, b) => a.startsOn.compareTo(b.startsOn)));
+  return cachedRows(
+    key: 'tournaments',
+    live: () => _db.from('tournaments').stream(primaryKey: ['id']),
+  ).map((rows) => rows.map(Tournament.fromJson).toList()
+    ..sort((a, b) => a.startsOn.compareTo(b.startsOn)));
 });
 
 /// The caller's own "not interested" hides — tournament ids they've hidden for
@@ -125,11 +133,12 @@ final allTournamentsProvider = StreamProvider<List<Tournament>>((ref) {
 final myHiddenTournamentsProvider = StreamProvider<Set<String>>((ref) {
   final uid = ref.watch(_userIdProvider);
   if (uid == null) return Stream.value(const <String>{});
-  return _db
-      .from('tournament_hides')
-      .stream(primaryKey: ['user_id', 'tournament_id'])
-      .eq('user_id', uid)
-      .map((rows) => {for (final row in rows) row['tournament_id'] as String});
+  return cachedRows(
+    key: 'tournament_hides',
+    live: () => _db
+        .from('tournament_hides')
+        .stream(primaryKey: ['user_id', 'tournament_id']).eq('user_id', uid),
+  ).map((rows) => {for (final row in rows) row['tournament_id'] as String});
 });
 
 final tournamentsProvider = Provider<AsyncValue<List<Tournament>>>((ref) {
@@ -141,23 +150,28 @@ final tournamentsProvider = Provider<AsyncValue<List<Tournament>>>((ref) {
 
 final slotsProvider = StreamProvider<List<Slot>>((ref) {
   if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
-  return _db.from('slots').stream(primaryKey: ['id']).map(
-      (rows) => rows.map(Slot.fromJson).toList());
+  return cachedRows(
+    key: 'slots',
+    live: () => _db.from('slots').stream(primaryKey: ['id']),
+  ).map((rows) => rows.map(Slot.fromJson).toList());
 });
 
 final availabilityProvider = StreamProvider<List<Availability>>((ref) {
   if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
-  return _db
-      .from('availability')
-      .stream(primaryKey: ['slot_id', 'user_id'])
-      .map((rows) => rows.map(Availability.fromJson).toList());
+  return cachedRows(
+    key: 'availability',
+    live: () =>
+        _db.from('availability').stream(primaryKey: ['slot_id', 'user_id']),
+  ).map((rows) => rows.map(Availability.fromJson).toList());
 });
 
 final ordersProvider = StreamProvider<List<Order>>((ref) {
   if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
-  return _db.from('orders').stream(primaryKey: ['id']).map(
-      (rows) => rows.map(Order.fromJson).toList()
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+  return cachedRows(
+    key: 'orders',
+    live: () => _db.from('orders').stream(primaryKey: ['id']),
+  ).map((rows) => rows.map(Order.fromJson).toList()
+    ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
 });
 
 /// order_id -> slot_id -> ordered lane count.
@@ -166,10 +180,11 @@ final orderSlotsProvider =
   if (ref.watch(_userIdProvider) == null) {
     return Stream.value(const <String, Map<String, int>>{});
   }
-  return _db
-      .from('order_slots')
-      .stream(primaryKey: ['order_id', 'slot_id'])
-      .map((rows) {
+  return cachedRows(
+    key: 'order_slots',
+    live: () =>
+        _db.from('order_slots').stream(primaryKey: ['order_id', 'slot_id']),
+  ).map((rows) {
     final map = <String, Map<String, int>>{};
     for (final row in rows) {
       map.putIfAbsent(row['order_id'] as String,
@@ -182,16 +197,19 @@ final orderSlotsProvider =
 
 final orderVotesProvider = StreamProvider<List<OrderVote>>((ref) {
   if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
-  return _db
-      .from('order_votes')
-      .stream(primaryKey: ['order_id', 'user_id'])
-      .map((rows) => rows.map(OrderVote.fromJson).toList());
+  return cachedRows(
+    key: 'order_votes',
+    live: () =>
+        _db.from('order_votes').stream(primaryKey: ['order_id', 'user_id']),
+  ).map((rows) => rows.map(OrderVote.fromJson).toList());
 });
 
 final rostersProvider = StreamProvider<List<RosterEntry>>((ref) {
   if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
-  return _db.from('rosters').stream(primaryKey: ['id']).map(
-      (rows) => rows.map(RosterEntry.fromJson).toList());
+  return cachedRows(
+    key: 'rosters',
+    live: () => _db.from('rosters').stream(primaryKey: ['id']),
+  ).map((rows) => rows.map(RosterEntry.fromJson).toList());
 });
 
 /// Messages of one tournament (both the tournament chat and its day chats).
@@ -210,10 +228,10 @@ final messagesProvider =
 /// every chat at once (same whole-table strategy as the other streams).
 final allMessagesProvider = StreamProvider<List<ChatMessage>>((ref) {
   if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
-  return _db
-      .from('messages')
-      .stream(primaryKey: ['id'])
-      .map((rows) => rows.map(ChatMessage.fromJson).toList());
+  return cachedRows(
+    key: 'messages',
+    live: () => _db.from('messages').stream(primaryKey: ['id']),
+  ).map((rows) => rows.map(ChatMessage.fromJson).toList());
 });
 
 /// Sentinel "tournament id" for the one team-wide chat, so it reuses the same
@@ -226,11 +244,12 @@ const teamChatId = teamChatSentinelId;
 /// versions never see it.
 final teamMessagesProvider = StreamProvider<List<ChatMessage>>((ref) {
   if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
-  return _db
-      .from('team_messages')
-      .stream(primaryKey: ['id'])
-      .order('created_at', ascending: true)
-      .map((rows) => rows.map(ChatMessage.fromTeamJson).toList());
+  return cachedRows(
+    key: 'team_messages',
+    live: () => _db
+        .from('team_messages')
+        .stream(primaryKey: ['id']).order('created_at', ascending: true),
+  ).map((rows) => rows.map(ChatMessage.fromTeamJson).toList());
 });
 
 /// The caller's chat mutes as "tournamentId|day" keys ('' day = tournament
@@ -240,30 +259,49 @@ final myMutesProvider = StreamProvider<Set<String>>((ref) {
   final uid = ref.watch(_userIdProvider);
   if (uid == null) return Stream.value(const <String>{});
   final teamMuted = ref.watch(_teamChatMutedProvider).value ?? false;
-  return _db
-      .from('chat_mutes')
-      .stream(primaryKey: ['id'])
-      .eq('user_id', uid)
-      .map((rows) => {
-            for (final row in rows)
-              '${row['tournament_id']}|${row['day'] ?? ''}',
-            if (teamMuted) muteKey(teamChatId, null),
-          });
+  return cachedRows(
+    key: 'chat_mutes',
+    live: () =>
+        _db.from('chat_mutes').stream(primaryKey: ['id']).eq('user_id', uid),
+  ).map((rows) => {
+        for (final row in rows) '${row['tournament_id']}|${row['day'] ?? ''}',
+        if (teamMuted) muteKey(teamChatId, null),
+      });
 });
 
 /// Whether the caller has muted the team-wide chat (its own tiny table).
 final _teamChatMutedProvider = StreamProvider<bool>((ref) {
   final uid = ref.watch(_userIdProvider);
   if (uid == null) return Stream.value(false);
-  return _db
-      .from('team_chat_mutes')
-      .stream(primaryKey: ['user_id'])
-      .eq('user_id', uid)
-      .map((rows) => rows.isNotEmpty);
+  return cachedRows(
+    key: 'team_chat_mutes',
+    live: () => _db
+        .from('team_chat_mutes')
+        .stream(primaryKey: ['user_id']).eq('user_id', uid),
+  ).map((rows) => rows.isNotEmpty);
 });
 
 String muteKey(String tournamentId, Day? day) =>
     '$tournamentId|${day?.toSql() ?? ''}';
+
+/// Whether the realtime socket is connected — false covers both device-offline
+/// and server-down, which is exactly what the offline banner cares about.
+final realtimeConnectedProvider = StreamProvider<bool>((ref) {
+  final controller = StreamController<bool>();
+  final rt = _db.realtime;
+  controller.add(rt.isConnected);
+  rt.onOpen(() {
+    if (!controller.isClosed) controller.add(true);
+  });
+  rt.onClose((_) {
+    if (!controller.isClosed) controller.add(false);
+  });
+  rt.onError((_) {
+    if (!controller.isClosed) controller.add(false);
+  });
+  ref.onDispose(controller.close);
+  return controller.stream;
+});
 
 /// The caller's notification preferences by kind (kinds without a stored row
 /// are simply absent — treat as enabled via [NotificationPref.fallback]).
@@ -271,14 +309,14 @@ final myNotificationPrefsProvider =
     StreamProvider<Map<NotificationKind, NotificationPref>>((ref) {
   final uid = ref.watch(_userIdProvider);
   if (uid == null) return Stream.value(const {});
-  return _db
-      .from('notification_prefs')
-      .stream(primaryKey: ['user_id', 'kind'])
-      .eq('user_id', uid)
-      .map((rows) => {
-            for (final row in rows.map(NotificationPref.fromJson))
-              row.kind: row,
-          });
+  return cachedRows(
+    key: 'notification_prefs',
+    live: () => _db
+        .from('notification_prefs')
+        .stream(primaryKey: ['user_id', 'kind']).eq('user_id', uid),
+  ).map((rows) => {
+        for (final row in rows.map(NotificationPref.fromJson)) row.kind: row,
+      });
 });
 
 // ---------------------------------------------------------------------------
@@ -295,7 +333,11 @@ class Api {
   static Future<void> verifyEmailOtp(String email, String code) =>
       _db.auth.verifyOTP(type: OtpType.email, email: email, token: code);
 
-  static Future<void> signOut() => _db.auth.signOut();
+  static Future<void> signOut() async {
+    // Wipe the offline cache so a signed-out device keeps no team data.
+    await clearTableCache();
+    await _db.auth.signOut();
+  }
 
   static Future<void> joinTeam(String inviteCode, String displayName) =>
       _db.rpc('join_team', params: {
