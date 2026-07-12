@@ -21,6 +21,12 @@ String lanesLabel(int n) {
       : (n >= 2 && n <= 4 ? 'dráhy' : 'drah');
   return '$n $word';
 }
+
+/// Czech-declined people count: "1 člověk", "2 lidé", "5 lidí".
+String peopleLabel(int n) {
+  final word = n == 1 ? 'člověk' : (n >= 2 && n <= 4 ? 'lidé' : 'lidí');
+  return '$n $word';
+}
 const _weekdaysFull = [
   'pondělí', 'úterý', 'středa', 'čtvrtek', 'pátek', 'sobota', 'neděle',
 ];
@@ -179,25 +185,30 @@ class DateBadge extends StatelessWidget {
         color: scheme.primaryContainer,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            '${day.day}.${day.month}.',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
-              color: scheme.onPrimaryContainer,
+      // FittedBox keeps the two lines inside the fixed 48 px box even with
+      // taller fonts (accessibility scale, the test environment's Ahem).
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              '${day.day}.${day.month}.',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                color: scheme.onPrimaryContainer,
+              ),
             ),
-          ),
-          Text(
-            weekdaysShort[day.weekday - 1],
-            style: TextStyle(
-              fontSize: 11,
-              color: scheme.onPrimaryContainer.withValues(alpha: 0.8),
+            Text(
+              weekdaysShort[day.weekday - 1],
+              style: TextStyle(
+                fontSize: 11,
+                color: scheme.onPrimaryContainer.withValues(alpha: 0.8),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

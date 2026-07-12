@@ -8,6 +8,7 @@ library;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../domain/heatmap.dart';
 import '../domain/models.dart';
 import '../scrape/scraper.dart';
 
@@ -94,6 +95,14 @@ final venueNamesProvider = Provider<Map<String, String>>((ref) {
       v.id: v.name,
   };
 });
+
+/// tournament id -> interest counts for the list tiles (one pass, live).
+final tournamentInterestProvider =
+    Provider<Map<String, TournamentInterest>>((ref) => interestByTournament(
+          slots: ref.watch(slotsProvider).value ?? const [],
+          availability: ref.watch(availabilityProvider).value ?? const [],
+          uid: currentUserId,
+        ));
 
 /// Single tournament looked up from the live tournaments stream.
 final tournamentByIdProvider = Provider.family<Tournament?, String>(

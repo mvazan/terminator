@@ -108,4 +108,59 @@ void main() {
     final bundle = suggestedBundle(heatmap);
     expect(bundle.map((s) => s.slot.id).toList(), ['s1', 's2']);
   });
+
+  group('interestByTournament', () {
+    // Two tournaments: t1 has s1+s2 (thu) and s3 (fri); t2 has one slot.
+    final s4 = makeSlot('s4', thu, const HourMinute(17, 0), tournamentId: 't2');
+
+    test('distinct players, strongest day, and the mine flag per tournament',
+        () {
+      final interest = interestByTournament(
+        slots: [...slots, s4],
+        availability: ticks({
+          's1': ['u1', 'u2'],
+          's2': ['u2', 'u3'], // thu (s1+s2) = {u1,u2,u3} -> 3
+          's3': ['u1'], //        fri = 1
+          's4': ['u9'],
+        }),
+        uid: 'u1',
+      );
+
+      final t1 = interest['t1']!;
+      expect(t1.players, 3);
+      expect(t1.bestDayPlayers, 3);
+      expect(t1.mine, isTrue);
+
+      final t2 = interest['t2']!;
+      expect(t2.players, 1);
+      expect(t2.bestDayPlayers, 1);
+      expect(t2.mine, isFalse);
+    });
+
+    test('venue-full slots are excluded, matching the detail grid', () {
+      final full = Slot(
+        id: 'full',
+        tournamentId: 't1',
+        date: thu,
+        time: const HourMinute(20, 0),
+        venueCapacity: 4,
+        venueOccupied: 4,
+      );
+      final interest = interestByTournament(
+        slots: [full],
+        availability: ticks({
+          'full': ['u1'],
+        }),
+        uid: 'u1',
+      );
+      expect(interest, isEmpty);
+    });
+
+    test('no ticks -> tournament absent from the map', () {
+      expect(
+        interestByTournament(slots: slots, availability: const [], uid: 'u1'),
+        isEmpty,
+      );
+    });
+  });
 }

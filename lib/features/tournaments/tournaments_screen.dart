@@ -3,12 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/ui.dart';
 import '../../data/providers.dart';
+import '../../domain/heatmap.dart';
 import '../../domain/models.dart';
 import '../../scrape/scraper.dart';
 import '../manage/manage_mode.dart';
 import 'timeline_screen.dart';
 import 'tournament_detail_screen.dart';
 import 'tournament_edit_screen.dart';
+
+/// Splits [list] into visible-then-hidden while preserving the incoming order
+/// within each group (List.sort is not stable, a partition is).
+List<Tournament> _hiddenLast(
+        List<Tournament> list, bool Function(Tournament) isHidden) =>
+    [...list.where((t) => !isHidden(t)), ...list.where(isHidden)];
 
 class TournamentsScreen extends ConsumerStatefulWidget {
   const TournamentsScreen({super.key});
@@ -22,10 +29,93 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
   /// hide/unhide in bulk. Off = hidden ones simply disappear.
   bool _showHidden = false;
 
+  /// tournamentId -> desired hidden-for-me. Pending while eye mode is on
+  /// (taps are local-only; ONE batched request goes out when it closes),
+  /// optimistic overlay afterwards; entries are pruned once the live stream
+  /// agrees, so the UI never flickers back.
+  final Map<String, bool> _hideOverrides = {};
+
+  /// Snapshot of the live hidden set from the last build — dispose() has no
+  /// ref and still needs a diff to commit against.
+  Set<String> _lastMyHiddenIds = const {};
+
+  bool _effectiveHidden(String id, Set<String> live) =>
+      _hideOverrides[id] ?? live.contains(id);
+
+  /// The batch that would be sent right now: overrides that differ from the
+  /// live stream state.
+  ({Set<String> hide, Set<String> unhide}) _pendingDiff(Set<String> live) {
+    final hide = <String>{};
+    final unhide = <String>{};
+    _hideOverrides.forEach((id, hidden) {
+      if (hidden && !live.contains(id)) hide.add(id);
+      if (!hidden && live.contains(id)) unhide.add(id);
+    });
+    return (hide: hide, unhide: unhide);
+  }
+
+  /// How many of MY ticks would be lost by hiding [tournamentIds].
+  int _myTicksIn(Set<String> tournamentIds) {
+    final uid = currentUserId;
+    if (uid == null || tournamentIds.isEmpty) return 0;
+    final slotIds = {
+      for (final s in ref.read(slotsProvider).value ?? const <Slot>[])
+        if (tournamentIds.contains(s.tournamentId)) s.id,
+    };
+    return (ref.read(availabilityProvider).value ?? const [])
+        .where((a) => a.userId == uid && slotIds.contains(a.slotId))
+        .length;
+  }
+
+  /// Closes eye mode: warns when hides would drop my ticks, then commits the
+  /// whole diff as one batch. Cancelling the warning keeps eye mode open with
+  /// the pending changes intact.
+  Future<void> _closeEyeMode() async {
+    final diff = _pendingDiff(_lastMyHiddenIds);
+    final lostTicks = _myTicksIn(diff.hide);
+    if (lostTicks > 0 && mounted) {
+      final confirmed = await confirmDialog(
+        context,
+        title: 'Skrýt turnaje?',
+        message: 'Skrývané turnaje obsahují tvoje zaškrtnuté termíny '
+            '($lostTicks) — zruší se.',
+        confirmLabel: 'Skrýt',
+      );
+      if (!confirmed) return; // stay in eye mode, keep pending edits
+    }
+    setState(() => _showHidden = false);
+    if (diff.hide.isEmpty && diff.unhide.isEmpty) return;
+    if (!mounted) return;
+    await tryAction(
+      context,
+      () => Api.setTournamentHidesBatch(hide: diff.hide, unhide: diff.unhide),
+    ).then((ok) {
+      // On failure drop the overlay so the UI reverts to server truth.
+      if (!ok && mounted) setState(_hideOverrides.clear);
+    });
+  }
+
+  @override
+  void dispose() {
+    // Leaving the screen with eye mode open still commits — fire and forget
+    // (no context for dialogs/snackbars; errors just leave server state).
+    final diff = _pendingDiff(_lastMyHiddenIds);
+    if (diff.hide.isNotEmpty || diff.unhide.isNotEmpty) {
+      try {
+        Api.setTournamentHidesBatch(hide: diff.hide, unhide: diff.unhide)
+            .catchError((_) {});
+      } catch (_) {
+        // Supabase unavailable (tests, teardown) — nothing to do.
+      }
+    }
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final tournaments = ref.watch(tournamentsProvider);
     final venueNames = ref.watch(venueNamesProvider);
+    final interest = ref.watch(tournamentInterestProvider);
     final now = today();
     final manage = ref.watch(manageUnlockedProvider);
     final hidden = manage
@@ -34,8 +124,12 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
             .toList()
         : const <Tournament>[];
     // Tournaments the current user hid for themselves ("not interested").
-    final myHiddenIds = ref.watch(myHiddenTournamentsProvider).value ??
-        const <String>{};
+    final myHiddenIds =
+        ref.watch(myHiddenTournamentsProvider).value ?? const <String>{};
+    _lastMyHiddenIds = myHiddenIds;
+    // Prune overrides the stream has caught up with.
+    _hideOverrides
+        .removeWhere((id, hidden) => myHiddenIds.contains(id) == hidden);
 
     return Scaffold(
       appBar: AppBar(
@@ -46,15 +140,21 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
         ),
         actions: [
           // Eye mode: reveal my hidden tournaments with checkboxes to
-          // hide/unhide in bulk; off = hidden ones disappear again.
+          // hide/unhide in bulk; closing commits everything at once.
           IconButton(
             tooltip: _showHidden
-                ? 'Skrýt odškrtnuté turnaje'
+                ? 'Hotovo — skrýt odškrtnuté'
                 : 'Zobrazit skryté turnaje',
             icon: Icon(_showHidden
                 ? Icons.visibility
                 : Icons.visibility_off_outlined),
-            onPressed: () => setState(() => _showHidden = !_showHidden),
+            onPressed: () {
+              if (_showHidden) {
+                _closeEyeMode();
+              } else {
+                setState(() => _showHidden = true);
+              }
+            },
           ),
           IconButton(
             tooltip: 'Sezónní kalendář',
@@ -75,23 +175,33 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
       body: tournaments.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Chyba: $e')),
-        data: (visible) {
-          // Eye mode shows also the tournaments I hid; team-hidden stay out.
+        data: (_) {
+          // Both modes filter from the full team-visible list so the local
+          // overrides can win over the (possibly lagging) live stream.
+          final teamVisible = [
+            for (final t in (ref.watch(allTournamentsProvider).value ??
+                const <Tournament>[]))
+              if (!t.isHidden) t,
+          ];
           final all = _showHidden
-              ? [
-                  for (final t in (ref.watch(allTournamentsProvider).value ??
-                      const <Tournament>[]))
-                    if (!t.isHidden) t,
-                ]
-              : visible;
-          final active = [
+              ? teamVisible
+              : [
+                  for (final t in teamVisible)
+                    if (!_effectiveHidden(t.id, myHiddenIds)) t,
+                ];
+          var active = [
             for (final t in all)
               if (!t.isArchived && !t.endsOn.isBefore(now)) t,
           ];
-          final past = [
+          var past = [
             for (final t in all)
               if (t.isArchived || t.endsOn.isBefore(now)) t,
           ]..sort((a, b) => b.endsOn.compareTo(a.endsOn));
+          if (_showHidden) {
+            bool isHidden(Tournament t) => _effectiveHidden(t.id, myHiddenIds);
+            active = _hiddenLast(active, isHidden);
+            past = _hiddenLast(past, isHidden);
+          }
 
           if (all.isEmpty) {
             return const Center(
@@ -104,8 +214,13 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
                 tournament: t,
                 now: now,
                 venueName: venueNames[t.venueId] ?? '?',
+                interest: interest[t.id],
                 hiddenByMe:
-                    _showHidden ? myHiddenIds.contains(t.id) : null,
+                    _showHidden ? _effectiveHidden(t.id, myHiddenIds) : null,
+                onHiddenByMeChanged: _showHidden
+                    ? (hidden) =>
+                        setState(() => _hideOverrides[t.id] = hidden)
+                    : null,
               );
 
           return ListView(
@@ -126,7 +241,8 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen> {
                       ListTile(
                         leading: const Icon(Icons.visibility_off, size: 20),
                         title: Text(t.name),
-                        subtitle: Text(t.timelineLabel(venueNames[t.venueId] ?? '?')),
+                        subtitle: Text(
+                            t.timelineLabel(venueNames[t.venueId] ?? '?')),
                         trailing: TextButton(
                           onPressed: () => tryAction(context,
                               () => Api.setTournamentHidden(t.id, false),
@@ -149,16 +265,22 @@ class _TournamentTile extends StatelessWidget {
     required this.tournament,
     required this.now,
     required this.venueName,
+    this.interest,
     this.hiddenByMe,
+    this.onHiddenByMeChanged,
   });
 
   final Tournament tournament;
   final Day now;
   final String venueName;
 
+  /// Availability interest for the second subtitle line; null = nobody ticked.
+  final TournamentInterest? interest;
+
   /// Non-null = eye mode: show a checkbox (checked = visible for me) and dim
   /// the tile when hidden. Null = normal browsing, no checkbox.
   final bool? hiddenByMe;
+  final ValueChanged<bool>? onHiddenByMeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -181,60 +303,95 @@ class _TournamentTile extends StatelessWidget {
       chipText = scheme.onSecondaryContainer;
     }
 
+    final mine = interest?.mine ?? false;
+    final interestLine = switch (interest) {
+      null => null,
+      final i when i.players == 0 => null,
+      final i when i.bestDayPlayers == i.players => peopleLabel(i.players),
+      final i =>
+        '${peopleLabel(i.players)} · nejsilnější den ${i.bestDayPlayers}',
+    };
+
     final card = Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-      child: ListTile(
-        leading: DateBadge(t.startsOn),
-        title: Text(t.name,
-            style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(
-            '${t.timelineLabel(venueName)} · ${rangeLabel(t.startsOn, t.endsOn)}'),
-        // Eye mode swaps the status column for a checkbox: checked = visible
-        // for me, unchecked = hidden (list + chat + notifications, me only).
-        trailing: hiddenByMe != null
-            ? Checkbox(
-                value: !hiddenByMe!,
-                onChanged: (v) => tryAction(
-                    context,
-                    () =>
-                        Api.setTournamentHiddenForMe(t.id, v != true)),
-              )
-            : SizedBox(
-                height: 48,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.end,
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        // "I ticked something here" = primary accent strip on the left.
+        decoration: mine
+            ? BoxDecoration(
+                border: Border(
+                    left: BorderSide(color: scheme.primary, width: 3)))
+            : null,
+        child: ListTile(
+          leading: DateBadge(t.startsOn),
+          // Venue first — the team thinks in alleys; the tournament's own
+          // name is the detail line below.
+          title: Text(t.timelineLabel(venueName),
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+          isThreeLine: interestLine != null,
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${t.name} · ${rangeLabel(t.startsOn, t.endsOn)}',
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              if (interestLine != null)
+                Row(
                   children: [
-                    // Tournaments whose starts/occupancy sync from a
-                    // recognized web page get a small globe marker in the
-                    // top-right corner.
-                    if (ScraperRegistry.forUrl(t.sourceUrl) != null)
-                      Tooltip(
-                        message: 'Synchronizováno z webu',
-                        child: Icon(Icons.public,
-                            size: 16, color: scheme.outline),
-                      )
-                    else
-                      const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: chipColor,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(status,
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: chipText)),
-                    ),
+                    Icon(Icons.groups,
+                        size: 14,
+                        color: mine ? scheme.primary : scheme.outline),
+                    const SizedBox(width: 4),
+                    Text(interestLine,
+                        style: Theme.of(context).textTheme.bodySmall),
                   ],
                 ),
-              ),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => TournamentDetailScreen(tournamentId: t.id),
+            ],
+          ),
+          // Eye mode swaps the status column for a checkbox: checked =
+          // visible for me, unchecked = hidden (list + chat + notifications,
+          // me only). Taps stay local; the batch goes out on eye-close.
+          trailing: hiddenByMe != null
+              ? Checkbox(
+                  value: !hiddenByMe!,
+                  onChanged: (v) => onHiddenByMeChanged?.call(v != true),
+                )
+              : SizedBox(
+                  height: 48,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // Tournaments whose starts/occupancy sync from a
+                      // recognized web page get a small globe marker in the
+                      // top-right corner.
+                      if (ScraperRegistry.forUrl(t.sourceUrl) != null)
+                        Tooltip(
+                          message: 'Synchronizováno z webu',
+                          child: Icon(Icons.public,
+                              size: 16, color: scheme.outline),
+                        )
+                      else
+                        const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: chipColor,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(status,
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: chipText)),
+                      ),
+                    ],
+                  ),
+                ),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => TournamentDetailScreen(tournamentId: t.id),
+            ),
           ),
         ),
       ),

@@ -88,6 +88,69 @@ class Heatmap {
   }
 }
 
+/// Per-tournament interest for list tiles: how many distinct people ticked
+/// anything, the strongest single day, and whether [TournamentInterest.mine]
+/// — the given user ticked something.
+class TournamentInterest {
+  const TournamentInterest({
+    required this.players,
+    required this.bestDayPlayers,
+    required this.mine,
+  });
+
+  /// Distinct users with at least one tick anywhere in the tournament.
+  final int players;
+
+  /// Distinct users on the strongest single day.
+  final int bestDayPlayers;
+
+  /// The given user has at least one tick here.
+  final bool mine;
+}
+
+/// One pass over all slots + availability, keyed by tournament id — cheap
+/// enough to feed every tile of the tournament list at once. Venue-full slots
+/// are excluded to match the detail grid (which drops them): a tick on a full
+/// slot isn't actionable.
+Map<String, TournamentInterest> interestByTournament({
+  required List<Slot> slots,
+  required List<Availability> availability,
+  String? uid,
+}) {
+  // slot id -> (tournament, day), skipping venue-full slots.
+  final slotInfo = <String, (String, Day)>{
+    for (final s in slots)
+      if (!s.venueFull) s.id: (s.tournamentId, s.date),
+  };
+
+  final players = <String, Set<String>>{};
+  final byDay = <String, Map<Day, Set<String>>>{};
+  final mine = <String>{};
+  for (final a in availability) {
+    final info = slotInfo[a.slotId];
+    if (info == null) continue;
+    final (tournamentId, day) = info;
+    players.putIfAbsent(tournamentId, () => {}).add(a.userId);
+    byDay
+        .putIfAbsent(tournamentId, () => {})
+        .putIfAbsent(day, () => {})
+        .add(a.userId);
+    if (a.userId == uid) mine.add(tournamentId);
+  }
+
+  return {
+    for (final id in players.keys)
+      id: TournamentInterest(
+        players: players[id]!.length,
+        bestDayPlayers: byDay[id]!
+            .values
+            .map((users) => users.length)
+            .reduce((a, b) => a > b ? a : b),
+        mine: mine.contains(id),
+      ),
+  };
+}
+
 /// Slots worth proposing, strongest first: orderable slots sorted by player
 /// count (desc), then by date and time (asc — sooner is better when equal).
 List<SlotStats> bestPicks({
