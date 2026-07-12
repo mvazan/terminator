@@ -132,7 +132,9 @@ class _NotificationKindTileState extends State<_NotificationKindTile> {
   }
 
   bool _samePref(NotificationPref a, NotificationPref b) =>
-      a.enabled == b.enabled && a.mutedUntil == b.mutedUntil;
+      a.enabled == b.enabled &&
+      a.silent == b.silent &&
+      a.mutedUntil == b.mutedUntil;
 
   String _statusLabel() {
     final now = DateTime.now();
@@ -145,7 +147,7 @@ class _NotificationKindTileState extends State<_NotificationKindTile> {
           ? 'ztlumeno do $time'
           : 'ztlumeno do ${dayLabel(untilDay)} $time';
     }
-    return 'zapnuto';
+    return pref.silent ? 'tiše' : 'zapnuto';
   }
 
   @override
@@ -171,13 +173,18 @@ class _NotificationKindTileState extends State<_NotificationKindTile> {
               icon: Icon(
                 !pref.enabled
                     ? Icons.notifications_off_outlined
-                    : (active
-                        ? Icons.notifications_active_outlined
-                        : Icons.snooze),
+                    : (!active
+                        ? Icons.snooze
+                        : (pref.silent
+                            ? Icons.notifications_paused_outlined
+                            : Icons.notifications_active_outlined)),
               ),
               onSelected: (choice) => _apply(context, choice),
               itemBuilder: (_) => const [
-                PopupMenuItem(value: 'on', child: Text('Zapnout')),
+                PopupMenuItem(value: 'on', child: Text('Zapnout (se zvukem)')),
+                PopupMenuItem(
+                    value: 'silent',
+                    child: Text('Jen tiše (bez zvuku, jen lišta)')),
                 PopupMenuItem(
                     value: 'mute1', child: Text('Ztlumit na 1 h')),
                 PopupMenuItem(
@@ -198,6 +205,8 @@ class _NotificationKindTileState extends State<_NotificationKindTile> {
     switch (choice) {
       case 'on':
         await _save(context, enabled: true);
+      case 'silent':
+        await _save(context, enabled: true, silent: true);
       case 'off':
         await _save(context, enabled: false);
       case 'mute1':
@@ -225,10 +234,14 @@ class _NotificationKindTileState extends State<_NotificationKindTile> {
 
   Future<void> _mute(BuildContext context, Duration duration) =>
       _save(context,
-          enabled: true, mutedUntil: DateTime.now().add(duration));
+          enabled: true,
+          silent: pref.silent, // muting keeps the chosen delivery level
+          mutedUntil: DateTime.now().add(duration));
 
   Future<void> _save(BuildContext context,
-      {required bool enabled, DateTime? mutedUntil}) async {
+      {required bool enabled,
+      bool silent = false,
+      DateTime? mutedUntil}) async {
     setState(() => _saving = true);
     var ok = false;
     try {
@@ -236,7 +249,7 @@ class _NotificationKindTileState extends State<_NotificationKindTile> {
         context,
         () async {
           await Api.setNotificationPref(kind,
-              enabled: enabled, mutedUntil: mutedUntil);
+              enabled: enabled, silent: silent, mutedUntil: mutedUntil);
           ok = true;
         },
       );
@@ -248,7 +261,10 @@ class _NotificationKindTileState extends State<_NotificationKindTile> {
           // so the icon never flashes back to the old value.
           if (ok) {
             final chosen = NotificationPref(
-                kind: kind, enabled: enabled, mutedUntil: mutedUntil);
+                kind: kind,
+                enabled: enabled,
+                silent: silent,
+                mutedUntil: mutedUntil);
             _optimistic =
                 _samePref(chosen, widget.pref) ? null : chosen;
           }

@@ -28,6 +28,12 @@ class Push {
   static final _local = FlutterLocalNotificationsPlugin();
   static bool _ready = false;
 
+  /// Android notification channel ids — the loud default and the silent one.
+  /// The notify Edge Function sends the matching id in `data['channel']` and
+  /// `android.notification.channel_id`; keep the three places in sync.
+  static const channelLoud = 'terminator';
+  static const channelSilent = 'terminator_silent';
+
   /// Attached to the MaterialApp so notification taps can navigate.
   static final navigatorKey = GlobalKey<NavigatorState>();
 
@@ -64,6 +70,26 @@ class Push {
         onDidReceiveNotificationResponse: (response) =>
             _routeFromPayload(response.payload),
       );
+
+      // Two explicit channels: the loud default and a silent one (tray entry
+      // + launcher badge dot, no sound/vibration). The server routes each
+      // push per recipient's per-kind preference via channel_id.
+      final android = _local.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      await android?.createNotificationChannel(const AndroidNotificationChannel(
+        channelLoud,
+        'Termínátor',
+        description: 'Upozornění týmu',
+        importance: Importance.high,
+      ));
+      await android?.createNotificationChannel(const AndroidNotificationChannel(
+        channelSilent,
+        'Termínátor (tiché)',
+        description: 'Upozornění bez zvuku — jen lišta a tečka na ikoně',
+        importance: Importance.low,
+        playSound: false,
+        enableVibration: false,
+      ));
 
       await FirebaseMessaging.instance.requestPermission();
 
@@ -174,20 +200,34 @@ class Push {
     // Mirror the server-set FCM tag: same tag = replace in the tray
     // (a tournament never stacks e.g. threshold notifications).
     final tag = notification.android?.tag;
+    // Honor the server's per-recipient channel choice (loud vs silent).
+    final silent = message.data['channel'] == channelSilent;
     await _local.show(
       id: tag?.hashCode ?? notification.hashCode,
       title: notification.title,
       body: notification.body,
       payload: jsonEncode(message.data),
       notificationDetails: NotificationDetails(
-        android: AndroidNotificationDetails(
-          'terminator',
-          'Termínátor',
-          channelDescription: 'Upozornění týmu',
-          importance: Importance.high,
-          priority: Priority.high,
-          tag: tag,
-        ),
+        android: silent
+            ? AndroidNotificationDetails(
+                channelSilent,
+                'Termínátor (tiché)',
+                channelDescription:
+                    'Upozornění bez zvuku — jen lišta a tečka na ikoně',
+                importance: Importance.low,
+                priority: Priority.defaultPriority,
+                playSound: false,
+                enableVibration: false,
+                tag: tag,
+              )
+            : AndroidNotificationDetails(
+                channelLoud,
+                'Termínátor',
+                channelDescription: 'Upozornění týmu',
+                importance: Importance.high,
+                priority: Priority.high,
+                tag: tag,
+              ),
       ),
     );
   }

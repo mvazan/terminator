@@ -471,11 +471,15 @@ class NotificationPref {
   const NotificationPref({
     required this.kind,
     required this.enabled,
+    this.silent = false,
     this.mutedUntil,
   });
 
   final NotificationKind kind;
   final bool enabled;
+
+  /// Delivered without sound/vibration — tray entry + launcher badge only.
+  final bool silent;
   final DateTime? mutedUntil;
 
   static NotificationPref fallback(NotificationKind kind) =>
@@ -492,6 +496,8 @@ class NotificationPref {
         kind: NotificationKind.tryParse(json['kind'] as String) ??
             NotificationKind.chat,
         enabled: json['enabled'] as bool,
+        // Tolerates the pre-migration window where the column is absent.
+        silent: json['silent'] as bool? ?? false,
         mutedUntil: json['muted_until'] == null
             ? null
             : DateTime.parse(json['muted_until'] as String),

@@ -610,12 +610,14 @@ class Api {
   static Future<void> setNotificationPref(
     NotificationKind kind, {
     required bool enabled,
+    bool silent = false,
     DateTime? mutedUntil,
   }) =>
       _db.from('notification_prefs').upsert({
         'user_id': currentUserId!,
         'kind': kind.sqlName,
         'enabled': enabled,
+        'silent': silent,
         'muted_until': mutedUntil?.toUtc().toIso8601String(),
       });
 

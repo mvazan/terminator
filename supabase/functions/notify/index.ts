@@ -102,8 +102,14 @@ async function getAccessToken(): Promise<string> {
 // Sending
 // ---------------------------------------------------------------------------
 
+// Android notification channels created by the app — loud (default) and
+// silent (no sound/vibration, tray + badge dot). Keep in sync with
+// lib/push/push.dart (Push.channelLoud / Push.channelSilent).
+const CHANNEL_LOUD = "terminator";
+const CHANNEL_SILENT = "terminator_silent";
+
 async function sendToTokens(
-  tokens: { userId: string; token: string }[],
+  tokens: { userId: string; token: string; silent?: boolean }[],
   title: string,
   body: string,
   // Tap routing for the app (FCM data values must be strings):
@@ -118,7 +124,9 @@ async function sendToTokens(
   const url =
     `https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`;
 
-  await Promise.all(tokens.map(async ({ userId, token }) => {
+  await Promise.all(tokens.map(async ({ userId, token, silent }) => {
+    // Per-recipient channel: their per-kind pref decides loud vs silent.
+    const channel = silent ? CHANNEL_SILENT : CHANNEL_LOUD;
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -129,10 +137,15 @@ async function sendToTokens(
         message: {
           token,
           notification: { title, body },
-          data,
+          // `channel` also travels in data so the app's foreground handler
+          // picks the same channel for its local notification.
+          data: { ...data, channel },
           android: {
             priority: "HIGH",
-            ...(tag ? { notification: { tag } } : {}),
+            notification: {
+              channel_id: channel,
+              ...(tag ? { tag } : {}),
+            },
           },
         },
       }),
@@ -177,7 +190,7 @@ const DEFAULT_OFF: NotificationKind[] = [
 async function teamTokens(
   kind: NotificationKind,
   exclude: (string | null | undefined)[] = [],
-): Promise<{ userId: string; token: string }[]> {
+): Promise<{ userId: string; token: string; silent: boolean }[]> {
   const [profilesResult, prefsResult] = await Promise.all([
     supabase
       .from("profiles")
@@ -186,7 +199,7 @@ async function teamTokens(
       .not("fcm_token", "is", null),
     supabase
       .from("notification_prefs")
-      .select("user_id, enabled, muted_until")
+      .select("user_id, enabled, muted_until, silent")
       .eq("kind", kind),
   ]);
   if (profilesResult.error) throw profilesResult.error;
@@ -195,11 +208,13 @@ async function teamTokens(
   const now = Date.now();
   const excluded = new Set(exclude.filter(Boolean));
   const activeRows = new Set<string>();
+  const silentUsers = new Set<string>();
   for (const pref of prefsResult.data ?? []) {
     const muted = pref.muted_until !== null &&
       Date.parse(pref.muted_until) > now;
     if (pref.enabled && !muted) activeRows.add(pref.user_id);
     if (!pref.enabled || muted) excluded.add(pref.user_id);
+    if (pref.enabled && !muted && pref.silent) silentUsers.add(pref.user_id);
   }
 
   const optIn = DEFAULT_OFF.includes(kind);
@@ -207,7 +222,11 @@ async function teamTokens(
     .filter((p) =>
       optIn ? activeRows.has(p.id) : !excluded.has(p.id)
     )
-    .map((p) => ({ userId: p.id, token: p.fcm_token as string }));
+    .map((p) => ({
+      userId: p.id,
+      token: p.fcm_token as string,
+      silent: silentUsers.has(p.id),
+    }));
 }
 
 /**
