@@ -238,14 +238,11 @@ class _TournamentEditScreenState extends ConsumerState<TournamentEditScreen> {
   }
 
   void _selectVenue(Venue? venue) {
-    setState(() {
-      _venueId = venue?.id;
-      // Prefill the home-club website; organizer contacts stay on the
-      // tournament (a venue may host several clubs).
-      if (venue != null && venue.sourceUrl.isNotEmpty) {
-        _url.text = venue.sourceUrl;
-      }
-    });
+    // Deliberately does NOT touch the tournament URL: that field is the
+    // organizer's reservation page (drives scraping), which is a different
+    // thing from the venue's home-club website — copying it here used to
+    // clobber a typed reservation link when re-picking the venue.
+    setState(() => _venueId = venue?.id);
   }
 
   /// Pick a saved venue (required — its lane count caps ordered places) or add

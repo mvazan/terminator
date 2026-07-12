@@ -215,6 +215,10 @@ class _TournamentDetailScreenState
                 : 'Číslo = kolik nás může.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
+          Text(
+            '✓ = dost lidí na objednání · zvýrazněný rámeček = tvoje volba',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
           const SizedBox(height: 8),
           for (final day in byDay.keys)
             _DayRow(

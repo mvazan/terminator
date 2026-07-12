@@ -5,8 +5,9 @@ import '../../domain/models.dart';
 /// One cell of the availability heatmap: start time and, below it, how many
 /// of our team ticked this slot. When the tournament is scraped, the count
 /// reads "team/free" — team members available over free lanes at the venue
-/// (team can exceed capacity). Popularity shading and an orderable border
-/// round it out. Purely presentational — callbacks injected — so it's
+/// (team can exceed capacity). A check icon marks "enough people to order"
+/// (orderable); a thick primary border marks MY tick. Popularity shading
+/// rounds it out. Purely presentational — callbacks injected — so it's
 /// widget-testable.
 class SlotCell extends StatelessWidget {
   const SlotCell({
@@ -57,8 +58,8 @@ class SlotCell extends StatelessWidget {
             border: Border.all(
               color: _venueFull
                   ? scheme.error
-                  : (isOrderable ? scheme.primary : scheme.outlineVariant),
-              width: isOrderable && !_venueFull ? 2 : 1,
+                  : (mine ? scheme.primary : scheme.outlineVariant),
+              width: mine && !_venueFull ? 2 : 1,
             ),
           ),
           child: Column(
@@ -74,10 +75,11 @@ class SlotCell extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  if (mine)
-                    const Padding(
-                      padding: EdgeInsets.only(right: 2),
-                      child: Icon(Icons.check_circle, size: 14),
+                  if (isOrderable)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 2),
+                      child: Icon(Icons.check_circle,
+                          size: 14, color: scheme.primary),
                     ),
                   // Plain team count, or "team/free lanes" when scraped.
                   Text(

@@ -7,12 +7,20 @@ void main() {
   Widget wrap(Widget child) =>
       MaterialApp(home: Scaffold(body: Center(child: child)));
 
-  testWidgets('shows time and player count', (tester) async {
+  Border borderOf(WidgetTester tester) {
+    final container = tester.widget<Container>(
+      find.descendant(
+          of: find.byType(SlotCell), matching: find.byType(Container)),
+    );
+    return (container.decoration! as BoxDecoration).border! as Border;
+  }
+
+  testWidgets('shows time and player count, no decorations', (tester) async {
     await tester.pumpWidget(wrap(SlotCell(
       time: const HourMinute(18, 0),
       count: 4,
       intensity: 1,
-      isOrderable: true,
+      isOrderable: false,
       mine: false,
       onTap: () {},
     )));
@@ -20,9 +28,10 @@ void main() {
     expect(find.text('18:00'), findsOneWidget);
     expect(find.text('4'), findsOneWidget);
     expect(find.byIcon(Icons.check_circle), findsNothing);
+    expect(borderOf(tester).top.width, 1);
   });
 
-  testWidgets('shows my tick and fires onTap (toggle availability)',
+  testWidgets('my selection gets the thick border and fires onTap',
       (tester) async {
     var taps = 0;
     await tester.pumpWidget(wrap(SlotCell(
@@ -34,12 +43,15 @@ void main() {
       onTap: () => taps++,
     )));
 
-    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    // Mine = thick border, NOT the check icon (that means "enough people").
+    expect(borderOf(tester).top.width, 2);
+    expect(find.byIcon(Icons.check_circle), findsNothing);
     await tester.tap(find.text('16:30'));
     expect(taps, 1);
   });
 
-  testWidgets('orderable cell gets the thick primary border', (tester) async {
+  testWidgets('enough-people cell shows the check with a thin border',
+      (tester) async {
     await tester.pumpWidget(wrap(SlotCell(
       time: const HourMinute(17, 0),
       count: 3,
@@ -49,12 +61,33 @@ void main() {
       onTap: () {},
     )));
 
-    final container = tester.widget<Container>(
-      find.descendant(
-          of: find.byType(SlotCell), matching: find.byType(Container)),
-    );
-    final border = (container.decoration! as BoxDecoration).border! as Border;
-    expect(border.top.width, 2);
+    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(borderOf(tester).top.width, 1);
+  });
+
+  testWidgets('venue-full cell keeps the error border even when mine',
+      (tester) async {
+    const theme = ColorScheme.light();
+    await tester.pumpWidget(MaterialApp(
+      theme: ThemeData(colorScheme: theme),
+      home: Scaffold(
+        body: Center(
+          child: SlotCell(
+            time: const HourMinute(18, 0),
+            count: 2,
+            intensity: 0.5,
+            isOrderable: false,
+            mine: true,
+            venueFree: 0,
+            onTap: () {},
+          ),
+        ),
+      ),
+    ));
+
+    final border = borderOf(tester);
+    expect(border.top.color, theme.error);
+    expect(border.top.width, 1); // full cell never gets the thick border
   });
 
   testWidgets('scraped cell shows team/free lanes as X/Y', (tester) async {
@@ -77,7 +110,7 @@ void main() {
       time: const HourMinute(18, 0),
       count: 3,
       intensity: 0.5,
-      isOrderable: true,
+      isOrderable: false,
       mine: false,
       onTap: () {},
     )));
