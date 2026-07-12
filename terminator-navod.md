@@ -52,8 +52,26 @@ Dole jsou čtyři záložky:
 |---|---|
 | **Moje starty** | Tvoje nadcházející objednané starty — úvodní obrazovka |
 | **Turnaje** | Seznam turnajů, zakládání nových, odklikávání termínů |
-| **Chaty** | Chat k turnaji a chaty jednotlivých hracích dní |
+| **Chaty** | Chat celé party, chat k turnaji a chaty hracích dní |
 | **Tým** | Kdo je v partě, schvalování nových členů, nastavení upozornění |
+
+V seznamu turnajů je hlavním nadpisem **kuželna** (název turnaje je pod ní).
+U turnaje vidíš, **kolik lidí z party se hlásí** a kolik jich má nejsilnější
+den; **modrý proužek vlevo** značí, že tam máš něco zakliknuté ty.
+
+Nahoře v Turnajích najdeš tři ikony:
+- **Oko** — skrývání turnajů, které tě nezajímají: zobrazí všechny se
+  zaškrtávátky (skryté šedě a na konci), odškrtnuté zmizí po zavření oka.
+  Skrytí zruší i tvoje zakliknuté termíny (appka se zeptá) a vypne
+  upozornění k turnaji — jen tobě, ostatních se to netýká.
+- **Mapa** — kuželny na mapě; barevný pin = má nadcházející turnaj,
+  klepnutím uvidíš které.
+- **Kalendář** — sezónní přehled (viz níže). Svislé čárky v pruhu turnaje
+  ukazují dny se starty (tmavá) a objednané dny (červená); okem jde šedě
+  zobrazit i turnaje, které sis skryl/a.
+
+Když vypadne internet, appka ukáže **poslední známá data** (jen ke čtení)
+a nahoře pruh „Offline".
 
 ## 4. Moje starty (úvodní obrazovka)
 
@@ -135,20 +153,22 @@ značí, že se termíny a obsazenost synchronizují z webu.
 ## 7. Odklikávání termínů (kdy můžeš)
 
 Otevři turnaj → nahoře jsou **„Nejsilnější termíny"** (viz níže), pod nimi mřížka
-dnů a časů. Klepnutím na políčko **zapneš/vypneš svou dostupnost** — appka si
-pamatuje, na co jsi klikl/a (malá fajfka v políčku = ty).
+dnů a časů. Klepnutím na políčko **zapneš/vypneš svou dostupnost** —
+**zvýrazněný rámeček políčka = tvoje volba**. Vedle názvu dne je tlačítko
+**„celý den"** — zaklikne všechny časy dne najednou (a „zrušit den" je zase
+všechny zruší).
 
 Číslo v políčku:
 - U **ručně zadaných** turnajů: kolik lidí z party může.
 - U turnajů **z webu**: **„nás/dráhy"** — např. „3/2" = 3 z nás může, 2 dráhy jsou
   ještě volné u pořadatele.
 
-Políčka, kde je dost lidí na objednání (dosažen „Min. hráčů na start"), mají
-výraznější rámeček. Barva políčka navíc ukazuje, jak moc je termín oblíbený —
-čím víc lidí kliklo, tím sytější barva.
+**Fajfka ✓ v políčku = dost lidí na objednání** (dosažen „Min. hráčů na
+start"). Barva políčka navíc ukazuje, jak moc je termín oblíbený — čím víc
+lidí kliklo, tím sytější barva.
 
 V menu (⋮ vpravo nahoře) si můžeš zapnout **„Zobrazit, kdo je přihlášený"** — pod
-každým dnem se pak objeví jména lidí u jednotlivých časů.
+každým dnem se pak objeví souhrn za osobu: „Pavel: celý den · Miloš: od 17:00".
 
 V kartě turnaje jsou taky kontakty: **„navigovat"** (spustí navigaci na adresu
 kuželny, pokud je vyplněná), e-mail a telefon pořadatele a web turnaje.
@@ -186,9 +206,11 @@ Místo může klidně zůstat prázdné, není potřeba ho za každou cenu obsad
 
 ## 10. Chaty
 
-Ke každému turnaji patří **chat k turnaji** (jsou v něm všichni v partě automaticky)
-a jakmile se objedná konkrétní den, vznikne k němu i **chat hracího dne** (jen pro
-ty, kdo ten den hrají — hodí se na domluvu odvozu apod.).
+Úplně nahoře je stálý chat **„Celý tým"** — společný pokec celé party bez
+vazby na turnaj. Ke každému turnaji pak patří **chat k turnaji** (jsou v něm
+všichni v partě automaticky) a jakmile se objedná konkrétní den, vznikne k
+němu i **chat hracího dne** (jen pro ty, kdo ten den hrají — hodí se na
+domluvu odvozu apod.).
 
 - Seznam chatů je seřazený podle **poslední aktivity** a u chatů s nepřečtenými
   zprávami svítí **počet nových**.
@@ -222,8 +244,10 @@ Ikonou ozubeného kola se dostaneš do **Nastavení**, kde spravuješ **Kuželny
 | Dá se objednat (termín dosáhl minima hráčů) | vypnuto |
 | Nově vypsané turnaje (appka hlídá weby a dá vědět o nových) | vypnuto |
 
-U každého jde zvolit **Zapnout / Ztlumit na 1–12 h (i vlastní počet hodin) /
-Vypnout**. Ztlumení samo vyprší, není potřeba se vracet a zase zapínat ručně.
+U každého jde zvolit **Zapnout (se zvukem) / Jen tiše / Ztlumit na 1–12 h
+(i vlastní počet hodin) / Vypnout**. „Jen tiše" znamená bez zvuku a vibrací —
+upozornění se jen objeví v liště a na ikoně appky přibude tečka. Ztlumení
+samo vyprší, není potřeba se vracet a zase zapínat ručně.
 
 ## 12. Archivované turnaje
 

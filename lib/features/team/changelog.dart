@@ -12,6 +12,26 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('1.3.6', '13. 7. 2026', [
+    'Seznam turnajů: kuželna je hlavní nadpis, u turnaje vidíš kolik lidí '
+        'se hlásí (i nejsilnější den) a levý proužek značí, že máš něco '
+        'zakliknuté.',
+    'Skrývání přes oko: zaškrtáváš lokálně a uloží se najednou při zavření; '
+        'skryté řadí nakonec. Skrytí turnaje zruší i tvoje zakliknuté '
+        'termíny (s upozorněním).',
+    'V detailu jde zakliknout celý den jedním tlačítkem.',
+    'Vyměněný význam: ✓ = dost lidí na objednání, zvýrazněný rámeček = '
+        'tvoje volba.',
+    '„Kdo je přihlášený" ukazuje souhrn za osobu (celý den / od 17:00 / '
+        '12:00–15:00).',
+    'Sezónní kalendář: svislé čárky = dny se starty (tmavá) a objednané '
+        'dny (červená); okem jde zobrazit i skryté turnaje šedě.',
+    'Nová mapa kuželen s piny a nadcházejícími turnaji.',
+    'Upozornění jdou nastavit „jen tiše" (bez zvuku, jen lišta a tečka).',
+    'Aplikace funguje offline pro čtení — ukáže poslední známá data.',
+    'Tlačítka ukazují průběh a pomalé připojení už nezasekne akce.',
+    'Výběr kuželny už nepřepisuje web turnaje.',
+  ]),
   Release('1.3.5', '10. 7. 2026', [
     'Oprava: v sezónním kalendáři se zase kreslí barevné pruhy turnajů '
         '(v 1.3.4 zmizely).',
