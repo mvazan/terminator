@@ -503,6 +503,24 @@ class Api {
     }
   }
 
+  /// Tick/untick many slots at once (whole-day select). The upsert is
+  /// idempotent for already-ticked slots; untick is one inFilter round trip.
+  static Future<void> setAvailabilityBulk(
+      List<String> slotIds, bool available) async {
+    if (slotIds.isEmpty) return;
+    final uid = currentUserId!;
+    if (available) {
+      await _db.from('availability').upsert(
+          [for (final id in slotIds) {'slot_id': id, 'user_id': uid}]);
+    } else {
+      await _db
+          .from('availability')
+          .delete()
+          .eq('user_id', uid)
+          .inFilter('slot_id', slotIds);
+    }
+  }
+
   static Future<void> createProposal({
     required String tournamentId,
     required Map<String, int> lanesBySlot, // slot_id -> ordered lanes

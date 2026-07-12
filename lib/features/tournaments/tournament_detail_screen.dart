@@ -6,6 +6,7 @@ import '../../data/local_prefs.dart';
 import '../../data/providers.dart';
 import '../../domain/heatmap.dart';
 import '../../domain/models.dart';
+import '../../domain/who_is_in.dart';
 import '../../scrape/scraper.dart';
 import '../chats/chat_screen.dart';
 import '../manage/manage_mode.dart';
@@ -99,12 +100,28 @@ class _TournamentDetailScreenState
     final archived = tournament.isArchived;
 
     final manage = ref.watch(manageUnlockedProvider);
+    final venueName =
+        ref.watch(venueByIdProvider(tournament.venueId))?.name ?? '?';
     return Scaffold(
       appBar: AppBar(
         // Long-press the title to reach the hidden manage mode (PIN-gated).
+        // Venue leads (the team thinks in alleys); the tournament's own name
+        // rides below in small type.
         title: GestureDetector(
           onLongPress: () => handleManageGesture(context, ref),
-          child: Text(tournament.name),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(venueName, maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(
+                tournament.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
         ),
         actions: [
           if (scrapable && !archived)
@@ -421,7 +438,7 @@ class _InfoCard extends StatelessWidget {
 
 }
 
-class _DayRow extends ConsumerWidget {
+class _DayRow extends ConsumerStatefulWidget {
   const _DayRow({
     required this.day,
     required this.slots,
@@ -439,9 +456,42 @@ class _DayRow extends ConsumerWidget {
   final bool readOnly;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DayRow> createState() => _DayRowState();
+}
+
+class _DayRowState extends ConsumerState<_DayRow> {
+  /// Whole-day bulk write in flight — swap the button for a spinner.
+  bool _busy = false;
+
+  Day get day => widget.day;
+  List<Slot> get slots => widget.slots;
+  Heatmap get heatmap => widget.heatmap;
+  List<Profile> get members => widget.members;
+  String? get uid => widget.uid;
+  bool get readOnly => widget.readOnly;
+
+  /// One tap for the whole day: tick everything, or untick everything when
+  /// all of the day's slots are already mine.
+  Future<void> _selectDay(bool allMine) async {
+    setState(() => _busy = true);
+    try {
+      await tryAction(
+        context,
+        () => Api.setAvailabilityBulk(
+            [for (final s in slots) s.id], !allMine),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final dayStats = heatmap.byDay[day];
     final showWhoIsIn = ref.watch(showWhoIsInProvider);
+    final allMine = uid != null &&
+        slots.every(
+            (s) => heatmap.bySlotId[s.id]?.userIds.contains(uid) ?? false);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -456,6 +506,23 @@ class _DayRow extends ConsumerWidget {
               if (dayStats != null && dayStats.distinctPlayers > 0)
                 Text('${dayStats.distinctPlayers} lidí může',
                     style: Theme.of(context).textTheme.bodySmall),
+              const Spacer(),
+              if (!readOnly)
+                _busy
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : TextButton(
+                        style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.compact),
+                        onPressed: () => _selectDay(allMine),
+                        child: Text(allMine ? 'zrušit den' : 'celý den'),
+                      ),
             ],
           ),
           const SizedBox(height: 4),
@@ -489,30 +556,18 @@ class _DayRow extends ConsumerWidget {
     );
   }
 
-  /// Names of who ticked each start that day, listed under the day's grid
-  /// (shown when the team-wide "who's in" toggle is on).
+  /// Who can make this day, one entry per person with a summarized range
+  /// ("Pavel: celý den · Miloš: od 17:00") instead of a line per slot.
+  /// Shown when the team-wide "who's in" toggle is on.
   Widget _whoIsIn(BuildContext context) {
-    final lines = <Widget>[];
-    for (final slot in slots) {
-      final ids = heatmap.bySlotId[slot.id]?.userIds ?? const <String>{};
-      if (ids.isEmpty) continue;
-      final names = (ids.map((id) => memberName(members, id)).toList()
-            ..sort())
-          .join(', ');
-      lines.add(RichText(
-        text: TextSpan(
-          style: Theme.of(context).textTheme.bodySmall,
-          children: [
-            TextSpan(
-              text: '${slot.time.display()}: ',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            TextSpan(text: names),
-          ],
-        ),
-      ));
-    }
-    if (lines.isEmpty) return const SizedBox.shrink();
+    final byUser =
+        summarizeDayByUser(daySlots: slots, statsBySlotId: heatmap.bySlotId);
+    if (byUser.isEmpty) return const SizedBox.shrink();
+
+    final entries = [
+      for (final e in byUser.entries)
+        (name: memberName(members, e.key), label: e.value),
+    ]..sort((a, b) => a.name.compareTo(b.name));
 
     return Padding(
       padding: const EdgeInsets.only(top: 6),
@@ -523,15 +578,20 @@ class _DayRow extends ConsumerWidget {
           color: Theme.of(context).colorScheme.surfaceContainer,
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final line in lines)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 1),
-                child: line,
-              ),
-          ],
+        child: RichText(
+          text: TextSpan(
+            style: Theme.of(context).textTheme.bodySmall,
+            children: [
+              for (var i = 0; i < entries.length; i++) ...[
+                if (i > 0) const TextSpan(text: '  ·  '),
+                TextSpan(
+                  text: '${entries[i].name}: ',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                TextSpan(text: entries[i].label),
+              ],
+            ],
+          ),
         ),
       ),
     );
