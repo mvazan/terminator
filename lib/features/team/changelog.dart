@@ -12,6 +12,9 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.0.1', '13. 7. 2026', [
+    'Drobná údržba na pozadí (příprava zveřejnění v Google Play).',
+  ]),
   Release('2.0.0', '13. 7. 2026', [
     'Appka teď umí víc týmů: při prvním přihlášení jde „Založit nový tým" — '
         'dostaneš kód pro partu a PIN správy. Nový tým aktivuje správce '
