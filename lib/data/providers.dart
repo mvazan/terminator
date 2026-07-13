@@ -371,24 +371,24 @@ class Api {
         'p_display_name': displayName,
       });
 
-  /// Creates a new (pending) team; returns its generated invite code and
-  /// manage PIN so the founder can save/share them. The team waits for the
-  /// superadmin's approval before its members can use the app.
-  static Future<({String inviteCode, String managePin})> createTeam(
+  /// Creates a new (pending) team; returns the generated manage PIN. The
+  /// invite code doesn't exist yet — the superadmin names it at approval,
+  /// and the founder then sees it in the Tým tab.
+  static Future<String> createTeam(
       String teamName, String displayName) async {
     final result = await _db.rpc('create_team', params: {
       'p_team_name': teamName,
       'p_display_name': displayName,
     }) as Map<String, dynamic>;
-    return (
-      inviteCode: result['invite_code'] as String,
-      managePin: result['manage_pin'] as String,
-    );
+    return result['manage_pin'] as String;
   }
 
-  /// Superadmin only — activates a pending team.
-  static Future<void> approveTeam(String teamId) =>
-      _db.rpc('approve_team', params: {'p_team_id': teamId});
+  /// Superadmin only — names the team's invite code and activates it.
+  static Future<void> approveTeam(String teamId, String inviteCode) =>
+      _db.rpc('approve_team', params: {
+        'p_team_id': teamId,
+        'p_invite_code': inviteCode,
+      });
 
   static Future<void> approveMember(String userId) =>
       _db.rpc('approve_member', params: {'p_user_id': userId});

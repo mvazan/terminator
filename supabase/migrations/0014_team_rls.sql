@@ -255,13 +255,8 @@ language plpgsql security definer set search_path = public
 as $$
 declare
   v_uid uuid := auth.uid();
-  v_code text;
   v_team teams;
   v_profile profiles;
-  adjectives text[] := array['rychle','zlate','divoke','bystre','hbite',
-                             'tiche','smele','presne','vytrvale','hrave'];
-  animals text[] := array['vydry','jezci','sokoli','rysi','bobri',
-                          'kuny','svisti','lisky','vlci','sysli'];
 begin
   if v_uid is null then raise exception 'not_authenticated'; end if;
   if exists (select 1 from profiles where id = v_uid) then
@@ -270,22 +265,12 @@ begin
   if trim(p_team_name) = '' then raise exception 'empty_team_name'; end if;
   if trim(p_display_name) = '' then raise exception 'empty_display_name'; end if;
 
-  -- Readable "adjective-animal" invite code; digits appended after 10
-  -- collisions. The unique index closes the race.
-  for i in 1..30 loop
-    v_code := adjectives[1 + floor(random() * array_length(adjectives, 1))::int]
-              || '-'
-              || animals[1 + floor(random() * array_length(animals, 1))::int]
-              || case when i > 10
-                   then (10 + floor(random() * 90))::int::text
-                   else '' end;
-    exit when not exists (
-      select 1 from teams where lower(invite_code) = lower(v_code));
-  end loop;
-
-  -- status defaults to 'pending' — the superadmin approves the team.
+  -- The REAL invite code is chosen by the superadmin at approval; until
+  -- then an unguessable placeholder holds the unique slot (nobody can join
+  -- a team whose code they can't know).
   insert into teams (name, invite_code, manage_pin)
-  values (trim(p_team_name), v_code,
+  values (trim(p_team_name),
+          'cekame-' || replace(gen_random_uuid()::text, '-', ''),
           lpad(floor(random() * 10000)::int::text, 4, '0'))
   returning * into v_team;
 
@@ -294,20 +279,26 @@ begin
   values (v_uid, trim(p_display_name), v_team.id, 'approved', now())
   returning * into v_profile;
 
-  return json_build_object(
-    'invite_code', v_team.invite_code,
-    'manage_pin', v_team.manage_pin);
+  return json_build_object('manage_pin', v_team.manage_pin);
 end;
 $$;
 
-create or replace function approve_team(p_team_id uuid)
+-- Approval names the team's invite code (the superadmin picks it).
+create or replace function approve_team(p_team_id uuid, p_invite_code text)
 returns void
 language plpgsql security definer set search_path = public
 as $$
 begin
   if not is_superadmin() then raise exception 'not_superadmin'; end if;
+  if trim(p_invite_code) = '' then raise exception 'empty_invite_code'; end if;
+  if exists (select 1 from teams
+             where lower(invite_code) = lower(trim(p_invite_code))
+               and id <> p_team_id) then
+    raise exception 'invite_code_taken';
+  end if;
   update teams
-  set status = 'approved', approved_by = auth.uid(), approved_at = now()
+  set invite_code = trim(p_invite_code),
+      status = 'approved', approved_by = auth.uid(), approved_at = now()
   where id = p_team_id and status = 'pending';
 end;
 $$;

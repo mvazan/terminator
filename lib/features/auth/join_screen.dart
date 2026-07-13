@@ -64,10 +64,10 @@ class _JoinScreenState extends State<JoinScreen> {
     }
     setState(() => _busy = true);
     try {
-      final team = await Api.createTeam(teamName, name);
+      final managePin = await Api.createTeam(teamName, name);
       if (!mounted) return;
-      // Show the generated credentials ONCE, prominently — the founder needs
-      // the code to invite the team and the PIN for manage mode.
+      // The PIN is generated now; the invite code is named by the app's
+      // admin at approval and then shows up in the Tým tab.
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
@@ -76,23 +76,22 @@ class _JoinScreenState extends State<JoinScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Ulož si tyhle údaje a pošli kód partě:'),
+              const Text('Ulož si PIN režimu správy:'),
               const SizedBox(height: 12),
-              SelectableText('Kód týmu: ${team.inviteCode}\n'
-                  'PIN správy: ${team.managePin}'),
+              SelectableText('PIN správy: $managePin'),
               const SizedBox(height: 12),
               const Text(
                 'Tým teď musí schválit správce aplikace — dostal upozornění. '
-                'Než ho schválí, appka počká na obrazovce schvalování.',
+                'Při schválení přidělí týmu kód pro zvaní party; najdeš ho '
+                'pak v záložce Tým.',
               ),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Clipboard.setData(ClipboardData(
-                    text: 'Kód týmu: ${team.inviteCode} · '
-                        'PIN správy: ${team.managePin}'));
+                Clipboard.setData(
+                    ClipboardData(text: 'PIN správy: $managePin'));
                 snack(dialogContext, 'Zkopírováno.');
               },
               child: const Text('Kopírovat'),
@@ -150,8 +149,8 @@ class _JoinScreenState extends State<JoinScreen> {
                 const SizedBox(height: 20),
                 Text(
                   _createMode
-                      ? 'Založ vlastní tým — kód pro partu a PIN správy '
-                          'vygenerujeme.'
+                      ? 'Založ vlastní tým — kód pro zvaní party přidělí '
+                          'správce aplikace při schválení.'
                       : 'Zadej kód party a své jméno.',
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),

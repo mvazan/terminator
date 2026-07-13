@@ -70,7 +70,7 @@ class TeamScreen extends ConsumerWidget {
           // the party (long-tap the code text to copy via SelectableText).
           if (team != null)
             ListTile(
-              leading: const Icon(Icons.qr_code_2),
+              leading: const Icon(Icons.key_outlined),
               title: Text(team.name),
               subtitle: SelectableText('Kód pro pozvání: ${team.inviteCode}'),
             ),
@@ -86,12 +86,23 @@ class TeamScreen extends ConsumerWidget {
               ListTile(
                 leading: const Icon(Icons.group_add_outlined),
                 title: Text(t.name),
-                subtitle: Text('kód: ${t.inviteCode}'),
-                trailing: BusyFilledButton(
-                  label: const Text('Schválit'),
+                subtitle: const Text('čeká na schválení a přidělení kódu'),
+                trailing: FilledButton(
+                  child: const Text('Schválit'),
                   onPressed: () async {
-                    await tryAction(context, () => Api.approveTeam(t.id),
-                        success: 'Tým ${t.name} schválen.');
+                    // The superadmin names the team's invite code here.
+                    final code = await promptText(
+                      context,
+                      title: 'Kód pro tým ${t.name}',
+                      hint: 'např. veverky',
+                      confirmLabel: 'Schválit tým',
+                    );
+                    if (code == null || code.isEmpty || !context.mounted) {
+                      return;
+                    }
+                    await tryAction(
+                        context, () => Api.approveTeam(t.id, code),
+                        success: 'Tým ${t.name} schválen — kód: $code');
                   },
                 ),
               ),
