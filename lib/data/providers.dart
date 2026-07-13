@@ -42,6 +42,18 @@ final _userIdProvider = Provider<String?>((ref) {
 /// in build (and their tests) read this instead of the raw Supabase getter.
 final currentUserIdProvider = Provider<String?>((ref) => ref.watch(_userIdProvider));
 
+/// Minimum build the backend still supports; older builds block on an
+/// update screen. Null while unknown (network error → don't block anyone).
+final minBuildProvider = FutureProvider<int?>((ref) async {
+  try {
+    final row =
+        await _db.from('app_config').select('min_build').maybeSingle();
+    return row?['min_build'] as int?;
+  } catch (_) {
+    return null; // unreachable/older backend — never lock users out
+  }
+});
+
 /// The signed-in user's profile row (null while the user has no profile yet,
 /// i.e. before entering the invite code). Live — flips when approved.
 final myProfileProvider = StreamProvider<Profile?>((ref) {
