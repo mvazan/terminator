@@ -48,7 +48,9 @@ void main() {
     // Venue alone on top; kind+dates in the meta line; the tournament's
     // own name below.
     expect(find.text('Vracov'), findsOneWidget);
-    expect(find.textContaining('dvojice ·'), findsWidgets);
+    expect(find.text('dvojice'), findsWidgets);
+    expect(find.text('24.4.'), findsOneWidget); // start in the date rail
+    expect(find.text('26.4.'), findsOneWidget); // end in the date rail
     expect(find.text('Cena Vracova'), findsOneWidget);
   });
 

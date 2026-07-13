@@ -342,11 +342,11 @@ class _TournamentTile extends StatelessWidget {
           '${peopleLabel(i.bestDayPlayers)}',
     };
 
-    // One meta line under the venue: kind · discipline · dates.
+    // Kind · discipline. The dates live in the left rail (start on top,
+    // end at the bottom), so the meta line doesn't repeat them.
     final meta = [
       t.kind.label,
       if (t.discipline != null) t.discipline!.label,
-      rangeLabel(t.startsOn, t.endsOn),
     ].join(' · ');
 
     final textTheme = Theme.of(context).textTheme;
@@ -366,95 +366,110 @@ class _TournamentTile extends StatelessWidget {
               builder: (_) => TournamentDetailScreen(tournamentId: t.id),
             ),
           ),
-          // Custom layout instead of ListTile: one left-aligned text column
-          // with a clear hierarchy (venue → meta → name → interest), the
-          // date badge and the countdown chip framing it on the sides.
+          // Left rail = the od–do dates spanning the card height; right of
+          // the divider a single hierarchy: venue (+globe/chip), name,
+          // kind·discipline, interest.
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                DateBadge(t.startsOn),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Venue — the team thinks in alleys.
-                      Text(venueName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600)),
-                      Text(meta,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: textTheme.bodySmall
-                              ?.copyWith(color: scheme.onSurfaceVariant)),
-                      const SizedBox(height: 2),
-                      Text(t.name,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: textTheme.bodySmall
-                              ?.copyWith(color: scheme.onSurfaceVariant)),
-                      if (interestLine != null) ...[
-                        const SizedBox(height: 4),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _DateRail(start: t.startsOn, end: t.endsOn),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: VerticalDivider(
+                        width: 1, color: scheme.outlineVariant),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.groups,
-                                size: 14,
-                                color:
-                                    mine ? scheme.primary : scheme.outline),
-                            const SizedBox(width: 4),
-                            Text(interestLine, style: textTheme.bodySmall),
+                            // Venue — the team thinks in alleys.
+                            Expanded(
+                              child: Text(venueName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w600)),
+                            ),
+                            // Eye mode swaps the status cluster for a
+                            // checkbox: checked = visible for me. Taps stay
+                            // local; the batch goes out on eye-close.
+                            if (hiddenByMe != null)
+                              Checkbox(
+                                value: !hiddenByMe!,
+                                visualDensity: VisualDensity.compact,
+                                onChanged: (v) =>
+                                    onHiddenByMeChanged?.call(v != true),
+                              )
+                            else ...[
+                              // Manual tournaments (no recognized web) get a
+                              // crossed-out globe; the synced majority stays
+                              // unmarked.
+                              if (ScraperRegistry.forUrl(t.sourceUrl) ==
+                                  null)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                      right: 8, top: 2),
+                                  child: Tooltip(
+                                    message: 'Bez webu — termíny se '
+                                        'zadávají ručně',
+                                    child: Icon(Icons.public_off,
+                                        size: 16, color: scheme.outline),
+                                  ),
+                                ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: chipColor,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(status,
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: chipText)),
+                              ),
+                            ],
                           ],
                         ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Eye mode swaps the right column for a checkbox: checked =
-                // visible for me, unchecked = hidden (list + chat +
-                // notifications, me only). Taps stay local; the batch goes
-                // out on eye-close.
-                if (hiddenByMe != null)
-                  Checkbox(
-                    value: !hiddenByMe!,
-                    onChanged: (v) => onHiddenByMeChanged?.call(v != true),
-                  )
-                else
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: chipColor,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(status,
-                            style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: chipText)),
-                      ),
-                      // Manually maintained tournaments (no recognized web
-                      // to sync from) get a crossed-out globe below the chip;
-                      // the synced majority stays unmarked.
-                      if (ScraperRegistry.forUrl(t.sourceUrl) == null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6, right: 2),
-                          child: Tooltip(
-                            message: 'Bez webu — termíny se zadávají ručně',
-                            child: Icon(Icons.public_off,
-                                size: 16, color: scheme.outline),
+                        Text(t.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.bodySmall
+                                ?.copyWith(color: scheme.onSurfaceVariant)),
+                        const SizedBox(height: 2),
+                        Text(meta,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.bodySmall
+                                ?.copyWith(color: scheme.onSurfaceVariant)),
+                        if (interestLine != null) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(Icons.groups,
+                                  size: 14,
+                                  color: mine
+                                      ? scheme.primary
+                                      : scheme.outline),
+                              const SizedBox(width: 4),
+                              Text(interestLine,
+                                  style: textTheme.bodySmall),
+                            ],
                           ),
-                        ),
-                    ],
+                        ],
+                      ],
+                    ),
                   ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -462,5 +477,51 @@ class _TournamentTile extends StatelessWidget {
     );
     // Hidden ones are dimmed while revealed in eye mode.
     return hiddenByMe == true ? Opacity(opacity: 0.5, child: card) : card;
+  }
+}
+
+/// The od–do rail on the card's left: start date on top, end date at the
+/// bottom (omitted for single-day tournaments), each as "31.7." over the
+/// short weekday.
+class _DateRail extends StatelessWidget {
+  const _DateRail({required this.start, required this.end});
+
+  final Day start;
+  final Day end;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    Widget block(Day d, {required bool muted}) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${d.day}.${d.month}.',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                color: muted ? scheme.outline : scheme.onSurface,
+              ),
+            ),
+            Text(
+              weekdaysShort[d.weekday - 1],
+              style: TextStyle(fontSize: 11, color: scheme.outline),
+            ),
+          ],
+        );
+
+    return SizedBox(
+      width: 40,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          block(start, muted: false),
+          if (end != start) block(end, muted: true),
+        ],
+      ),
+    );
   }
 }
