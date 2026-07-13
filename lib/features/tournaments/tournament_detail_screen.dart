@@ -508,7 +508,7 @@ class _DayRowState extends ConsumerState<_DayRow> {
                   style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(width: 8),
               if (dayStats != null && dayStats.distinctPlayers > 0)
-                Text('${dayStats.distinctPlayers} lidí může',
+                Text('${peopleLabel(dayStats.distinctPlayers)} může',
                     style: Theme.of(context).textTheme.bodySmall),
               const Spacer(),
               if (!readOnly)

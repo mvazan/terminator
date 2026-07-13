@@ -139,6 +139,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
     final tournaments = ref.watch(tournamentsProvider);
     final venueNames = ref.watch(venueNamesProvider);
     final interest = ref.watch(tournamentInterestProvider);
+    final online = ref.watch(realtimeConnectedProvider).value ?? true;
     final now = today();
     final manage = ref.watch(manageUnlockedProvider);
     final hidden = manage
@@ -165,19 +166,24 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
           // Eye mode: reveal my hidden tournaments with checkboxes to
           // hide/unhide in bulk; closing commits everything at once.
           IconButton(
-            tooltip: _showHidden
-                ? 'Hotovo — skrýt odškrtnuté'
-                : 'Zobrazit skryté turnaje',
+            tooltip: !online
+                ? 'Offline — skrývání je jen ke čtení'
+                : (_showHidden
+                    ? 'Hotovo — skrýt odškrtnuté'
+                    : 'Zobrazit skryté turnaje'),
             icon: Icon(_showHidden
                 ? Icons.visibility
                 : Icons.visibility_off_outlined),
-            onPressed: () {
-              if (_showHidden) {
-                _closeEyeMode();
-              } else {
-                setState(() => _showHidden = true);
-              }
-            },
+            // Offline the batch couldn't be saved — don't let edits start.
+            onPressed: !online && !_showHidden
+                ? null
+                : () {
+                    if (_showHidden) {
+                      _closeEyeMode();
+                    } else {
+                      setState(() => _showHidden = true);
+                    }
+                  },
           ),
           IconButton(
             tooltip: 'Mapa kuželen',
@@ -228,7 +234,10 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
               if (t.isArchived || t.endsOn.isBefore(now)) t,
           ]..sort((a, b) => b.endsOn.compareTo(a.endsOn));
           if (_showHidden) {
-            bool isHidden(Tournament t) => _effectiveHidden(t.id, myHiddenIds);
+            // Sort by the SAVED state only — rows must not jump around while
+            // the user is still ticking; they move on the next eye-open,
+            // after the batch is committed.
+            bool isHidden(Tournament t) => myHiddenIds.contains(t.id);
             active = _hiddenLast(active, isHidden);
             past = _hiddenLast(past, isHidden);
           }
@@ -337,11 +346,20 @@ class _TournamentTile extends StatelessWidget {
     final interestLine = switch (interest) {
       null => null,
       final i when i.players == 0 => null,
-      final i when i.bestDayPlayers == i.players => peopleLabel(i.players),
+      final i when i.players == 1 => peopleLabel(1),
+      // From 2 people up always include the strongest day.
       final i => '${peopleLabel(i.players)} · nejsilnější den '
           '${peopleLabel(i.bestDayPlayers)}',
     };
 
+    // Kind · discipline. The dates live in the left rail (start on top,
+    // end at the bottom), so the meta line doesn't repeat them.
+    final meta = [
+      t.kind.label,
+      if (t.discipline != null) t.discipline!.label,
+    ].join(' · ');
+
+    final textTheme = Theme.of(context).textTheme;
     final card = Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       clipBehavior: Clip.antiAlias,
@@ -358,95 +376,163 @@ class _TournamentTile extends StatelessWidget {
               builder: (_) => TournamentDetailScreen(tournamentId: t.id),
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ListTile(
-                leading: DateBadge(t.startsOn),
-                // Venue first — the team thinks in alleys; the tournament's
-                // own name gets its own full-width line at the bottom.
-                title: Text(t.timelineLabel(venueName),
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(rangeLabel(t.startsOn, t.endsOn)),
-                    if (interestLine != null)
-                      Row(
-                        children: [
-                          Icon(Icons.groups,
-                              size: 14,
-                              color: mine ? scheme.primary : scheme.outline),
-                          const SizedBox(width: 4),
-                          Text(interestLine,
-                              style: Theme.of(context).textTheme.bodySmall),
-                        ],
-                      ),
-                  ],
-                ),
-                // Eye mode swaps the status column for a checkbox: checked =
-                // visible for me, unchecked = hidden (list + chat +
-                // notifications, me only). Taps stay local; the batch goes
-                // out on eye-close.
-                trailing: hiddenByMe != null
-                    ? Checkbox(
-                        value: !hiddenByMe!,
-                        onChanged: (v) => onHiddenByMeChanged?.call(v != true),
-                      )
-                    : SizedBox(
-                        height: 48,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.end,
+          // Left rail = the od–do dates spanning the card height; right of
+          // the divider a single hierarchy: venue (+globe/chip), name,
+          // kind·discipline, interest.
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _DateRail(start: t.startsOn, end: t.endsOn),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: VerticalDivider(
+                        width: 1, color: scheme.outlineVariant),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Manually maintained tournaments (no recognized
-                            // web to sync from) get a crossed-out globe; the
-                            // synced majority stays unmarked.
-                            if (ScraperRegistry.forUrl(t.sourceUrl) == null)
-                              Tooltip(
-                                message:
-                                    'Bez webu — termíny se zadávají ručně',
-                                child: Icon(Icons.public_off,
-                                    size: 16, color: scheme.outline),
-                              )
-                            else
-                              const SizedBox(height: 16),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: chipColor,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(status,
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: chipText)),
+                            // Venue — the team thinks in alleys.
+                            Expanded(
+                              child: Text(venueName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: textTheme.titleLarge?.copyWith(
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.w700)),
                             ),
+                            // Eye mode swaps the status cluster for a
+                            // checkbox: checked = visible for me. Taps stay
+                            // local; the batch goes out on eye-close.
+                            if (hiddenByMe != null)
+                              Checkbox(
+                                value: !hiddenByMe!,
+                                visualDensity: VisualDensity.compact,
+                                onChanged: (v) =>
+                                    onHiddenByMeChanged?.call(v != true),
+                              )
+                            else ...[
+                              // Manual tournaments (no recognized web) get a
+                              // crossed-out globe; the synced majority stays
+                              // unmarked.
+                              if (ScraperRegistry.forUrl(t.sourceUrl) ==
+                                  null)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                      right: 8, top: 2),
+                                  child: Tooltip(
+                                    message: 'Bez webu — termíny se '
+                                        'zadávají ručně',
+                                    child: Icon(Icons.public_off,
+                                        size: 16, color: scheme.outline),
+                                  ),
+                                ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: chipColor,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(status,
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: chipText)),
+                              ),
+                            ],
                           ],
                         ),
-                      ),
+                        Text(t.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.bodySmall
+                                ?.copyWith(color: scheme.onSurfaceVariant)),
+                        const SizedBox(height: 2),
+                        Text(meta,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.bodySmall
+                                ?.copyWith(color: scheme.onSurfaceVariant)),
+                        if (interestLine != null) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(Icons.groups,
+                                  size: 14,
+                                  color: mine
+                                      ? scheme.primary
+                                      : scheme.outline),
+                              const SizedBox(width: 4),
+                              Text(interestLine,
+                                  style: textTheme.bodySmall),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              // The tournament's own name, full card width.
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                child: Text(
-                  t.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: scheme.onSurfaceVariant),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
     );
     // Hidden ones are dimmed while revealed in eye mode.
     return hiddenByMe == true ? Opacity(opacity: 0.5, child: card) : card;
+  }
+}
+
+/// The od–do rail on the card's left: start date on top, end date at the
+/// bottom (omitted for single-day tournaments), each as "31.7." over the
+/// short weekday.
+class _DateRail extends StatelessWidget {
+  const _DateRail({required this.start, required this.end});
+
+  final Day start;
+  final Day end;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    Widget block(Day d, {required bool muted}) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${d.day}.${d.month}.',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 17,
+                color: muted ? scheme.outline : scheme.onSurface,
+              ),
+            ),
+            Text(
+              weekdaysShort[d.weekday - 1],
+              style: TextStyle(fontSize: 12, color: scheme.outline),
+            ),
+          ],
+        );
+
+    return SizedBox(
+      width: 48,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          block(start, muted: false),
+          if (end != start) block(end, muted: true),
+        ],
+      ),
+    );
   }
 }

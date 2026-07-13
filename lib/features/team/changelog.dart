@@ -19,6 +19,15 @@ const appChangelog = <Release>[
     'Kód pro pozvání party je vidět v záložce Tým.',
     'Data týmů jsou úplně oddělená — každá parta vidí jen to svoje.',
   ]),
+  Release('1.3.8', '13. 7. 2026', [
+    'Nová kartička turnaje: data od–do vlevo, kuželna výrazně, pod ní název '
+        'a typ · disciplína.',
+    'Bez internetu appka řekne lidsky „vypadá to, že jsi offline" místo '
+        'chybové hlášky.',
+    'Skrývání: seznam se nepřeskupuje pod prstem (skryté se přesunou až po '
+        'uložení) a offline se skrývání nedá spustit.',
+    'Správné skloňování: „1 člověk může".',
+  ]),
   Release('1.3.7', '13. 7. 2026', [
     'Oprava „celý den" — funguje i když už máš v dni něco zakliknuté.',
     'Kartička turnaje: název turnaje dole přes celou šířku; počty lidí '

@@ -45,9 +45,12 @@ void main() {
       (tester) async {
     await tester.pumpWidget(wrap());
 
-    // Title = "Venue (kind)"; the tournament's own name has its own
-    // full-width line at the card bottom.
-    expect(find.text('Vracov (dvojice)'), findsOneWidget);
+    // Venue alone on top; kind+dates in the meta line; the tournament's
+    // own name below.
+    expect(find.text('Vracov'), findsOneWidget);
+    expect(find.text('dvojice'), findsWidgets);
+    expect(find.text('24.4.'), findsOneWidget); // start in the date rail
+    expect(find.text('26.4.'), findsOneWidget); // end in the date rail
     expect(find.text('Cena Vracova'), findsOneWidget);
   });
 
@@ -57,16 +60,16 @@ void main() {
     await tester.pumpWidget(wrap(myHidden: {'b'}));
 
     // Eye off: hidden tournament invisible.
-    expect(find.text('Olomouc (dvojice)'), findsNothing);
+    expect(find.text('Olomouc'), findsNothing);
 
     await tester.tap(find.byIcon(Icons.visibility_off_outlined));
     await tester.pumpAndSettle();
 
     // Hidden shown, dimmed, after the visible one.
-    expect(find.text('Olomouc (dvojice)'), findsOneWidget);
+    expect(find.text('Olomouc'), findsOneWidget);
     expect(find.byType(Opacity), findsOneWidget);
-    final yVisible = tester.getTopLeft(find.text('Vracov (dvojice)')).dy;
-    final yHidden = tester.getTopLeft(find.text('Olomouc (dvojice)')).dy;
+    final yVisible = tester.getTopLeft(find.text('Vracov')).dy;
+    final yHidden = tester.getTopLeft(find.text('Olomouc')).dy;
     expect(yHidden, greaterThan(yVisible));
 
     // Un-hiding via checkbox is purely local (no Supabase in this test —

@@ -48,7 +48,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           : Api.sendMessage(widget.tournamentId, widget.day, body));
       _input.clear();
     } catch (e) {
-      if (mounted) snack(context, 'Zprávu se nepovedlo odeslat: $e');
+      if (mounted) {
+        snack(
+            context,
+            isOfflineError(e)
+                ? offlineMessage
+                : 'Zprávu se nepovedlo odeslat: $e');
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }

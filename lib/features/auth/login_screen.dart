@@ -39,6 +39,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   static String _friendlyAuthError(Object error) {
+    if (isOfflineError(error)) return offlineMessage;
     final raw = error is AuthException
         ? [error.code, error.message].whereType<String>().join(': ')
         : '$error';
