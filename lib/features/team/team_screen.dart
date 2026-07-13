@@ -39,8 +39,7 @@ class TeamScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         // Long-press the title to reach the hidden manage mode (PIN-gated).
-        title: GestureDetector(
-          onLongPress: () => handleManageGesture(context, ref),
+        title: ManageGestureTitle(
           child: const Text('Tým'),
         ),
         actions: [

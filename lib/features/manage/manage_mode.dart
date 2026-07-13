@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -48,5 +49,31 @@ Future<void> handleManageGesture(BuildContext context, WidgetRef ref) async {
     snack(context, 'Režim správy odemčen.');
   } else {
     snack(context, 'Špatný PIN.');
+  }
+}
+
+
+/// Screen-title wrapper that opens the manage-mode PIN prompt after a LONG
+/// (3 s) press — deliberately much longer than a standard long-press, so
+/// nobody trips over it by accident.
+class ManageGestureTitle extends ConsumerWidget {
+  const ManageGestureTitle({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return RawGestureDetector(
+      gestures: {
+        LongPressGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+          () => LongPressGestureRecognizer(
+              duration: const Duration(seconds: 3)),
+          (recognizer) => recognizer.onLongPress =
+              () => handleManageGesture(context, ref),
+        ),
+      },
+      child: child,
+    );
   }
 }

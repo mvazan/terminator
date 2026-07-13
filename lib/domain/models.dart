@@ -149,6 +149,7 @@ class Team {
     required this.inviteCode,
     required this.managePin,
     required this.approved,
+    this.createdBy,
   });
 
   final String id;
@@ -157,12 +158,16 @@ class Team {
   final String managePin;
   final bool approved;
 
+  /// The founder — the one member who sees the manage-PIN explainer.
+  final String? createdBy;
+
   factory Team.fromJson(Map<String, dynamic> json) => Team(
         id: json['id'] as String,
         name: json['name'] as String,
         inviteCode: json['invite_code'] as String,
         managePin: json['manage_pin'] as String,
         approved: json['status'] == 'approved',
+        createdBy: json['created_by'] as String?,
       );
 }
 

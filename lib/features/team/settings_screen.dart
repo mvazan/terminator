@@ -16,7 +16,11 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final prefs = ref.watch(myNotificationPrefsProvider).value ?? const {};
-    final superadmin = ref.watch(myProfileProvider).value?.superadmin ?? false;
+    final me = ref.watch(myProfileProvider).value;
+    final superadmin = me?.superadmin ?? false;
+    final team = ref.watch(myTeamProvider);
+    final isFounder =
+        me != null && team != null && team.createdBy == me.id;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Nastavení')),
@@ -55,6 +59,26 @@ class SettingsScreen extends ConsumerWidget {
               MaterialPageRoute(builder: (_) => const VenuesScreen()),
             ),
           ),
+          // Founder-only: how the (deliberately obscure) manage mode works.
+          if (isFounder) ...[
+            const Divider(height: 24),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              child: Text('Režim správy — jen pro zakladatele',
+                  style: Theme.of(context).textTheme.titleMedium),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Podrž 3 sekundy prst na nadpisu „Turnaje" nebo „Tým" a '
+                'zadej PIN. Odemkne se skrývání turnajů pro celý tým a '
+                'skrývání členů (např. když někdo z party odejde). Zamkneš '
+                'stejným podržením.\n\n'
+                'PIN správy: ${team.managePin}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
         ],
       ),

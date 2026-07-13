@@ -8,13 +8,9 @@ po obrazovce. (Pokud hledáš, proč appka vznikla a co se plánuje do budoucna,
 
 ## 1. Instalace
 
-Termínátor zatím není v Google Play — instaluje se přímo ze souboru (APK), který ti
-pošle někdo z party (e-mailem, přes Drive, WhatsApp…).
-
-1. Otevři APK soubor v telefonu.
-2. Android se zeptá, jestli povolíš instalaci z neznámých zdrojů — to je v pořádku,
-   potvrď.
-3. Appka se nainstaluje jako běžná aplikace.
+Termínátor je v **Google Play** v interním testování. Správce ti pošle
+pozvánkový odkaz — otevři ho, potvrď účast v testování a nainstaluj appku
+jako z běžného obchodu. Aktualizace pak chodí samy přes Play.
 
 iPhone verze zatím není — první vlna je jen pro Android.
 
@@ -25,14 +21,17 @@ iPhone verze zatím není — první vlna je jen pro Android.
 2. Přijde ti e-mail s odkazem. Otevři ho **v telefonu** (ne v počítači) a klikni na
    odkaz — appka se sama otevře a jsi přihlášený/á. Odkaz platí hodinu a funguje jen
    ten z nejnovějšího e-mailu (když si pošleš víc odkazů, klikni na ten poslední).
-3. Appka tě ještě nezná, takže se zeptá na:
-   - **Kód týmu** — zeptej se toho, kdo appku pro partu spravuje.
-   - **Tvoje jméno**, jak tě parta zná.
-   Potvrď tlačítkem **„Přidat se k týmu"**.
-4. Pokud jsi úplně první, kdo appku pro partu spouští, jsi automaticky schválen/a
-   (zakladatel). Jinak se objeví obrazovka **„Čekáš na schválení"** — někomu z party
-   přijde upozornění a jedním klepnutím tě pustí dál. Nemusíš nic obnovovat, jakmile
-   tě někdo schválí, appka se sama přepne.
+3. Appka tě ještě nezná — máš dvě možnosti:
+   - **Přidat se k týmu**: zadej **kód týmu** (dá ti ho ten, kdo appku pro
+     partu spravuje) a **svoje jméno**, jak tě parta zná.
+   - **Založit nový tým**: zadej název týmu a svoje jméno. Dostaneš PIN
+     režimu správy; kód pro zvaní party přidělí správce aplikace při
+     schválení týmu — pak ho najdeš v záložce Tým (ikona klíče).
+4. **Přidal/a ses k týmu?** Pokud jsi jeho úplně první člen, jsi schválen/a
+   automaticky (zakladatel). Jinak se objeví obrazovka **„Čekáš na
+   schválení"** — někomu z party přijde upozornění a jedním klepnutím tě
+   pustí dál. **Založil/a jsi nový tým?** Čeká se na schválení správcem
+   aplikace. V obou případech se appka sama přepne, nic neobnovuj.
 
 Později appka pozná, že jsi přihlášený/á, a rovnou tě pustí dovnitř — tenhle postup
 je jen napoprvé.
@@ -53,7 +52,10 @@ Dole jsou čtyři záložky:
 | **Moje starty** | Tvoje nadcházející objednané starty — úvodní obrazovka |
 | **Turnaje** | Seznam turnajů, zakládání nových, odklikávání termínů |
 | **Chaty** | Chat celé party, chat k turnaji a chaty hracích dní |
-| **Tým** | Kdo je v partě, schvalování nových členů, nastavení upozornění |
+| **Tým** | Kdo je v partě, kód pro zvaní, schvalování nových členů, nastavení |
+
+Každá parta má v appce **vlastní, úplně oddělený prostor** — vidíš jen
+turnaje, chaty a členy svého týmu.
 
 V seznamu turnajů je hlavním nadpisem **kuželna** (název turnaje je pod ní).
 U turnaje vidíš, **kolik lidí z party se hlásí** a kolik jich má nejsilnější
@@ -227,6 +229,8 @@ na daný turnaj nebo přímo do chatu.
 Záložka **Tým** ukazuje:
 
 - Tvůj profil nahoře (jméno jde upravit ikonou tužky).
+- **Kód pro pozvání** (řádek s ikonou klíče) — pošli ho tomu, kdo se má
+  přidat k partě.
 - Sekci **„Čekají na schválení"**, pokud čeká nový člen — tlačítkem **„Schválit"**
   ho pustíš dál. Schválit může kdokoliv z party, není potřeba „admin".
 - Seznam všech členů party.

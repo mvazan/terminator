@@ -21,6 +21,8 @@ create table teams (
   -- members can use the app (mirrors member approval, one level up).
   status text not null default 'pending'
     check (status in ('pending', 'approved')),
+  -- The founder — sees the manage-PIN explainer in settings.
+  created_by uuid references profiles (id) on delete set null,
   approved_by uuid references profiles (id),
   approved_at timestamptz,
   created_at timestamptz not null default now()
@@ -70,6 +72,10 @@ create index team_messages_team_idx on team_messages (team_id);
 -- The app owner approves new teams. Identified by login e-mail.
 update profiles set superadmin = true
 where id = (select id from auth.users where email = 'milos.vazan@gmail.com');
+
+-- The migrated team's founder = the app owner.
+update teams set created_by =
+  (select id from auth.users where email = 'milos.vazan@gmail.com');
 
 -- ---------------------------------------------------------------------------
 -- Helpers

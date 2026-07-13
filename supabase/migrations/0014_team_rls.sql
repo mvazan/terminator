@@ -279,6 +279,9 @@ begin
   values (v_uid, trim(p_display_name), v_team.id, 'approved', now())
   returning * into v_profile;
 
+  -- FK to profiles — can only point at the founder after the row above.
+  update teams set created_by = v_uid where id = v_team.id;
+
   return json_build_object('manage_pin', v_team.manage_pin);
 end;
 $$;

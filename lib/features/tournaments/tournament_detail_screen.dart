@@ -107,8 +107,7 @@ class _TournamentDetailScreenState
         // Long-press the title to reach the hidden manage mode (PIN-gated).
         // Venue leads (the team thinks in alleys); the tournament's own name
         // rides below in small type.
-        title: GestureDetector(
-          onLongPress: () => handleManageGesture(context, ref),
+        title: ManageGestureTitle(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
