@@ -10,6 +10,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../config.dart';
 import '../domain/heatmap.dart';
 import '../domain/models.dart';
 import '../scrape/scraper.dart';
@@ -370,6 +371,11 @@ class Api {
   /// code the user can type in.
   static Future<void> verifyEmailOtp(String email, String code) =>
       _db.auth.verifyOTP(type: OtpType.email, email: email, token: code);
+
+  /// Demo-account sign-in for Google Play review: password login (no e-mail),
+  /// used only for [AppConfig.demoEmail]. See AppConfig for why this exists.
+  static Future<void> signInDemo() => _db.auth.signInWithPassword(
+      email: AppConfig.demoEmail, password: AppConfig.demoPassword);
 
   static Future<void> signOut() async {
     // Wipe the offline cache so a signed-out device keeps no team data.
