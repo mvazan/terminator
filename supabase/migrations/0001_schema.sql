@@ -298,6 +298,16 @@ $$;
 -- NOTE: the project URL is hardcoded — if the project ref ever changes (region
 -- move), update it here AND redeploy. (This bit us once: after the Ireland →
 -- Frankfurt move the old URL lingered and silently dropped every push.)
+-- The shared webhook secret lives in Supabase Vault (never in source):
+--   select vault.create_secret('<value>', 'webhook_secret');
+create or replace function webhook_secret()
+returns text
+language sql stable security definer set search_path = ''
+as $$
+  select decrypted_secret from vault.decrypted_secrets
+  where name = 'webhook_secret';
+$$;
+
 create or replace function notify_webhook()
 returns trigger
 language plpgsql security definer set search_path = public
@@ -307,7 +317,7 @@ begin
     url := 'https://txieiufeccpnnceunyxo.supabase.co/functions/v1/notify',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'x-webhook-secret', '3f3681ba6f2a83b0e2c0ad6f3619d27bb856d3ba8dd44ee4'
+      'x-webhook-secret', webhook_secret()
     ),
     body := jsonb_build_object(
       'type', tg_op,
@@ -508,5 +518,5 @@ alter publication supabase_realtime add table
 -- ---------------------------------------------------------------------------
 
 insert into team_settings (id, invite_code, manage_pin)
-select true, 'veverky', '2468'
+select true, 'zmen-me', '0000'
 where not exists (select 1 from team_settings);
