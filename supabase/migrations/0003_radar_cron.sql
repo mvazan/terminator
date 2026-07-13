@@ -14,7 +14,7 @@ begin
     url := 'https://txieiufeccpnnceunyxo.supabase.co/functions/v1/radar',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'x-webhook-secret', '3f3681ba6f2a83b0e2c0ad6f3619d27bb856d3ba8dd44ee4'
+      'x-webhook-secret', webhook_secret()
     ),
     body := '{}'::jsonb
   );
