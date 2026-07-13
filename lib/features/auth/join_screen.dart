@@ -42,7 +42,7 @@ class _JoinScreenState extends State<JoinScreen> {
             context,
             '$e'.contains('invalid_invite_code')
                 ? 'Neplatný kód týmu.'
-                : 'Nepovedlo se: $e');
+                : friendlyError(e));
       }
     } finally {
       if (mounted) setState(() => _joining = false);

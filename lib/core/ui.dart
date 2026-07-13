@@ -47,6 +47,29 @@ void snack(BuildContext context, String message) {
       .showSnackBar(SnackBar(content: Text(message)));
 }
 
+/// True when [e] smells like a dead/absent connection rather than a bug —
+/// DNS failures, refused/unreachable sockets, and Supabase's retryable
+/// fetch wrapper around them.
+bool isOfflineError(Object e) {
+  final s = '$e';
+  return s.contains('SocketException') ||
+      s.contains('Failed host lookup') ||
+      s.contains('ClientException') ||
+      s.contains('AuthRetryableFetchException') ||
+      s.contains('Connection refused') ||
+      s.contains('Network is unreachable') ||
+      s.contains('Connection reset') ||
+      s.contains('Software caused connection abort');
+}
+
+const offlineMessage =
+    'Vypadá to, že jsi offline — zkontroluj připojení a zkus to znovu.';
+
+/// User-facing message for [e]: friendly for connectivity problems, raw
+/// (prefixed) for everything else so real bugs stay diagnosable.
+String friendlyError(Object e) =>
+    isOfflineError(e) ? offlineMessage : 'Nepovedlo se: $e';
+
 /// Runs [action]; on failure shows the error as a snackbar.
 /// Returns true when the action succeeded.
 ///
@@ -67,8 +90,14 @@ Future<bool> tryAction(BuildContext context, Future<void> Function() action,
     }
     return false;
   } catch (e, stack) {
-    // Report the swallowed failure as a non-fatal (scrape/Supabase/network
-    // errors surface here); no-op when Sentry isn't configured.
+    // Offline is the user's situation, not a defect — friendly message,
+    // no Sentry noise.
+    if (isOfflineError(e)) {
+      if (context.mounted) snack(context, offlineMessage);
+      return false;
+    }
+    // Report the swallowed failure as a non-fatal (scrape/Supabase errors
+    // surface here); no-op when Sentry isn't configured.
     if (AppConfig.hasSentry) {
       await Sentry.captureException(e, stackTrace: stack);
     }
