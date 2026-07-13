@@ -337,7 +337,8 @@ class _TournamentTile extends StatelessWidget {
     final interestLine = switch (interest) {
       null => null,
       final i when i.players == 0 => null,
-      final i when i.bestDayPlayers == i.players => peopleLabel(i.players),
+      final i when i.players == 1 => peopleLabel(1),
+      // From 2 people up always include the strongest day.
       final i => '${peopleLabel(i.players)} · nejsilnější den '
           '${peopleLabel(i.bestDayPlayers)}',
     };
@@ -394,8 +395,9 @@ class _TournamentTile extends StatelessWidget {
                               child: Text(venueName,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.w600)),
+                                  style: textTheme.titleLarge?.copyWith(
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.w700)),
                             ),
                             // Eye mode swaps the status cluster for a
                             // checkbox: checked = visible for me. Taps stay
@@ -501,19 +503,19 @@ class _DateRail extends StatelessWidget {
               '${d.day}.${d.month}.',
               style: TextStyle(
                 fontWeight: FontWeight.w700,
-                fontSize: 14,
+                fontSize: 17,
                 color: muted ? scheme.outline : scheme.onSurface,
               ),
             ),
             Text(
               weekdaysShort[d.weekday - 1],
-              style: TextStyle(fontSize: 11, color: scheme.outline),
+              style: TextStyle(fontSize: 12, color: scheme.outline),
             ),
           ],
         );
 
     return SizedBox(
-      width: 40,
+      width: 48,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
