@@ -41,13 +41,14 @@ void main() {
         child: const MaterialApp(home: TournamentsScreen()),
       );
 
-  testWidgets('venue leads the tile; tournament name is the subtitle',
+  testWidgets('venue leads the tile; tournament name is the bottom line',
       (tester) async {
     await tester.pumpWidget(wrap());
 
-    // Title = "Venue (kind)", subtitle starts with the tournament name.
+    // Title = "Venue (kind)"; the tournament's own name has its own
+    // full-width line at the card bottom.
     expect(find.text('Vracov (dvojice)'), findsOneWidget);
-    expect(find.textContaining('Cena Vracova ·'), findsOneWidget);
+    expect(find.text('Cena Vracova'), findsOneWidget);
   });
 
   testWidgets(

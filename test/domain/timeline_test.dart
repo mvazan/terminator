@@ -105,20 +105,20 @@ void main() {
       );
       final row = Timeline.build([
         t
-      ], startDaysByTournament: {
-        'a': {Day(2026, 4, 24), Day(2026, 5, 4)}, // Fri wk0, Mon wk2
+      ], tickedDaysByTournament: {
+        'a': {Day(2026, 4, 24), Day(2026, 5, 4)}, // Fri wk0, Mon wk2 (my ticks)
       }).rows.single;
 
       expect(row.markers, hasLength(2));
       final friday = row.markersIn(0).single;
       expect(friday.dayIndex, 4);
-      expect(friday.kind, DayMarkerKind.start);
+      expect(friday.kind, DayMarkerKind.tick);
       final monday = row.markersIn(2).single;
       expect(monday.dayIndex, 0);
       expect(row.markersIn(1), isEmpty);
     });
 
-    test('an ordered day overrides its start marker', () {
+    test('an ordered day overrides its tick marker', () {
       final t = makeTournament(
         id: 'a',
         venueId: 'v',
@@ -127,7 +127,7 @@ void main() {
       );
       final row = Timeline.build([
         t
-      ], startDaysByTournament: {
+      ], tickedDaysByTournament: {
         'a': {Day(2026, 4, 23)},
       }, orderedDaysByTournament: {
         'a': {Day(2026, 4, 23)},

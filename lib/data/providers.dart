@@ -38,6 +38,10 @@ final _userIdProvider = Provider<String?>((ref) {
   return currentUserId;
 });
 
+/// Public, overridable view of the signed-in user's id — widgets that need it
+/// in build (and their tests) read this instead of the raw Supabase getter.
+final currentUserIdProvider = Provider<String?>((ref) => ref.watch(_userIdProvider));
+
 /// The signed-in user's profile row (null while the user has no profile yet,
 /// i.e. before entering the invite code). Live — flips when approved.
 final myProfileProvider = StreamProvider<Profile?>((ref) {
@@ -542,9 +546,11 @@ class Api {
   static Future<void> setAvailability(String slotId, bool available) async {
     final uid = currentUserId!;
     if (available) {
-      await _db
-          .from('availability')
-          .upsert({'slot_id': slotId, 'user_id': uid});
+      // DO NOTHING on conflict — availability has no UPDATE policy (see
+      // setAvailabilityBulk), and a racing double-tap would otherwise 42501.
+      await _db.from('availability').upsert(
+          {'slot_id': slotId, 'user_id': uid},
+          ignoreDuplicates: true);
     } else {
       await _db
           .from('availability')
@@ -554,15 +560,18 @@ class Api {
     }
   }
 
-  /// Tick/untick many slots at once (whole-day select). The upsert is
-  /// idempotent for already-ticked slots; untick is one inFilter round trip.
+  /// Tick/untick many slots at once (whole-day select). ignoreDuplicates
+  /// makes the upsert ON CONFLICT DO NOTHING — availability has no UPDATE
+  /// policy, so the default DO UPDATE is rejected by RLS the moment any of
+  /// the day's slots is already ticked.
   static Future<void> setAvailabilityBulk(
       List<String> slotIds, bool available) async {
     if (slotIds.isEmpty) return;
     final uid = currentUserId!;
     if (available) {
       await _db.from('availability').upsert(
-          [for (final id in slotIds) {'slot_id': id, 'user_id': uid}]);
+          [for (final id in slotIds) {'slot_id': id, 'user_id': uid}],
+          ignoreDuplicates: true);
     } else {
       await _db
           .from('availability')

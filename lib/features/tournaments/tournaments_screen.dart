@@ -338,8 +338,8 @@ class _TournamentTile extends StatelessWidget {
       null => null,
       final i when i.players == 0 => null,
       final i when i.bestDayPlayers == i.players => peopleLabel(i.players),
-      final i =>
-        '${peopleLabel(i.players)} · nejsilnější den ${i.bestDayPlayers}',
+      final i => '${peopleLabel(i.players)} · nejsilnější den '
+          '${peopleLabel(i.bestDayPlayers)}',
     };
 
     final card = Card(
@@ -352,76 +352,96 @@ class _TournamentTile extends StatelessWidget {
                 border: Border(
                     left: BorderSide(color: scheme.primary, width: 3)))
             : null,
-        child: ListTile(
-          leading: DateBadge(t.startsOn),
-          // Venue first — the team thinks in alleys; the tournament's own
-          // name is the detail line below.
-          title: Text(t.timelineLabel(venueName),
-              style: const TextStyle(fontWeight: FontWeight.w600)),
-          isThreeLine: interestLine != null,
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('${t.name} · ${rangeLabel(t.startsOn, t.endsOn)}',
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              if (interestLine != null)
-                Row(
-                  children: [
-                    Icon(Icons.groups,
-                        size: 14,
-                        color: mine ? scheme.primary : scheme.outline),
-                    const SizedBox(width: 4),
-                    Text(interestLine,
-                        style: Theme.of(context).textTheme.bodySmall),
-                  ],
-                ),
-            ],
-          ),
-          // Eye mode swaps the status column for a checkbox: checked =
-          // visible for me, unchecked = hidden (list + chat + notifications,
-          // me only). Taps stay local; the batch goes out on eye-close.
-          trailing: hiddenByMe != null
-              ? Checkbox(
-                  value: !hiddenByMe!,
-                  onChanged: (v) => onHiddenByMeChanged?.call(v != true),
-                )
-              : SizedBox(
-                  height: 48,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      // Tournaments whose starts/occupancy sync from a
-                      // recognized web page get a small globe marker in the
-                      // top-right corner.
-                      if (ScraperRegistry.forUrl(t.sourceUrl) != null)
-                        Tooltip(
-                          message: 'Synchronizováno z webu',
-                          child: Icon(Icons.public,
-                              size: 16, color: scheme.outline),
-                        )
-                      else
-                        const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: chipColor,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(status,
-                            style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: chipText)),
-                      ),
-                    ],
-                  ),
-                ),
+        child: InkWell(
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => TournamentDetailScreen(tournamentId: t.id),
             ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ListTile(
+                leading: DateBadge(t.startsOn),
+                // Venue first — the team thinks in alleys; the tournament's
+                // own name gets its own full-width line at the bottom.
+                title: Text(t.timelineLabel(venueName),
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(rangeLabel(t.startsOn, t.endsOn)),
+                    if (interestLine != null)
+                      Row(
+                        children: [
+                          Icon(Icons.groups,
+                              size: 14,
+                              color: mine ? scheme.primary : scheme.outline),
+                          const SizedBox(width: 4),
+                          Text(interestLine,
+                              style: Theme.of(context).textTheme.bodySmall),
+                        ],
+                      ),
+                  ],
+                ),
+                // Eye mode swaps the status column for a checkbox: checked =
+                // visible for me, unchecked = hidden (list + chat +
+                // notifications, me only). Taps stay local; the batch goes
+                // out on eye-close.
+                trailing: hiddenByMe != null
+                    ? Checkbox(
+                        value: !hiddenByMe!,
+                        onChanged: (v) => onHiddenByMeChanged?.call(v != true),
+                      )
+                    : SizedBox(
+                        height: 48,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            // Manually maintained tournaments (no recognized
+                            // web to sync from) get a crossed-out globe; the
+                            // synced majority stays unmarked.
+                            if (ScraperRegistry.forUrl(t.sourceUrl) == null)
+                              Tooltip(
+                                message:
+                                    'Bez webu — termíny se zadávají ručně',
+                                child: Icon(Icons.public_off,
+                                    size: 16, color: scheme.outline),
+                              )
+                            else
+                              const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: chipColor,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(status,
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: chipText)),
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
+              // The tournament's own name, full card width.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                child: Text(
+                  t.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: scheme.onSurfaceVariant),
+                ),
+              ),
+            ],
           ),
         ),
       ),

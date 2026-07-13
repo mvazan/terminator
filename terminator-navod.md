@@ -67,8 +67,8 @@ Nahoře v Turnajích najdeš tři ikony:
 - **Mapa** — kuželny na mapě; barevný pin = má nadcházející turnaj,
   klepnutím uvidíš které.
 - **Kalendář** — sezónní přehled (viz níže). Svislé čárky v pruhu turnaje
-  ukazují dny se starty (tmavá) a objednané dny (červená); okem jde šedě
-  zobrazit i turnaje, které sis skryl/a.
+  ukazují dny, kdy můžeš ty (tmavá), a objednané dny (červená); okem jde
+  šedě zobrazit i turnaje, které sis skryl/a.
 
 Když vypadne internet, appka ukáže **poslední známá data** (jen ke čtení)
 a nahoře pruh „Offline".
@@ -147,8 +147,9 @@ zadávání časů. Appka to pozná a napíše *„✓ Rozpoznáno…"*. Předvy
 klidně upravit. U takových turnajů se dá obsazenost kdykoliv ručně obnovit ikonou
 v detailu turnaje.
 
-V **seznamu turnajů** takový turnaj poznáš podle **ikony zeměkoule** vedle názvu —
-značí, že se termíny a obsazenost synchronizují z webu.
+V **seznamu turnajů** je to naopak vidět u turnajů BEZ webu: **přeškrtnutá
+zeměkoule** značí, že se termíny zadávají ručně. Synchronizované turnaje
+žádnou ikonu nemají (je jich většina).
 
 ## 7. Odklikávání termínů (kdy můžeš)
 

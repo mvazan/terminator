@@ -21,9 +21,9 @@ class WeekColumn {
       '${monday.day}.${monday.month}.–${sunday.day}.${sunday.month}.';
 }
 
-/// A vertical day mark inside a tournament's bar: the tournament has starts
-/// (slots) on that day, or — stronger — an active order there.
-enum DayMarkerKind { start, ordered }
+/// A vertical day mark inside a tournament's bar: the viewer ticked their
+/// availability on that day, or — stronger — the team has an active order.
+enum DayMarkerKind { tick, ordered }
 
 class DayMarker {
   const DayMarker({
@@ -95,12 +95,12 @@ class Timeline {
   /// Builds the timeline covering every week any tournament touches.
   /// Rows keep the given tournament order (caller sorts, typically by start).
   ///
-  /// [startDaysByTournament] / [orderedDaysByTournament] mark days that have
-  /// starts (slots) resp. an active order — rendered as vertical lines in the
-  /// bar. A day that is both start and ordered renders as ordered.
+  /// [tickedDaysByTournament] / [orderedDaysByTournament] mark days where the
+  /// viewer ticked availability resp. the team has an active order — rendered
+  /// as vertical lines in the bar. Ordered wins when a day is both.
   factory Timeline.build(
     List<Tournament> tournaments, {
-    Map<String, Set<Day>> startDaysByTournament = const {},
+    Map<String, Set<Day>> tickedDaysByTournament = const {},
     Map<String, Set<Day>> orderedDaysByTournament = const {},
   }) {
     if (tournaments.isEmpty) {
@@ -125,15 +125,15 @@ class Timeline {
 
     List<DayMarker> markersOf(Tournament t) {
       final ordered = orderedDaysByTournament[t.id] ?? const <Day>{};
-      final starts = startDaysByTournament[t.id] ?? const <Day>{};
+      final ticks = tickedDaysByTournament[t.id] ?? const <Day>{};
       return [
-        for (final d in {...starts, ...ordered})
+        for (final d in {...ticks, ...ordered})
           DayMarker(
             col: colOf(d),
             dayIndex: d.weekday - 1,
             kind: ordered.contains(d)
                 ? DayMarkerKind.ordered
-                : DayMarkerKind.start,
+                : DayMarkerKind.tick,
           ),
       ];
     }

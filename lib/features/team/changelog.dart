@@ -12,6 +12,15 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('1.3.7', '13. 7. 2026', [
+    'Oprava „celý den" — funguje i když už máš v dni něco zakliknuté.',
+    'Kartička turnaje: název turnaje dole přes celou šířku; počty lidí '
+        'čitelněji („nejsilnější den 2 lidé").',
+    'Ikona zeměkoule obráceně: přeškrtnutá jen u turnajů BEZ webu.',
+    'Sezónní kalendář: čárky jen na dnech, kdy můžeš ty, a objednaných '
+        '(míň šumu).',
+    'Offline pruh se ukazuje na všech obrazovkách, i v detailech.',
+  ]),
   Release('1.3.6', '13. 7. 2026', [
     'Seznam turnajů: kuželna je hlavní nadpis, u turnaje vidíš kolik lidí '
         'se hlásí (i nejsilnější den) a levý proužek značí, že máš něco '

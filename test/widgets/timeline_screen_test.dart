@@ -18,6 +18,7 @@ void main() {
     List<Tournament>? tournaments,
     Set<String> myHidden = const {},
     List<Slot> slots = const [],
+    List<Availability> availability = const [],
     List<Order> orders = const [],
     Map<String, Map<String, int>> orderSlots = const {},
   }) =>
@@ -28,9 +29,12 @@ void main() {
           myHiddenTournamentsProvider
               .overrideWithValue(AsyncValue.data(myHidden)),
           slotsProvider.overrideWithValue(AsyncValue.data(slots)),
+          availabilityProvider
+              .overrideWithValue(AsyncValue.data(availability)),
           ordersProvider.overrideWithValue(AsyncValue.data(orders)),
           orderSlotsProvider.overrideWithValue(AsyncValue.data(orderSlots)),
           venueNamesProvider.overrideWithValue({'v1': 'Vracov'}),
+          currentUserIdProvider.overrideWithValue('me'),
         ],
         child: const MaterialApp(home: TimelineScreen()),
       );
@@ -63,7 +67,7 @@ void main() {
     expect(bar.color, const Color(0xFFBDBDBD));
   });
 
-  testWidgets('start and ordered days render distinct vertical markers',
+  testWidgets('my ticks and ordered days render distinct vertical markers',
       (tester) async {
     final slot = makeSlot(
       's1',
@@ -71,9 +75,10 @@ void main() {
       const HourMinute(17, 0),
       tournamentId: tournament.id,
     );
-    await tester.pumpWidget(wrap(slots: [slot]));
+    const myTick = Availability(slotId: 's1', userId: 'me');
+    await tester.pumpWidget(wrap(slots: [slot], availability: [myTick]));
 
-    // One bar + one 2px start marker (black54 is not fully opaque, so it is
+    // One bar + one 2px tick marker (black54 is not fully opaque, so it is
     // not matched by opaqueBoxes).
     final marker = find.byWidgetPredicate(
         (w) => w is ColoredBox && w.color == Colors.black54);
@@ -84,6 +89,7 @@ void main() {
     final order = makeOrder(id: 'o1', tournamentId: tournament.id);
     await tester.pumpWidget(wrap(
       slots: [slot],
+      availability: [myTick],
       orders: [order],
       orderSlots: {
         'o1': {'s1': 1},
