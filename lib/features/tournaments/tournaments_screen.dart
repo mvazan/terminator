@@ -139,6 +139,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
     final tournaments = ref.watch(tournamentsProvider);
     final venueNames = ref.watch(venueNamesProvider);
     final interest = ref.watch(tournamentInterestProvider);
+    final online = ref.watch(realtimeConnectedProvider).value ?? true;
     final now = today();
     final manage = ref.watch(manageUnlockedProvider);
     final hidden = manage
@@ -165,19 +166,24 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
           // Eye mode: reveal my hidden tournaments with checkboxes to
           // hide/unhide in bulk; closing commits everything at once.
           IconButton(
-            tooltip: _showHidden
-                ? 'Hotovo — skrýt odškrtnuté'
-                : 'Zobrazit skryté turnaje',
+            tooltip: !online
+                ? 'Offline — skrývání je jen ke čtení'
+                : (_showHidden
+                    ? 'Hotovo — skrýt odškrtnuté'
+                    : 'Zobrazit skryté turnaje'),
             icon: Icon(_showHidden
                 ? Icons.visibility
                 : Icons.visibility_off_outlined),
-            onPressed: () {
-              if (_showHidden) {
-                _closeEyeMode();
-              } else {
-                setState(() => _showHidden = true);
-              }
-            },
+            // Offline the batch couldn't be saved — don't let edits start.
+            onPressed: !online && !_showHidden
+                ? null
+                : () {
+                    if (_showHidden) {
+                      _closeEyeMode();
+                    } else {
+                      setState(() => _showHidden = true);
+                    }
+                  },
           ),
           IconButton(
             tooltip: 'Mapa kuželen',
@@ -228,7 +234,10 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
               if (t.isArchived || t.endsOn.isBefore(now)) t,
           ]..sort((a, b) => b.endsOn.compareTo(a.endsOn));
           if (_showHidden) {
-            bool isHidden(Tournament t) => _effectiveHidden(t.id, myHiddenIds);
+            // Sort by the SAVED state only — rows must not jump around while
+            // the user is still ticking; they move on the next eye-open,
+            // after the batch is committed.
+            bool isHidden(Tournament t) => myHiddenIds.contains(t.id);
             active = _hiddenLast(active, isHidden);
             past = _hiddenLast(past, isHidden);
           }
