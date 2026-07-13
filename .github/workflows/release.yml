@@ -59,6 +59,17 @@ jobs:
           cp build/app/outputs/bundle/release/app-release.aab \
              terminator-${{ github.ref_name }}.aab
 
+      # "What's new" for Play, generated from the in-app changelog so the store
+      # text always matches what testers see in the app. The tag is v2.0.1; the
+      # changelog keys by bare version (2.0.1). Missing entry -> fail loudly.
+      - name: Generate Play release notes from changelog
+        run: |
+          mkdir -p whatsnew
+          VERSION="${GITHUB_REF_NAME#v}"
+          dart run tool/whatsnew.dart "$VERSION" > whatsnew/whatsnew-cs-CZ.txt
+          echo "----- whatsnew-cs-CZ.txt -----"
+          cat whatsnew/whatsnew-cs-CZ.txt
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -77,5 +88,6 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: cz.kuzelky.terminator
           releaseFiles: terminator-${{ github.ref_name }}.aab
+          whatsNewDirectory: whatsnew
           track: internal
           status: draft
