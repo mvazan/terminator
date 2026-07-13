@@ -5,6 +5,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config.dart';
+import 'core/offline_banner.dart';
 import 'features/auth/auth_gate.dart';
 import 'push/push.dart';
 
@@ -49,6 +50,11 @@ class TerminatorApp extends StatelessWidget {
       title: 'Termínátor',
       navigatorKey: Push.navigatorKey,
       debugShowCheckedModeBanner: false,
+      // Offline banner over EVERY screen (wraps the Navigator). Only when a
+      // backend is configured — the provider touches Supabase.instance.
+      builder: AppConfig.hasSupabase
+          ? (context, child) => OfflineBanner(child: child!)
+          : null,
       locale: const Locale('cs'),
       supportedLocales: const [Locale('cs'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,

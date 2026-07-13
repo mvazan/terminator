@@ -14,13 +14,13 @@ const _labelWidth = 140.0;
 /// show-hidden toggle is on.
 const _hiddenBarColor = Color(0xFFBDBDBD);
 
-/// Marker line colors: a day with starts vs. a day with an active order.
-const _startMarkerColor = Colors.black54;
+/// Marker line colors: a day I ticked vs. a day with an active order.
+const _tickMarkerColor = Colors.black54;
 const _orderedMarkerColor = Color(0xFFD32F2F);
 
 /// Season calendar — the team's spreadsheet as a screen: rows = tournaments,
 /// columns = weeks, colored bars = duration. Overlaps at a glance.
-/// Vertical lines inside a bar mark days with starts (dark) and days with an
+/// Vertical lines inside a bar mark days I ticked (dark) and days with an
 /// active order (red). Display only by design (no trip suggestions).
 class TimelineScreen extends ConsumerStatefulWidget {
   const TimelineScreen({super.key});
@@ -45,12 +45,20 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
         .toList(); // stream is already sorted by startsOn
     final venueNames = ref.watch(venueNamesProvider);
 
-    // Days with starts, and days with an active order, per tournament.
+    // Days where I ticked availability, and days with an active order, per
+    // tournament. (Marking every slot day drowned the bars in lines —
+    // scraped tournaments have starts daily.)
     final slots = ref.watch(slotsProvider).value ?? const <Slot>[];
     final slotById = {for (final s in slots) s.id: s};
-    final startDays = <String, Set<Day>>{};
-    for (final s in slots) {
-      startDays.putIfAbsent(s.tournamentId, () => {}).add(s.date);
+    final uid = ref.watch(currentUserIdProvider);
+    final tickedDays = <String, Set<Day>>{};
+    for (final a in ref.watch(availabilityProvider).value ??
+        const <Availability>[]) {
+      if (a.userId != uid) continue;
+      final slot = slotById[a.slotId];
+      if (slot != null) {
+        tickedDays.putIfAbsent(slot.tournamentId, () => {}).add(slot.date);
+      }
     }
     final orderSlots = ref.watch(orderSlotsProvider).value ??
         const <String, Map<String, int>>{};
@@ -68,7 +76,7 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
 
     final timeline = Timeline.build(
       tournaments,
-      startDaysByTournament: startDays,
+      tickedDaysByTournament: tickedDays,
       orderedDaysByTournament: orderedDays,
     );
 
@@ -219,7 +227,7 @@ class _TimelineRow extends StatelessWidget {
                         child: ColoredBox(
                           color: m.kind == DayMarkerKind.ordered
                               ? _orderedMarkerColor
-                              : _startMarkerColor,
+                              : _tickMarkerColor,
                         ),
                       ),
                   ],
