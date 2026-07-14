@@ -15,7 +15,12 @@ import 'tournament_detail_screen.dart';
 /// the venue's tournaments and dates. Venues saved before coordinates existed
 /// are geocoded lazily here, one per second per Nominatim's policy.
 class MapScreen extends ConsumerStatefulWidget {
-  const MapScreen({super.key});
+  const MapScreen({super.key, required this.colored});
+
+  /// true = "Mapa turnajů" (one tournament per venue, colored by my state),
+  /// opened from the tournaments screen; false = "Mapa kuželen" (all venues,
+  /// plain pins), opened from the venues screen. Fixed here — no in-map toggle.
+  final bool colored;
 
   @override
   ConsumerState<MapScreen> createState() => _MapScreenState();
@@ -25,10 +30,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   /// Venue ids geocoding failed for this session — don't re-hit Nominatim.
   final _geocodeFailed = <String>{};
   bool _backfilling = false;
-
-  /// false = all venues, plain pins (upcoming = primary); true = one
-  /// tournament per venue, pin colored by my personal state.
-  bool _coloredMode = false;
 
   /// Colored mode only: whether tournaments I've hidden ("nezajímá mě") get a
   /// grey pin. Off by default — hidden means out of sight.
@@ -92,14 +93,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: Text(_coloredMode ? 'Mapa turnajů' : 'Mapa kuželen'),
+        title: Text(widget.colored ? 'Mapa turnajů' : 'Mapa kuželen'),
+        // Show-hidden sits left of the always-present legend (ⓘ).
         actions: [
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            tooltip: 'Legenda',
-            onPressed: _showLegend,
-          ),
-          if (_coloredMode)
+          if (widget.colored)
             IconButton(
               icon: Icon(
                   _showHidden ? Icons.visibility : Icons.visibility_off),
@@ -109,11 +106,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               onPressed: () => setState(() => _showHidden = !_showHidden),
             ),
           IconButton(
-            icon: Icon(_coloredMode ? Icons.location_on : Icons.palette),
-            tooltip: _coloredMode
-                ? 'Zobrazit všechny kuželny'
-                : 'Barevně podle stavu turnaje',
-            onPressed: () => setState(() => _coloredMode = !_coloredMode),
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'Legenda',
+            onPressed: _showLegend,
           ),
         ],
       ),
@@ -135,7 +130,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             userAgentPackageName: 'cz.kuzelky.terminator',
           ),
           MarkerLayer(
-            markers: _coloredMode
+            markers: widget.colored
                 ? _coloredMarkers(located, now)
                 : [
                     for (final venue in located)
@@ -254,7 +249,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   /// Legend for whichever view is active — pin colors and what they mean.
   void _showLegend() {
     final scheme = Theme.of(context).colorScheme;
-    final (intro, rows) = _coloredMode
+    final (intro, rows) = widget.colored
         ? (
             'Jedna kuželna = jeden turnaj (probíhající, jinak nejbližší '
                 'nadcházející, jinak poslední proběhlý). Barva podle stavu:',

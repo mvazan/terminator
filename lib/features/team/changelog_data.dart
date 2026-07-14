@@ -14,6 +14,12 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.0.6', '14. 7. 2026', [
+    'Mapa se otevírá zvlášť: „Mapa kuželen" z obrazovky Kuželny, „Mapa '
+        'turnajů" z Turnajů (bez přepínače).',
+    'Seznam turnajů: řádek s přihláškami zase ukazuje „nejsilnější den" a '
+        'nově i počet objednaných termínů.',
+  ]),
   Release('2.0.5', '14. 7. 2026', [
     'Mapa turnajů: skryté turnaje se ve výchozím stavu nezobrazují — přepneš '
         'je ikonou oka vpravo nahoře.',

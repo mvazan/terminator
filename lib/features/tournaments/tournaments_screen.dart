@@ -186,10 +186,11 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
                   },
           ),
           IconButton(
-            tooltip: 'Mapa kuželen',
+            tooltip: 'Mapa turnajů',
             icon: const Icon(Icons.map_outlined),
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const MapScreen()),
+              MaterialPageRoute(
+                  builder: (_) => const MapScreen(colored: true)),
             ),
           ),
           IconButton(
@@ -300,9 +301,9 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
   }
 }
 
-/// The compact interest line: people, strongest day (only when it differs),
-/// and ordered slots — e.g. "7 lidí · nej. den 5 · 3 obj." Null when there's
-/// nothing to say (nobody ticked and nothing ordered).
+/// The interest line: people, strongest day (from 2 people up), and ordered
+/// slots — e.g. "7 lidí · nejsilnější den 5 lidí · obj. termínů: 3". Null when
+/// there's nothing to say (nobody ticked and nothing ordered).
 String? _interestLine(TournamentInterest? i, int ordered) {
   final parts = <String>[];
   if (i != null && i.players > 0) {
@@ -310,11 +311,10 @@ String? _interestLine(TournamentInterest? i, int ordered) {
       parts.add(peopleLabel(1)); // "1 člověk"
     } else {
       parts.add(peopleLabel(i.players)); // "7 lidí"
-      // Strongest day only adds info when people are spread across days.
-      if (i.bestDayPlayers < i.players) parts.add('nej. den ${i.bestDayPlayers}');
+      parts.add('nejsilnější den ${peopleLabel(i.bestDayPlayers)}');
     }
   }
-  if (ordered > 0) parts.add('$ordered obj.');
+  if (ordered > 0) parts.add('obj. termínů: $ordered');
   return parts.isEmpty ? null : parts.join(' · ');
 }
 
@@ -487,8 +487,14 @@ class _TournamentTile extends StatelessWidget {
                                       ? scheme.primary
                                       : scheme.outline),
                               const SizedBox(width: 4),
-                              Text(interestLine,
-                                  style: textTheme.bodySmall),
+                              // Keep it one line — ellipsize on narrow screens
+                              // rather than wrap or overflow the row.
+                              Expanded(
+                                child: Text(interestLine,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: textTheme.bodySmall),
+                              ),
                             ],
                           ),
                         ],

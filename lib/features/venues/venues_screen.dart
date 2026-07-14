@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/ui.dart';
 import '../../data/providers.dart';
+import '../tournaments/map_screen.dart';
 import 'venue_editor.dart';
 
 /// Manage the team's saved bowling alleys. Reached from Tým → Nastavení.
@@ -14,7 +15,19 @@ class VenuesScreen extends ConsumerWidget {
     final venues = ref.watch(venuesProvider).value ?? const [];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Kuželny')),
+      appBar: AppBar(
+        title: const Text('Kuželny'),
+        actions: [
+          IconButton(
+            tooltip: 'Mapa kuželen',
+            icon: const Icon(Icons.map_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                  builder: (_) => const MapScreen(colored: false)),
+            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => editVenue(context),
         icon: const Icon(Icons.add),
