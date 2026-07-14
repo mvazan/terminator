@@ -7,6 +7,8 @@ import 'helpers.dart';
 void main() {
   final thu = Day(2026, 4, 23);
   final fri = Day(2026, 4, 24);
+  // "Today" before all slots so nothing counts as past in these cases.
+  final beforeAll = Day(2026, 1, 1);
   final tournament = makeTournament(startsOn: thu, endsOn: fri, minPlayers: 2);
 
   final s1 = makeSlot('s1', thu, const HourMinute(18, 0));
@@ -123,6 +125,8 @@ void main() {
           's3': ['u1'], //        fri = 1
           's4': ['u9'],
         }),
+        today: beforeAll,
+        endedTournamentIds: const {},
         uid: 'u1',
       );
 
@@ -151,6 +155,8 @@ void main() {
         availability: ticks({
           'full': ['u1'],
         }),
+        today: beforeAll,
+        endedTournamentIds: const {},
         uid: 'u1',
       );
       expect(interest, isEmpty);
@@ -158,7 +164,12 @@ void main() {
 
     test('no ticks -> tournament absent from the map', () {
       expect(
-        interestByTournament(slots: slots, availability: const [], uid: 'u1'),
+        interestByTournament(
+            slots: slots,
+            availability: const [],
+            today: beforeAll,
+            endedTournamentIds: const {},
+            uid: 'u1'),
         isEmpty,
       );
     });
@@ -183,6 +194,8 @@ void main() {
           'o2': {'s4': 2},
           'o3': {'s3': 1}, // proposal — must not count
         },
+        today: beforeAll,
+        endedTournamentIds: const {},
       );
       expect(ordered['t1'], 2);
       expect(ordered['t2'], 1);
@@ -198,9 +211,58 @@ void main() {
           orderSlots: {
             'o3': {'s1': 1},
           },
+          today: beforeAll,
+          endedTournamentIds: const {},
         ),
         isEmpty,
       );
+    });
+  });
+
+  group('past days in summaries', () {
+    // thu(23) has s1+s2, fri(24) has s3. "Today" = fri, so thu is past.
+    final availability = ticks({
+      's1': ['u1', 'u2', 'u3'], // thu (past) — 3 people
+      's3': ['u1'], //             fri (today) — 1 person
+    });
+
+    test('running tournament drops its past days', () {
+      final interest = interestByTournament(
+        slots: slots,
+        availability: availability,
+        today: fri,
+        endedTournamentIds: const {}, // t1 not ended
+        uid: 'u1',
+      );
+      // Only fri counts: 1 player, best day 1.
+      expect(interest['t1']!.players, 1);
+      expect(interest['t1']!.bestDayPlayers, 1);
+    });
+
+    test('ended tournament keeps its whole history', () {
+      final interest = interestByTournament(
+        slots: slots,
+        availability: availability,
+        today: fri,
+        endedTournamentIds: const {'t1'}, // t1 ended -> count everything
+        uid: 'u1',
+      );
+      // Both days count: 3 distinct players, best day (thu) = 3.
+      expect(interest['t1']!.players, 3);
+      expect(interest['t1']!.bestDayPlayers, 3);
+    });
+
+    test('ordered count drops past slots for a running tournament', () {
+      final ordered = orderedSlotsByTournament(
+        slots: slots,
+        orders: [makeOrder(id: 'o1', tournamentId: 't1')],
+        orderSlots: {
+          'o1': {'s1': 1, 's3': 1}, // s1 = thu (past), s3 = fri (today)
+        },
+        today: fri,
+        endedTournamentIds: const {},
+      );
+      expect(ordered['t1'], 1); // only s3
     });
   });
 }

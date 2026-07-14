@@ -142,20 +142,36 @@ final venueNamesProvider = Provider<Map<String, String>>((ref) {
 });
 
 /// tournament id -> interest counts for the list tiles (one pass, live).
-final tournamentInterestProvider =
-    Provider<Map<String, TournamentInterest>>((ref) => interestByTournament(
-          slots: ref.watch(slotsProvider).value ?? const [],
-          availability: ref.watch(availabilityProvider).value ?? const [],
-          uid: currentUserId,
-        ));
+/// Tournaments whose last day is already past — their list summaries stay
+/// whole (history), while running/upcoming ones drop their past days.
+Set<String> _endedTournamentIds(Ref ref, Day now) => {
+      for (final t in ref.watch(allTournamentsProvider).value ?? const [])
+        if (t.endsOn.isBefore(now)) t.id,
+    };
 
-/// tournamentId -> count of ordered/confirmed slots — the "3 obj." on the list.
-final orderedSlotsCountProvider = Provider<Map<String, int>>((ref) =>
-    orderedSlotsByTournament(
-      slots: ref.watch(slotsProvider).value ?? const [],
-      orders: ref.watch(ordersProvider).value ?? const [],
-      orderSlots: ref.watch(orderSlotsProvider).value ?? const {},
-    ));
+final tournamentInterestProvider =
+    Provider<Map<String, TournamentInterest>>((ref) {
+  final now = Day.fromDateTime(DateTime.now());
+  return interestByTournament(
+    slots: ref.watch(slotsProvider).value ?? const [],
+    availability: ref.watch(availabilityProvider).value ?? const [],
+    today: now,
+    endedTournamentIds: _endedTournamentIds(ref, now),
+    uid: currentUserId,
+  );
+});
+
+/// tournamentId -> count of ordered/confirmed slots — the "obj." on the list.
+final orderedSlotsCountProvider = Provider<Map<String, int>>((ref) {
+  final now = Day.fromDateTime(DateTime.now());
+  return orderedSlotsByTournament(
+    slots: ref.watch(slotsProvider).value ?? const [],
+    orders: ref.watch(ordersProvider).value ?? const [],
+    orderSlots: ref.watch(orderSlotsProvider).value ?? const {},
+    today: now,
+    endedTournamentIds: _endedTournamentIds(ref, now),
+  );
+});
 
 /// Single tournament looked up from the live tournaments stream.
 // Resolves from the UNFILTERED list so a tournament reached by explicit

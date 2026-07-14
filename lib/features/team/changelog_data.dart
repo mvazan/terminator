@@ -14,6 +14,11 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.0.8', '14. 7. 2026', [
+    'Souhrn u přihlášek počítá jen nadcházející dny — u probíhajícího '
+        'turnaje se odehrané dny nezapočítají (u odehraných turnajů zůstává '
+        'souhrn celý).',
+  ]),
   Release('2.0.7', '14. 7. 2026', [
     'Seznam turnajů: kratší řádek s přihláškami — např. „7 lidí · nej shoda '
         '2 lidé · obj. termínů: 1".',

@@ -115,12 +115,19 @@ class TournamentInterest {
 Map<String, TournamentInterest> interestByTournament({
   required List<Slot> slots,
   required List<Availability> availability,
+  required Day today,
+  required Set<String> endedTournamentIds,
   String? uid,
 }) {
-  // slot id -> (tournament, day), skipping venue-full slots.
+  // slot id -> (tournament, day), skipping venue-full slots. Past days count
+  // only for ended tournaments (Odehrané history); a running one summarizes
+  // just what's still ahead — matching the detail, which hides its past days.
   final slotInfo = <String, (String, Day)>{
     for (final s in slots)
-      if (!s.venueFull) s.id: (s.tournamentId, s.date),
+      if (!s.venueFull &&
+          (endedTournamentIds.contains(s.tournamentId) ||
+              !s.date.isBefore(today)))
+        s.id: (s.tournamentId, s.date),
   };
 
   final players = <String, Set<String>>{};
@@ -183,16 +190,22 @@ Map<String, int> orderedSlotsByTournament({
   required List<Slot> slots,
   required List<Order> orders,
   required Map<String, Map<String, int>> orderSlots,
+  required Day today,
+  required Set<String> endedTournamentIds,
 }) {
-  final tournamentOfSlot = {for (final s in slots) s.id: s.tournamentId};
+  final slotInfo = {for (final s in slots) s.id: (s.tournamentId, s.date)};
   final byTournament = <String, Set<String>>{};
   for (final order in orders) {
     if (!order.isActive) continue;
     final slotIds = orderSlots[order.id];
     if (slotIds == null) continue;
     for (final slotId in slotIds.keys) {
-      final tid = tournamentOfSlot[slotId];
-      if (tid != null) byTournament.putIfAbsent(tid, () => {}).add(slotId);
+      final info = slotInfo[slotId];
+      if (info == null) continue;
+      final (tid, date) = info;
+      // Past ordered slots count only for ended tournaments (see above).
+      if (!endedTournamentIds.contains(tid) && date.isBefore(today)) continue;
+      byTournament.putIfAbsent(tid, () => {}).add(slotId);
     }
   }
   return {for (final e in byTournament.entries) e.key: e.value.length};
