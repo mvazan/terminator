@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import '../../core/ui.dart';
 import '../../data/providers.dart';
 import '../../domain/geocoding.dart';
+import '../../domain/map_pins.dart';
 import '../../domain/models.dart';
 import 'tournament_detail_screen.dart';
 
@@ -24,6 +25,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   /// Venue ids geocoding failed for this session — don't re-hit Nominatim.
   final _geocodeFailed = <String>{};
   bool _backfilling = false;
+
+  /// false = all venues, plain pins (upcoming = primary); true = one
+  /// tournament per venue, pin colored by my personal state.
+  bool _coloredMode = false;
 
   @override
   void initState() {
@@ -82,7 +87,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Mapa kuželen')),
+      appBar: AppBar(
+        title: const Text('Mapa kuželen'),
+        actions: [
+          IconButton(
+            icon: Icon(_coloredMode ? Icons.location_on : Icons.palette),
+            tooltip: _coloredMode
+                ? 'Zobrazit všechny kuželny'
+                : 'Barevně podle stavu turnaje',
+            onPressed: () => setState(() => _coloredMode = !_coloredMode),
+          ),
+        ],
+      ),
       body: FlutterMap(
         options: MapOptions(
           initialCameraFit: points.length >= 2
@@ -101,26 +117,20 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             userAgentPackageName: 'cz.kuzelky.terminator',
           ),
           MarkerLayer(
-            markers: [
-              for (final venue in located)
-                Marker(
-                  point: LatLng(venue.lat!, venue.lng!),
-                  width: 44,
-                  height: 44,
-                  alignment: Alignment.topCenter,
-                  child: GestureDetector(
-                    onTap: () => _showVenueSheet(
-                        venue, upcomingByVenue[venue.id] ?? const []),
-                    child: Icon(
-                      Icons.location_pin,
-                      size: 40,
-                      color: (upcomingByVenue[venue.id] ?? const []).isNotEmpty
-                          ? scheme.primary
-                          : scheme.outline,
-                    ),
-                  ),
-                ),
-            ],
+            markers: _coloredMode
+                ? _coloredMarkers(located, now)
+                : [
+                    for (final venue in located)
+                      _pin(
+                        venue,
+                        color:
+                            (upcomingByVenue[venue.id] ?? const []).isNotEmpty
+                                ? scheme.primary
+                                : scheme.outline,
+                        onTap: () => _showVenueSheet(
+                            venue, upcomingByVenue[venue.id] ?? const []),
+                      ),
+                  ],
           ),
           // OSM tile usage policy requires visible attribution.
           const SimpleAttributionWidget(
@@ -130,6 +140,96 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       ),
     );
   }
+
+  Marker _pin(Venue venue,
+          {required Color color, required VoidCallback onTap}) =>
+      Marker(
+        point: LatLng(venue.lat!, venue.lng!),
+        width: 44,
+        height: 44,
+        alignment: Alignment.topCenter,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Icon(Icons.location_pin, size: 40, color: color),
+        ),
+      );
+
+  /// Colored mode: one pin per located venue that has a tournament to show,
+  /// graded by my personal state (see [VenuePinState]).
+  List<Marker> _coloredMarkers(List<Venue> located, Day now) {
+    final uid = currentUserId;
+    final allSlots = ref.watch(slotsProvider).value ?? const <Slot>[];
+    final tournamentOfSlot = {for (final s in allSlots) s.id: s.tournamentId};
+
+    // Tournaments I ticked availability in.
+    final myTicked = <String>{};
+    if (uid != null) {
+      for (final a in ref.watch(availabilityProvider).value ?? const []) {
+        if (a.userId != uid) continue;
+        final tid = tournamentOfSlot[a.slotId];
+        if (tid != null) myTicked.add(tid);
+      }
+    }
+
+    // Tournaments where I'm rostered on an ordered/confirmed start.
+    final myStart = <String>{};
+    if (uid != null) {
+      final orderSlots = ref.watch(orderSlotsProvider).value ?? const {};
+      final orderedSlotIds = <String>{
+        for (final o in ref.watch(ordersProvider).value ?? const [])
+          if (o.isActive)
+            for (final slotId in (orderSlots[o.id] ?? const {}).keys) slotId,
+      };
+      for (final r in ref.watch(rostersProvider).value ?? const []) {
+        if (r.userId == uid && orderedSlotIds.contains(r.slotId)) {
+          final tid = tournamentOfSlot[r.slotId];
+          if (tid != null) myStart.add(tid);
+        }
+      }
+    }
+
+    // Pool = live tournaments (incl. my-hidden, so they can show grey); drop
+    // archived and team-hidden ones entirely.
+    final byVenue = <String, List<Tournament>>{};
+    for (final t in ref.watch(allTournamentsProvider).value ?? const []) {
+      if (t.isArchived || t.isHidden) continue;
+      byVenue.putIfAbsent(t.venueId, () => []).add(t);
+    }
+    final hiddenByMe =
+        ref.watch(myHiddenTournamentsProvider).value ?? const <String>{};
+
+    final markers = <Marker>[];
+    for (final venue in located) {
+      final pin = venuePin(
+        venueTournaments: byVenue[venue.id] ?? const [],
+        today: now,
+        hiddenByMe: hiddenByMe,
+        myTicked: myTicked,
+        myStart: myStart,
+      );
+      if (pin == null) continue;
+      markers.add(_pin(
+        venue,
+        color: _pinColor(pin.state),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) =>
+              TournamentDetailScreen(tournamentId: pin.tournament.id),
+        )),
+      ));
+    }
+    return markers;
+  }
+
+  static Color _pinColor(VenuePinState s) => switch (s) {
+        VenuePinState.hidden => Colors.grey.shade400,
+        VenuePinState.past => Colors.grey.shade700,
+        VenuePinState.ongoingNone => Colors.green.shade300,
+        VenuePinState.ongoingMine => Colors.green.shade600,
+        VenuePinState.ongoingStart => Colors.green.shade900,
+        VenuePinState.upcomingNone => Colors.orange.shade300,
+        VenuePinState.upcomingMine => Colors.orange.shade600,
+        VenuePinState.upcomingStart => Colors.orange.shade900,
+      };
 
   void _showVenueSheet(Venue venue, List<Tournament> upcoming) {
     showModalBottomSheet<void>(

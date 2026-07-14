@@ -98,6 +98,15 @@ class _TournamentDetailScreenState
     final byDay = slotsByDay(slots);
 
     final archived = tournament.isArchived;
+    // A finished tournament is history: show every day read-only so people can
+    // still see who was signed up where. A running one hides its already-past
+    // days — you can't sign up for them anymore, so they'd only be clutter.
+    final now = today();
+    final ended = archived || tournament.endsOn.isBefore(now);
+    final visibleDays = [
+      for (final day in byDay.keys)
+        if (ended || !day.isBefore(now)) day,
+    ];
 
     final manage = ref.watch(manageUnlockedProvider);
     final venueName =
@@ -219,31 +228,33 @@ class _TournamentDetailScreenState
             venue: ref.watch(venueByIdProvider(tournament.venueId)),
           ),
           const SizedBox(height: 12),
-          if (!archived) ...[
+          if (!ended) ...[
             _BestPicksCard(tournament: tournament, heatmap: heatmap),
             const SizedBox(height: 16),
           ],
-          Text('Kdy můžeš? Odklikni si starty:',
+          Text(ended ? 'Kdo byl přihlášený:' : 'Kdy můžeš? Odklikni si starty:',
               style: Theme.of(context).textTheme.titleMedium),
-          Text(
-            scrapable
-                ? 'Číslo „nás/dráhy" = kolik z nás může / kolik je volných drah.'
-                : 'Číslo = kolik nás může.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          Text(
-            '✓ = dost lidí na objednání · zvýrazněný rámeček = tvoje volba',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          if (!ended) ...[
+            Text(
+              scrapable
+                  ? 'Číslo „nás/dráhy" = kolik z nás může / kolik je volných drah.'
+                  : 'Číslo = kolik nás může.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            Text(
+              '✓ = dost lidí na objednání · zvýrazněný rámeček = tvoje volba',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
           const SizedBox(height: 8),
-          for (final day in byDay.keys)
+          for (final day in visibleDays)
             _DayRow(
               day: day,
               slots: byDay[day]!,
               heatmap: heatmap,
               members: members,
               uid: uid,
-              readOnly: archived,
+              readOnly: ended,
             ),
           const SizedBox(height: 16),
           if (orders.any((o) => o.status != OrderStatus.cancelled)) ...[
@@ -255,7 +266,7 @@ class _TournamentDetailScreenState
                 OrderCard(
                   order: order,
                   tournament: tournament,
-                  readOnly: archived,
+                  readOnly: ended,
                 ),
           ],
           const SizedBox(height: 48),

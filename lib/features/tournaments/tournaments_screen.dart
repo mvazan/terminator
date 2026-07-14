@@ -139,6 +139,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
     final tournaments = ref.watch(tournamentsProvider);
     final venueNames = ref.watch(venueNamesProvider);
     final interest = ref.watch(tournamentInterestProvider);
+    final ordered = ref.watch(orderedSlotsCountProvider);
     final online = ref.watch(realtimeConnectedProvider).value ?? true;
     final now = today();
     final manage = ref.watch(manageUnlockedProvider);
@@ -253,6 +254,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
                 now: now,
                 venueName: venueNames[t.venueId] ?? '?',
                 interest: interest[t.id],
+                orderedCount: ordered[t.id] ?? 0,
                 hiddenByMe:
                     _showHidden ? _effectiveHidden(t.id, myHiddenIds) : null,
                 onHiddenByMeChanged: _showHidden
@@ -298,12 +300,31 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
   }
 }
 
+/// The compact interest line: people, strongest day (only when it differs),
+/// and ordered slots — e.g. "7 lidí · nej. den 5 · 3 obj." Null when there's
+/// nothing to say (nobody ticked and nothing ordered).
+String? _interestLine(TournamentInterest? i, int ordered) {
+  final parts = <String>[];
+  if (i != null && i.players > 0) {
+    if (i.players == 1) {
+      parts.add(peopleLabel(1)); // "1 člověk"
+    } else {
+      parts.add(peopleLabel(i.players)); // "7 lidí"
+      // Strongest day only adds info when people are spread across days.
+      if (i.bestDayPlayers < i.players) parts.add('nej. den ${i.bestDayPlayers}');
+    }
+  }
+  if (ordered > 0) parts.add('$ordered obj.');
+  return parts.isEmpty ? null : parts.join(' · ');
+}
+
 class _TournamentTile extends StatelessWidget {
   const _TournamentTile({
     required this.tournament,
     required this.now,
     required this.venueName,
     this.interest,
+    this.orderedCount = 0,
     this.hiddenByMe,
     this.onHiddenByMeChanged,
   });
@@ -314,6 +335,9 @@ class _TournamentTile extends StatelessWidget {
 
   /// Availability interest for the second subtitle line; null = nobody ticked.
   final TournamentInterest? interest;
+
+  /// How many slots here are already ordered — the "3 obj." on that line.
+  final int orderedCount;
 
   /// Non-null = eye mode: show a checkbox (checked = visible for me) and dim
   /// the tile when hidden. Null = normal browsing, no checkbox.
@@ -342,14 +366,7 @@ class _TournamentTile extends StatelessWidget {
     }
 
     final mine = interest?.mine ?? false;
-    final interestLine = switch (interest) {
-      null => null,
-      final i when i.players == 0 => null,
-      final i when i.players == 1 => peopleLabel(1),
-      // From 2 people up always include the strongest day.
-      final i => '${peopleLabel(i.players)} · nejsilnější den '
-          '${peopleLabel(i.bestDayPlayers)}',
-    };
+    final interestLine = _interestLine(interest, orderedCount);
 
     // Kind · discipline. The dates live in the left rail (start on top,
     // end at the bottom), so the meta line doesn't repeat them.

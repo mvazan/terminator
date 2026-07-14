@@ -149,6 +149,14 @@ final tournamentInterestProvider =
           uid: currentUserId,
         ));
 
+/// tournamentId -> count of ordered/confirmed slots — the "3 obj." on the list.
+final orderedSlotsCountProvider = Provider<Map<String, int>>((ref) =>
+    orderedSlotsByTournament(
+      slots: ref.watch(slotsProvider).value ?? const [],
+      orders: ref.watch(ordersProvider).value ?? const [],
+      orderSlots: ref.watch(orderSlotsProvider).value ?? const {},
+    ));
+
 /// Single tournament looked up from the live tournaments stream.
 final tournamentByIdProvider = Provider.family<Tournament?, String>(
   (ref, id) => (ref.watch(tournamentsProvider).value ?? const [])

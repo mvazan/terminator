@@ -163,4 +163,44 @@ void main() {
       );
     });
   });
+
+  group('orderedSlotsByTournament', () {
+    final s4 = makeSlot('s4', thu, const HourMinute(17, 0), tournamentId: 't2');
+    final allSlots = [s1, s2, s3, s4]; // s1,s2,s3 -> t1; s4 -> t2
+
+    test('counts distinct slots in active orders, per tournament', () {
+      final ordered = orderedSlotsByTournament(
+        slots: allSlots,
+        orders: [
+          makeOrder(id: 'o1', tournamentId: 't1'), // ordered (active)
+          makeOrder(
+              id: 'o2', tournamentId: 't2', status: OrderStatus.confirmed),
+          makeOrder(
+              id: 'o3', tournamentId: 't1', status: OrderStatus.proposed),
+        ],
+        orderSlots: {
+          'o1': {'s1': 1, 's2': 1},
+          'o2': {'s4': 2},
+          'o3': {'s3': 1}, // proposal — must not count
+        },
+      );
+      expect(ordered['t1'], 2);
+      expect(ordered['t2'], 1);
+    });
+
+    test('no active orders -> empty', () {
+      expect(
+        orderedSlotsByTournament(
+          slots: allSlots,
+          orders: [
+            makeOrder(id: 'o3', tournamentId: 't1', status: OrderStatus.proposed),
+          ],
+          orderSlots: {
+            'o3': {'s1': 1},
+          },
+        ),
+        isEmpty,
+      );
+    });
+  });
 }

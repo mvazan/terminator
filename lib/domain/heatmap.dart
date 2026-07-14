@@ -176,3 +176,24 @@ List<SlotStats> suggestedBundle(Heatmap heatmap) {
   return picks.where((s) => s.slot.date == bestDay).toList()
     ..sort((a, b) => a.slot.time.compareTo(b.slot.time));
 }
+
+/// tournamentId -> number of distinct slots that belong to an active (ordered
+/// or confirmed) order. Feeds the "3 obj." suffix on the tournament list.
+Map<String, int> orderedSlotsByTournament({
+  required List<Slot> slots,
+  required List<Order> orders,
+  required Map<String, Map<String, int>> orderSlots,
+}) {
+  final tournamentOfSlot = {for (final s in slots) s.id: s.tournamentId};
+  final byTournament = <String, Set<String>>{};
+  for (final order in orders) {
+    if (!order.isActive) continue;
+    final slotIds = orderSlots[order.id];
+    if (slotIds == null) continue;
+    for (final slotId in slotIds.keys) {
+      final tid = tournamentOfSlot[slotId];
+      if (tid != null) byTournament.putIfAbsent(tid, () => {}).add(slotId);
+    }
+  }
+  return {for (final e in byTournament.entries) e.key: e.value.length};
+}
