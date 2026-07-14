@@ -68,8 +68,9 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           # r0adkll parses the locale from the filename after "whatsnew-",
           # with NO extension — "whatsnew-cs-CZ.txt" would read as locale
-          # "cs-CZ.txt" and fail.
-          dart run tool/whatsnew.dart "$VERSION" > whatsnew/whatsnew-cs-CZ
+          # "cs-CZ.txt" and fail. --out makes the script write the file itself
+          # so `dart run`'s "Running build hooks…" stdout noise can't leak in.
+          dart run tool/whatsnew.dart "$VERSION" --out=whatsnew/whatsnew-cs-CZ
           echo "----- whatsnew-cs-CZ -----"
           cat whatsnew/whatsnew-cs-CZ
 

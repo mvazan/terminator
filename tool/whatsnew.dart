@@ -1,9 +1,14 @@
-// Prints the latest changelog entry as plain text, one bullet per line —
-// used by CI to fill Google Play's "What's new" (whatsnew-cs-CZ.txt) and the
-// GitHub Release notes straight from the same source the app shows in-app.
+// Emits a changelog entry as plain text, one bullet per line — used by CI to
+// fill Google Play's "What's new" and the GitHub Release notes from the same
+// source the app shows in-app.
 //
-//   dart run tool/whatsnew.dart            # latest entry
-//   dart run tool/whatsnew.dart 2.0.0      # a specific version
+//   dart run tool/whatsnew.dart 2.0.0                 # print to stdout
+//   dart run tool/whatsnew.dart 2.0.0 --out=path      # write straight to file
+//   dart run tool/whatsnew.dart                       # latest entry, stdout
+//
+// Prefer --out in CI: `dart run` prints its own "Running build hooks…" line to
+// stdout, which would leak into a `> redirect`. Writing the file from here
+// keeps that noise out of the release notes.
 //
 // Play caps "What's new" at 500 chars per language; we trim with an ellipsis
 // if an entry ever runs long (it warns on stderr so it doesn't pass silently).
@@ -12,17 +17,30 @@ import 'dart:io';
 import 'package:terminator/features/team/changelog_data.dart';
 
 void main(List<String> args) {
-  final wanted = args.isNotEmpty ? args.first : null;
-  final release = wanted == null
-      ? appChangelog.first
-      : appChangelog.firstWhere((r) => r.version == wanted,
-          orElse: () => throw 'No changelog entry for $wanted');
+  String? version;
+  String? outPath;
+  for (final a in args) {
+    if (a.startsWith('--out=')) {
+      outPath = a.substring('--out='.length);
+    } else {
+      version ??= a;
+    }
+  }
 
-  final text = release.changes.map((c) => '• $c').join('\n');
+  final release = version == null
+      ? appChangelog.first
+      : appChangelog.firstWhere((r) => r.version == version,
+          orElse: () => throw 'No changelog entry for $version');
+
+  var text = release.changes.map((c) => '• $c').join('\n');
   if (text.length > 500) {
     stderr.writeln('warning: What\'s-new text is ${text.length} chars (>500); '
         'Play will reject it — shorten the ${release.version} entry.');
-    stdout.write('${text.substring(0, 497)}...');
+    text = '${text.substring(0, 497)}...';
+  }
+
+  if (outPath != null) {
+    File(outPath).writeAsStringSync(text);
   } else {
     stdout.write(text);
   }
