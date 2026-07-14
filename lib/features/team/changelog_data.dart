@@ -14,6 +14,10 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.0.7', '14. 7. 2026', [
+    'Seznam turnajů: kratší řádek s přihláškami — např. „7 lidí · nej shoda '
+        '2 lidé · obj. termínů: 1".',
+  ]),
   Release('2.0.6', '14. 7. 2026', [
     'Mapa se otevírá zvlášť: „Mapa kuželen" z obrazovky Kuželny, „Mapa '
         'turnajů" z Turnajů (bez přepínače).',
