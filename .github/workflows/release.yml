@@ -82,9 +82,10 @@ jobs:
             terminator-*.aab
           generate_release_notes: true
 
-      # Upload the AAB straight to Google Play internal testing. Creates a
-      # DRAFT release on the internal track — review and roll it out to testers
-      # manually in Play Console. Needs the play-uploader service account with
+      # Upload the AAB to Google Play internal testing and roll it out to the
+      # internal testers automatically (status: completed) — no manual "review
+      # & rollout" step in Play Console. Internal testers still choose whether
+      # to install the update. Needs the play-uploader service account with
       # "Release apps to testing tracks" permission on the Termínátor app.
       - name: Upload AAB to Play internal testing
         uses: r0adkll/upload-google-play@v1
@@ -94,4 +95,4 @@ jobs:
           releaseFiles: terminator-${{ github.ref_name }}.aab
           whatsNewDirectory: whatsnew
           track: internal
-          status: draft
+          status: completed
