@@ -30,6 +30,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   /// tournament per venue, pin colored by my personal state.
   bool _coloredMode = false;
 
+  /// Colored mode only: whether tournaments I've hidden ("nezajímá mě") get a
+  /// grey pin. Off by default — hidden means out of sight.
+  bool _showHidden = false;
+
   @override
   void initState() {
     super.initState();
@@ -95,6 +99,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             tooltip: 'Legenda',
             onPressed: _showLegend,
           ),
+          if (_coloredMode)
+            IconButton(
+              icon: Icon(
+                  _showHidden ? Icons.visibility : Icons.visibility_off),
+              tooltip: _showHidden
+                  ? 'Skrýt skryté turnaje'
+                  : 'Zobrazit i skryté turnaje',
+              onPressed: () => setState(() => _showHidden = !_showHidden),
+            ),
           IconButton(
             icon: Icon(_coloredMode ? Icons.location_on : Icons.palette),
             tooltip: _coloredMode
@@ -193,15 +206,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       }
     }
 
-    // Pool = live tournaments (incl. my-hidden, so they can show grey); drop
-    // archived and team-hidden ones entirely.
+    final hiddenByMe =
+        ref.watch(myHiddenTournamentsProvider).value ?? const <String>{};
+
+    // Pool = live tournaments; drop archived and team-hidden ones entirely.
+    // My-hidden ones join only when "show hidden" is on (then they show grey).
     final byVenue = <String, List<Tournament>>{};
     for (final t in ref.watch(allTournamentsProvider).value ?? const []) {
       if (t.isArchived || t.isHidden) continue;
+      if (!_showHidden && hiddenByMe.contains(t.id)) continue;
       byVenue.putIfAbsent(t.venueId, () => []).add(t);
     }
-    final hiddenByMe =
-        ref.watch(myHiddenTournamentsProvider).value ?? const <String>{};
 
     final markers = <Marker>[];
     for (final venue in located) {
@@ -254,7 +269,8 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               (_pinColor(VenuePinState.upcomingStart),
                   'Nadchází · máš objednaný start'),
               (_pinColor(VenuePinState.past), 'Proběhlé'),
-              (_pinColor(VenuePinState.hidden), 'Skryté (nezajímá mě)'),
+              if (_showHidden)
+                (_pinColor(VenuePinState.hidden), 'Skryté (nezajímá mě)'),
             ],
           )
         : (

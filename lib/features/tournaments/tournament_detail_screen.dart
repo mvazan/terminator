@@ -103,6 +103,13 @@ class _TournamentDetailScreenState
     // days — you can't sign up for them anymore, so they'd only be clutter.
     final now = today();
     final ended = archived || tournament.endsOn.isBefore(now);
+    // A tournament I've hidden ("nezajímá mě") is view-only — no signing up.
+    final hiddenByMe = ref
+            .watch(myHiddenTournamentsProvider)
+            .value
+            ?.contains(tournamentId) ??
+        false;
+    final readOnly = ended || hiddenByMe;
     final visibleDays = [
       for (final day in byDay.keys)
         if (ended || !day.isBefore(now)) day,
@@ -181,9 +188,13 @@ class _TournamentDetailScreenState
                     value: 'archive', child: Text('Archivovat')),
               ],
               const PopupMenuDivider(),
-              const PopupMenuItem(
-                  value: 'hide_for_me',
-                  child: Text('Skrýt (nezajímá mě)')),
+              if (hiddenByMe)
+                const PopupMenuItem(
+                    value: 'unhide_for_me', child: Text('Zrušit skrytí'))
+              else
+                const PopupMenuItem(
+                    value: 'hide_for_me',
+                    child: Text('Skrýt (nezajímá mě)')),
               if (manage) ...[
                 const PopupMenuDivider(),
                 const PopupMenuItem(
@@ -196,7 +207,7 @@ class _TournamentDetailScreenState
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
-          if (archived)
+          if (archived || hiddenByMe)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Container(
@@ -208,14 +219,21 @@ class _TournamentDetailScreenState
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.archive_outlined,
+                    Icon(
+                        archived
+                            ? Icons.archive_outlined
+                            : Icons.visibility_off_outlined,
                         size: 18,
                         color: Theme.of(context).colorScheme.onSurfaceVariant),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Turnaj je archivovaný — jen ke čtení. Nedají se '
-                        'měnit termíny, hlasovat ani objednávat.',
+                        archived
+                            ? 'Turnaj je archivovaný — jen ke čtení. Nedají se '
+                                'měnit termíny, hlasovat ani objednávat.'
+                            : 'Tento turnaj máš skrytý — jen k nahlédnutí, '
+                                'přihlašování je vypnuté. Vrátit to jde '
+                                'v menu („Zrušit skrytí").',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ),
@@ -228,13 +246,16 @@ class _TournamentDetailScreenState
             venue: ref.watch(venueByIdProvider(tournament.venueId)),
           ),
           const SizedBox(height: 12),
-          if (!ended) ...[
+          if (!readOnly) ...[
             _BestPicksCard(tournament: tournament, heatmap: heatmap),
             const SizedBox(height: 16),
           ],
-          Text(ended ? 'Kdo byl přihlášený:' : 'Kdy můžeš? Odklikni si starty:',
+          Text(
+              readOnly
+                  ? (ended ? 'Kdo byl přihlášený:' : 'Kdo je přihlášený:')
+                  : 'Kdy můžeš? Odklikni si starty:',
               style: Theme.of(context).textTheme.titleMedium),
-          if (!ended) ...[
+          if (!readOnly) ...[
             Text(
               scrapable
                   ? 'Číslo „nás/dráhy" = kolik z nás může / kolik je volných drah.'
@@ -254,7 +275,7 @@ class _TournamentDetailScreenState
               heatmap: heatmap,
               members: members,
               uid: uid,
-              readOnly: ended,
+              readOnly: readOnly,
             ),
           const SizedBox(height: 16),
           if (orders.any((o) => o.status != OrderStatus.cancelled)) ...[
@@ -266,7 +287,7 @@ class _TournamentDetailScreenState
                 OrderCard(
                   order: order,
                   tournament: tournament,
-                  readOnly: ended,
+                  readOnly: readOnly,
                 ),
           ],
           const SizedBox(height: 48),
@@ -369,6 +390,10 @@ class _TournamentDetailScreenState
             context, () => Api.setTournamentHiddenForMe(tournament.id, true),
             success: 'Turnaj skryt (jen pro tebe).');
         if (context.mounted) Navigator.of(context).pop();
+      case 'unhide_for_me':
+        await tryAction(
+            context, () => Api.setTournamentHiddenForMe(tournament.id, false),
+            success: 'Skrytí zrušeno.');
     }
   }
 }

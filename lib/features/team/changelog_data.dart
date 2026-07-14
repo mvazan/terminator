@@ -14,6 +14,12 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.0.5', '14. 7. 2026', [
+    'Mapa turnajů: skryté turnaje se ve výchozím stavu nezobrazují — přepneš '
+        'je ikonou oka vpravo nahoře.',
+    'Detail skrytého turnaje je jen ke čtení (bez přihlašování); skrytí '
+        'zrušíš v menu.',
+  ]),
   Release('2.0.4', '14. 7. 2026', [
     'Mapa turnajů: přibyla legenda (ikona ⓘ vpravo nahoře) a opravilo se '
         'otevírání šedých špendlíků (skryté a proběhlé turnaje).',
