@@ -158,8 +158,11 @@ final orderedSlotsCountProvider = Provider<Map<String, int>>((ref) =>
     ));
 
 /// Single tournament looked up from the live tournaments stream.
+// Resolves from the UNFILTERED list so a tournament reached by explicit
+// navigation (map pin, chat) still loads even when it's hidden for me —
+// otherwise the detail screen waits forever on a null lookup.
 final tournamentByIdProvider = Provider.family<Tournament?, String>(
-  (ref, id) => (ref.watch(tournamentsProvider).value ?? const [])
+  (ref, id) => (ref.watch(allTournamentsProvider).value ?? const [])
       .where((t) => t.id == id)
       .firstOrNull,
 );

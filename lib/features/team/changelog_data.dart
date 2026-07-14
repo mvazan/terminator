@@ -14,6 +14,10 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.0.4', '14. 7. 2026', [
+    'Mapa turnajů: přibyla legenda (ikona ⓘ vpravo nahoře) a opravilo se '
+        'otevírání šedých špendlíků (skryté a proběhlé turnaje).',
+  ]),
   Release('2.0.3', '14. 7. 2026', [
     'Mapa má nový barevný režim (ikona vpravo nahoře): jedna kuželna = jeden '
         'turnaj, barva podle stavu — zelená běží, oranžová se blíží, šedá je '

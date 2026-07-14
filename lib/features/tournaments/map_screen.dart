@@ -88,8 +88,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mapa kuželen'),
+        title: Text(_coloredMode ? 'Mapa turnajů' : 'Mapa kuželen'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'Legenda',
+            onPressed: _showLegend,
+          ),
           IconButton(
             icon: Icon(_coloredMode ? Icons.location_on : Icons.palette),
             tooltip: _coloredMode
@@ -230,6 +235,73 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         VenuePinState.upcomingMine => Colors.orange.shade600,
         VenuePinState.upcomingStart => Colors.orange.shade900,
       };
+
+  /// Legend for whichever view is active — pin colors and what they mean.
+  void _showLegend() {
+    final scheme = Theme.of(context).colorScheme;
+    final (intro, rows) = _coloredMode
+        ? (
+            'Jedna kuželna = jeden turnaj (probíhající, jinak nejbližší '
+                'nadcházející, jinak poslední proběhlý). Barva podle stavu:',
+            <(Color, String)>[
+              (_pinColor(VenuePinState.ongoingNone), 'Probíhá'),
+              (_pinColor(VenuePinState.ongoingMine), 'Probíhá · jsi přihlášen'),
+              (_pinColor(VenuePinState.ongoingStart),
+                  'Probíhá · máš objednaný start'),
+              (_pinColor(VenuePinState.upcomingNone), 'Nadchází'),
+              (_pinColor(VenuePinState.upcomingMine),
+                  'Nadchází · jsi přihlášen'),
+              (_pinColor(VenuePinState.upcomingStart),
+                  'Nadchází · máš objednaný start'),
+              (_pinColor(VenuePinState.past), 'Proběhlé'),
+              (_pinColor(VenuePinState.hidden), 'Skryté (nezajímá mě)'),
+            ],
+          )
+        : (
+            'Všechny kuželny týmu:',
+            <(Color, String)>[
+              (scheme.primary, 'Má nadcházející turnaj'),
+              (scheme.outline, 'Bez nadcházejícího turnaje'),
+            ],
+          );
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Legenda',
+                  style: Theme.of(sheetContext).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              Text(intro,
+                  style: Theme.of(sheetContext).textTheme.bodyMedium),
+              const SizedBox(height: 12),
+              for (final (color, label) in rows)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(Icons.location_pin, size: 28, color: color),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(label,
+                            style:
+                                Theme.of(sheetContext).textTheme.bodyLarge),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   void _showVenueSheet(Venue venue, List<Tournament> upcoming) {
     showModalBottomSheet<void>(
