@@ -14,7 +14,7 @@ class Release {
 }
 
 const appChangelog = <Release>[
-  Release('2.0.2', '14. 7. 2026', [
+  Release('2.0.3', '14. 7. 2026', [
     'Mapa má nový barevný režim (ikona vpravo nahoře): jedna kuželna = jeden '
         'turnaj, barva podle stavu — zelená běží, oranžová se blíží, šedá je '
         'minulá; tmavší odstín = jsi přihlášený nebo máš start.',
