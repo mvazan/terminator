@@ -73,6 +73,9 @@ class ChatsScreen extends ConsumerWidget {
     final teamMuted = mutes.contains(teamKey);
     final teamUnread = unread[teamKey] ?? 0;
 
+    // Day chats are closed groups — show only the ones I'm a member of.
+    final membership = ref.watch(dayChatMembershipProvider);
+
     final open = <_ChatTileData>[];
     final archived = <_ChatTileData>[];
     for (final t in tournaments) {
@@ -86,7 +89,14 @@ class ChatsScreen extends ConsumerWidget {
         if (tournamentChatUsed) _ChatTileData(tournament: t),
         for (final day in (orderedDays[t.id] ?? const <Day>{}).toList()
           ..sort())
-          _ChatTileData(tournament: t, day: day),
+          if (uid != null &&
+              (membership[muteKey(t.id, day)]?.contains(uid) ?? false))
+            _ChatTileData(
+              tournament: t,
+              day: day,
+              memberCount:
+                  membership[muteKey(t.id, day)]?.members.length ?? 0,
+            ),
       ];
       for (final chat in chats) {
         (isChatLocked(tournament: t, day: chat.day, today: now)
@@ -154,10 +164,13 @@ class ChatsScreen extends ConsumerWidget {
 }
 
 class _ChatTileData {
-  const _ChatTileData({required this.tournament, this.day});
+  const _ChatTileData({required this.tournament, this.day, this.memberCount});
 
   final Tournament tournament;
   final Day? day;
+
+  /// Members of a day chat (null for tournament/team chats).
+  final int? memberCount;
 }
 
 /// The standing team-wide chat, pinned at the top of the chat list.
@@ -236,7 +249,7 @@ class _ChatTile extends StatelessWidget {
       ),
       subtitle: Text(day == null
           ? 'chat k turnaji · celá parta'
-          : 'chat hracího dne · účastníci'),
+          : 'chat hracího dne · ${peopleLabel(data.memberCount ?? 0)}'),
       trailing: locked
           ? const Icon(Icons.lock_outline, size: 18)
           : BusyIconButton(

@@ -194,6 +194,9 @@ async function teamTokens(
   // Scope recipients to one team. Omitted = global (radar: public data,
   // per-user opt-in prefs already gate it).
   teamId?: string,
+  // Further restrict to an explicit member set (day chats: only people going
+  // that day). Omitted = the whole team.
+  memberIds?: Set<string> | null,
 ): Promise<{ userId: string; token: string; silent: boolean }[]> {
   let profilesQuery = supabase
     .from("profiles")
@@ -225,6 +228,7 @@ async function teamTokens(
 
   const optIn = DEFAULT_OFF.includes(kind);
   return (profilesResult.data ?? [])
+    .filter((p) => !memberIds || memberIds.has(p.id))
     .filter((p) =>
       optIn ? activeRows.has(p.id) : !excluded.has(p.id)
     )
@@ -444,12 +448,26 @@ async function handle(payload: WebhookPayload) {
       const title = day === null
         ? `${name}`
         : `${name} — ${dayLabel(day)}`;
+      // Day chats are closed groups — notify only their members (rostered
+      // that day ∪ order creator ∪ fans, minus leavers). Tournament chats
+      // (day === null) still reach the whole team.
+      let memberIds: Set<string> | undefined;
+      if (day !== null) {
+        const { data: members, error } = await supabase.rpc("day_member_ids", {
+          p_tournament: tournamentId,
+          p_day: day,
+        });
+        if (error) throw error;
+        memberIds = new Set(
+          (members ?? []).map((m) => m.user_id as string),
+        );
+      }
       await sendToTokens(
         await teamTokens("chat", [
           record.user_id as string,
           ...(mutes ?? []).map((m) => m.user_id as string),
           ...hiders,
-        ], teamId),
+        ], teamId, memberIds),
         title,
         `${author?.display_name ?? "?"}: ${record.body}`,
         {

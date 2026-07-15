@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config.dart';
+import '../domain/day_chat.dart';
 import '../domain/heatmap.dart';
 import '../domain/models.dart';
 import '../scrape/scraper.dart';
@@ -277,6 +278,38 @@ final rostersProvider = StreamProvider<List<RosterEntry>>((ref) {
     live: () => _db.from('rosters').stream(primaryKey: ['id']),
   ).map((rows) => rows.map(RosterEntry.fromJson).toList());
 });
+
+// Day-chat membership side tables (closed day chats).
+final dayChatFansProvider = StreamProvider<List<DayChatFan>>((ref) {
+  if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
+  return cachedRows(
+    key: 'day_chat_fans',
+    live: () => _db
+        .from('day_chat_fans')
+        .stream(primaryKey: ['tournament_id', 'day', 'user_id']),
+  ).map((rows) => rows.map(DayChatFan.fromJson).toList());
+});
+
+final dayChatLeaversProvider = StreamProvider<List<DayChatLeaver>>((ref) {
+  if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
+  return cachedRows(
+    key: 'day_chat_leavers',
+    live: () => _db
+        .from('day_chat_leavers')
+        .stream(primaryKey: ['tournament_id', 'day', 'user_id']),
+  ).map((rows) => rows.map(DayChatLeaver.fromJson).toList());
+});
+
+/// Membership per day chat, keyed like muteKey(tournamentId, day).
+final dayChatMembershipProvider =
+    Provider<Map<String, DayChatMembership>>((ref) => dayChatMembershipByChat(
+          orders: ref.watch(ordersProvider).value ?? const [],
+          orderSlots: ref.watch(orderSlotsProvider).value ?? const {},
+          slots: ref.watch(slotsProvider).value ?? const [],
+          rosters: ref.watch(rostersProvider).value ?? const [],
+          fans: ref.watch(dayChatFansProvider).value ?? const [],
+          leavers: ref.watch(dayChatLeaversProvider).value ?? const [],
+        ));
 
 /// Messages of one tournament (both the tournament chat and its day chats).
 final messagesProvider =
@@ -727,6 +760,23 @@ class Api {
 
   static Future<void> removeRosterEntry(String rosterId) =>
       _db.from('rosters').delete().eq('id', rosterId);
+
+  // Closed day chats: invite a teammate as a fan, leave, or rejoin.
+  static Future<void> inviteDayFan(
+          String tournamentId, Day day, String userId) =>
+      _db.rpc('invite_day_fan', params: {
+        'p_tournament': tournamentId,
+        'p_day': day.toSql(),
+        'p_user': userId,
+      });
+
+  static Future<void> leaveDayChat(String tournamentId, Day day) =>
+      _db.rpc('leave_day_chat',
+          params: {'p_tournament': tournamentId, 'p_day': day.toSql()});
+
+  static Future<void> rejoinDayChat(String tournamentId, Day day) =>
+      _db.rpc('rejoin_day_chat',
+          params: {'p_tournament': tournamentId, 'p_day': day.toSql()});
 
   static Future<void> sendMessage(String tournamentId, Day? day, String body) =>
       _db.from('messages').insert({

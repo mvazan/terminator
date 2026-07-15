@@ -60,6 +60,128 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  /// Day-chat membership sheet: who's in (players/organizer/fans), invite a
+  /// fan, or leave (organizer/fans only — rostered players stay and mute).
+  void _showMembers(List<Profile> members, bool locked) {
+    final tId = widget.tournamentId;
+    final day = widget.day!;
+    final key = muteKey(tId, day);
+    final uid = currentUserId;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetCtx) => Consumer(builder: (ctx, ref2, _) {
+        final m = ref2.watch(dayChatMembershipProvider)[key];
+        final memberIds = m?.members.toList() ?? const <String>[];
+        final iCanLeave = uid != null && (m?.canLeave(uid) ?? false);
+        String roleLabel(String u) {
+          if (m == null) return '';
+          if (m.players.contains(u)) return 'hráč';
+          if (m.creators.contains(u)) return 'organizátor';
+          return 'fanoušek';
+        }
+
+        final candidates =
+            members.where((p) => !memberIds.contains(p.id)).toList();
+        final scheme = Theme.of(ctx).colorScheme;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Kdo je tu (${memberIds.length})',
+                    style: Theme.of(ctx).textTheme.titleLarge),
+                const SizedBox(height: 4),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      for (final u in memberIds)
+                        ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.person_outline),
+                          title: Text(memberName(members, u)),
+                          trailing: Text(roleLabel(u),
+                              style: TextStyle(color: scheme.outline)),
+                        ),
+                    ],
+                  ),
+                ),
+                if (!locked) ...[
+                  const Divider(),
+                  if (candidates.isNotEmpty)
+                    ListTile(
+                      leading: const Icon(Icons.person_add_alt_1_outlined),
+                      title: const Text('Pozvat fanouška'),
+                      onTap: () {
+                        Navigator.pop(sheetCtx);
+                        _pickFan(candidates);
+                      },
+                    ),
+                  if (iCanLeave)
+                    ListTile(
+                      leading: Icon(Icons.logout, color: scheme.error),
+                      title: Text('Opustit chat',
+                          style: TextStyle(color: scheme.error)),
+                      onTap: () async {
+                        Navigator.pop(sheetCtx);
+                        final ok = await tryAction(
+                            context, () => Api.leaveDayChat(tId, day),
+                            success: 'Opustil jsi chat.');
+                        if (ok && mounted) Navigator.of(context).maybePop();
+                      },
+                    ),
+                ],
+              ],
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  /// Pick a teammate to invite as a fan.
+  Future<void> _pickFan(List<Profile> candidates) async {
+    final choice = await showModalBottomSheet<Profile>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+              child: Text('Pozvat fanouška',
+                  style: Theme.of(ctx).textTheme.titleLarge),
+            ),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final p in candidates)
+                    ListTile(
+                      leading: const Icon(Icons.person_outline),
+                      title: Text(p.displayName),
+                      onTap: () => Navigator.pop(ctx, p),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    await tryAction(
+      context,
+      () => Api.inviteDayFan(widget.tournamentId, widget.day!, choice.id),
+      success: '${choice.displayName} přidán(a) do chatu.',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tournament = widget.isTeam
@@ -102,6 +224,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       appBar: AppBar(
         title: Text(title),
         actions: [
+          // Day chats are closed groups — show/manage who's in.
+          if (!widget.isTeam && widget.day != null)
+            IconButton(
+              tooltip: 'Kdo je tu',
+              icon: const Icon(Icons.groups_outlined),
+              onPressed: () => _showMembers(members, locked),
+            ),
           IconButton(
             tooltip: muted ? 'Zapnout upozornění' : 'Ztlumit',
             icon: Icon(muted
