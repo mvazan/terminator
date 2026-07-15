@@ -14,6 +14,15 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.2.0', '15. 7. 2026', [
+    'Chat hracího dne je teď jen pro účastníky (hráči toho dne, organizátor '
+        'a pozvaní) — už nespamuje celý tým. Kdo hraje, je uvnitř; organizátor '
+        'nebo fanoušci můžou chat opustit.',
+    'V chatu dne přibylo „Kdo je tu" a pozvání fanouška (člen týmu, který '
+        'nehraje).',
+    'Prázdné chaty turnajů se nezobrazují (otevřeš je v detailu turnaje).',
+    'Podpora přihlašovacích stránek kuželny Galanta (kolky-galanta.sk).',
+  ]),
   Release('2.0.9', '15. 7. 2026', [
     'Drobná údržba na pozadí: výpadek sítě už se nehlásí jako pád aplikace.',
   ]),
