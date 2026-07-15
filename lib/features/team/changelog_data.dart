@@ -14,6 +14,9 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.0.9', '15. 7. 2026', [
+    'Drobná údržba na pozadí: výpadek sítě už se nehlásí jako pád aplikace.',
+  ]),
   Release('2.0.8', '14. 7. 2026', [
     'Souhrn u přihlášek počítá jen nadcházející dny — u probíhajícího '
         'turnaje se odehrané dny nezapočítají (u odehraných turnajů zůstává '

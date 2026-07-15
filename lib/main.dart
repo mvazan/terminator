@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config.dart';
 import 'core/offline_banner.dart';
+import 'core/ui.dart';
 import 'features/auth/auth_gate.dart';
 import 'push/push.dart';
 
@@ -19,6 +20,15 @@ Future<void> main() async {
       (options) {
         options.dsn = AppConfig.sentryDsn;
         options.sendDefaultPii = false; // no IP/user data beyond the error
+        // Drop connectivity noise: GoTrue's background token-refresh timer and
+        // the realtime channels throw uncaught when the device is offline,
+        // which would otherwise land as fatal crashes. Offline is the user's
+        // network situation, not a defect (same stance as tryAction).
+        options.beforeSend = (event, hint) {
+          final err = event.throwable;
+          if (err != null && isOfflineError(err)) return null;
+          return event;
+        };
       },
       appRunner: _bootstrap,
     );
