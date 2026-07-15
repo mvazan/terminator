@@ -76,8 +76,14 @@ class ChatsScreen extends ConsumerWidget {
     final open = <_ChatTileData>[];
     final archived = <_ChatTileData>[];
     for (final t in tournaments) {
+      // The tournament-wide chat exists for every tournament, so most are
+      // empty — show it only once it has messages (start it from the
+      // tournament detail). Day chats are deliberate (an ordered day) and few,
+      // so they show even empty.
+      final tournamentChatUsed =
+          lastAt.containsKey(muteKey(t.id, null));
       final chats = <_ChatTileData>[
-        _ChatTileData(tournament: t),
+        if (tournamentChatUsed) _ChatTileData(tournament: t),
         for (final day in (orderedDays[t.id] ?? const <Day>{}).toList()
           ..sort())
           _ChatTileData(tournament: t, day: day),
@@ -130,6 +136,17 @@ class ChatsScreen extends ConsumerWidget {
                         _ChatTile(data: chat, mutes: mutes, locked: true),
                     ],
                   ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+                  child: Text(
+                    'Prázdné chaty turnajů se nezobrazují — chat k turnaji '
+                    'otevřeš (a založíš) v jeho detailu.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                  ),
+                ),
               ],
             ),
     );
