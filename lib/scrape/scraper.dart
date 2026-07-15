@@ -6,6 +6,7 @@
 library;
 
 import '../domain/models.dart';
+import 'galanta.dart';
 import 'mkware.dart';
 import 'turnajekuzelky.dart';
 
@@ -99,6 +100,9 @@ class ScraperRegistry {
     }
     if (uri.host.endsWith('turnajekuzelky.cz')) {
       return TurnajeKuzelkyScraper();
+    }
+    if (uri.host.endsWith('kolky-galanta.sk')) {
+      return GalantaScraper();
     }
     return null;
   }
