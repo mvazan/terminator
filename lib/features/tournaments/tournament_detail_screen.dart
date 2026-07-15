@@ -587,7 +587,11 @@ class _DayRowState extends ConsumerState<_DayRow> {
       isOrderable: stats?.isOrderable ?? false,
       mine: mine,
       venueFree: slot.venueFree,
-      onTap: readOnly ? null : () => Api.setAvailability(slot.id, !mine),
+      // Through tryAction so a dropped connection is a friendly snackbar, not
+      // an uncaught (fatal) error — the tap is otherwise fire-and-forget.
+      onTap: readOnly
+          ? null
+          : () => tryAction(context, () => Api.setAvailability(slot.id, !mine)),
       // Scraped slots are owned by the web sync — no manual deletion.
       onLongPress: readOnly || slot.hasVenueInfo
           ? null
