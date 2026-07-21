@@ -90,6 +90,35 @@ void main() {
     expect(border.top.width, 1); // full cell never gets the thick border
   });
 
+  testWidgets('venue-full-by-US cell is friendly: home icon, no error border',
+      (tester) async {
+    const theme = ColorScheme.light();
+    await tester.pumpWidget(MaterialApp(
+      theme: ThemeData(colorScheme: theme),
+      home: Scaffold(
+        body: Center(
+          child: SlotCell(
+            time: const HourMinute(18, 0),
+            count: 2,
+            intensity: 0.5,
+            isOrderable: false,
+            mine: false,
+            venueFree: 0,
+            venueOurs: 4, // we booked all the lanes ourselves
+            onTap: () {},
+          ),
+        ),
+      ),
+    ));
+
+    expect(find.byIcon(Icons.home), findsOneWidget);
+    final border = borderOf(tester);
+    expect(border.top.color, isNot(theme.error)); // not the blocked look
+    // Time is not struck through.
+    final timeText = tester.widget<Text>(find.text('18:00'));
+    expect(timeText.style?.decoration, isNot(TextDecoration.lineThrough));
+  });
+
   testWidgets('scraped cell shows team/free lanes as X/Y', (tester) async {
     await tester.pumpWidget(wrap(SlotCell(
       time: const HourMinute(18, 0),

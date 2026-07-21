@@ -22,7 +22,7 @@ class MkwareScraper implements TournamentScraper {
   String get name => 'mkware (kkmoravskaslavia.cz)';
 
   @override
-  Future<ScrapeResult> fetch(Uri url) async {
+  Future<ScrapeResult> fetch(Uri url, {String ourTeam = ''}) async {
     final response = await _client.get(url).timeout(
           const Duration(seconds: 20),
         );
@@ -31,7 +31,7 @@ class MkwareScraper implements TournamentScraper {
     }
     final html = response.body;
     return ScrapeResult(
-      slots: aggregateTerms(parseMkwareHtml(html)),
+      slots: aggregateTerms(parseMkwareHtml(html), ourNeedle: ourTeam),
       name: parseMkwareName(html),
       kind: parseMkwareKind(html),
       discipline: parseMkwareDiscipline(html),
@@ -87,12 +87,19 @@ List<VenueTerm> parseMkwareHtml(String html) {
     final body = row.group(2)!;
     final timeMatch = _timePattern.firstMatch(body);
     if (timeMatch == null) continue;
+    // A free lane-start renders an empty booking form; a booked one
+    // renders the reservation (player + team) as plain text without the form.
+    final occupied = !body.contains('placeholder="Name"');
     terms.add(VenueTerm(
       date: Day.parse(row.group(1)!),
       time: HourMinute.parse(timeMatch.group(1)!),
-      // A free lane-start renders an empty booking form; a booked one
-      // renders the reservation as plain text without the form.
-      occupied: !body.contains('placeholder="Name"'),
+      occupied: occupied,
+      occupant: occupied
+          ? body
+              .replaceAll(RegExp(r'<[^>]+>'), ' ')
+              .replaceAll(RegExp(r'\s+'), ' ')
+              .trim()
+          : '',
     ));
   }
   return terms;

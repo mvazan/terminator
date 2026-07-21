@@ -627,7 +627,20 @@ class Api {
     final scraper = ScraperRegistry.forUrl(sourceUrl);
     if (scraper == null) return 0;
 
-    final result = await scraper.fetch(Uri.parse(sourceUrl));
+    // Our team's name marks occupancy booked by us on the venue's page
+    // ("obsazeno, ale námi") — best-effort, an unknown name just means no
+    // ours-detection.
+    var ourTeam = '';
+    try {
+      final row = await _db
+          .from('profiles')
+          .select('teams(name)')
+          .eq('id', currentUserId!)
+          .single();
+      ourTeam = ((row['teams'] as Map?)?['name'] as String?) ?? '';
+    } catch (_) {}
+
+    final result = await scraper.fetch(Uri.parse(sourceUrl), ourTeam: ourTeam);
     final venueSlots = result.slots;
     if (venueSlots.isEmpty) {
       throw Exception('stránka neobsahuje rezervační tabulku');
@@ -642,6 +655,7 @@ class Api {
             'time': v.time.toSql(),
             'venue_capacity': v.capacity,
             'venue_occupied': v.occupied,
+            'venue_occupied_ours': v.occupiedOurs,
           },
       ],
       onConflict: 'tournament_id,date,time',

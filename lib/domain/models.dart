@@ -318,6 +318,7 @@ class Slot {
     required this.time,
     this.venueCapacity,
     this.venueOccupied,
+    this.venueOccupiedOurs,
   });
 
   final String id;
@@ -330,9 +331,16 @@ class Slot {
   final int? venueCapacity;
   final int? venueOccupied;
 
+  /// How many of the occupied places were booked by US (occupant text on the
+  /// venue's page contains our team name); null/0 = none known.
+  final int? venueOccupiedOurs;
+
   bool get hasVenueInfo => venueCapacity != null && venueOccupied != null;
   int? get venueFree => hasVenueInfo ? venueCapacity! - venueOccupied! : null;
   bool get venueFull => hasVenueInfo && venueOccupied! >= venueCapacity!;
+
+  /// At least one of the occupied places is our own booking.
+  bool get venueOurs => (venueOccupiedOurs ?? 0) > 0;
 
   factory Slot.fromJson(Map<String, dynamic> json) => Slot(
         id: json['id'] as String,
@@ -341,6 +349,7 @@ class Slot {
         time: HourMinute.parse(json['time'] as String),
         venueCapacity: json['venue_capacity'] as int?,
         venueOccupied: json['venue_occupied'] as int?,
+        venueOccupiedOurs: json['venue_occupied_ours'] as int?,
       );
 
   static int compare(Slot a, Slot b) =>

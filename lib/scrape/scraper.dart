@@ -16,26 +16,37 @@ class VenueTerm {
     required this.date,
     required this.time,
     required this.occupied,
+    this.occupant = '',
   });
 
   final Day date;
   final HourMinute time;
   final bool occupied;
+
+  /// Raw text of who booked it (name + oddíl/team/klub as the page shows it);
+  /// empty for free terms or pages without that info. Matched against our
+  /// team's name to tell "full because WE booked it" from foreign bookings.
+  final String occupant;
 }
 
-/// Occupancy of one start time: how many lanes exist / are already booked.
+/// Occupancy of one start time: how many lanes exist / are already booked,
+/// and how many of the booked ones are ours.
 class VenueSlot {
   const VenueSlot({
     required this.date,
     required this.time,
     required this.capacity,
     required this.occupied,
+    this.occupiedOurs = 0,
   });
 
   final Day date;
   final HourMinute time;
   final int capacity;
   final int occupied;
+
+  /// Occupied places whose occupant text matched our team (see aggregateTerms).
+  final int occupiedOurs;
 
   int get free => capacity - occupied;
 }
@@ -46,7 +57,12 @@ class VenueSlot {
 /// one lane (1 player), so the default is 1. On turnajekuzelky a term is a
 /// start and the format's "N×" says how many players share it (dvojice → 2), so
 /// there the caller passes N — e.g. two free 2× starts at 16:00 become 0/4.
-List<VenueSlot> aggregateTerms(List<VenueTerm> terms, {int playersPerTerm = 1}) {
+///
+/// [ourNeedle] (lowercased team name) marks occupied terms whose occupant
+/// contains it as ours; empty = no matching.
+List<VenueSlot> aggregateTerms(List<VenueTerm> terms,
+    {int playersPerTerm = 1, String ourNeedle = ''}) {
+  final needle = ourNeedle.trim().toLowerCase();
   final byKey = <String, List<VenueTerm>>{};
   for (final term in terms) {
     byKey.putIfAbsent('${term.date}|${term.time}', () => []).add(term);
@@ -58,6 +74,14 @@ List<VenueSlot> aggregateTerms(List<VenueTerm> terms, {int playersPerTerm = 1}) 
         time: group.first.time,
         capacity: group.length * playersPerTerm,
         occupied: group.where((t) => t.occupied).length * playersPerTerm,
+        occupiedOurs: needle.isEmpty
+            ? 0
+            : group
+                    .where((t) =>
+                        t.occupied &&
+                        t.occupant.toLowerCase().contains(needle))
+                    .length *
+                playersPerTerm,
       ),
   ]..sort((a, b) => compareDayTime(a.date, a.time, b.date, b.time));
   return slots;
@@ -85,8 +109,9 @@ abstract class TournamentScraper {
   String get name;
 
   /// Downloads and parses the page. Throws on network errors; returns empty
-  /// slots when the page has no reservation grid.
-  Future<ScrapeResult> fetch(Uri url);
+  /// slots when the page has no reservation grid. [ourTeam] (team name) marks
+  /// occupancy booked by us — see VenueSlot.occupiedOurs.
+  Future<ScrapeResult> fetch(Uri url, {String ourTeam = ''});
 }
 
 class ScraperRegistry {

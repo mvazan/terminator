@@ -60,11 +60,11 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
   }
 
   /// Most lanes that can be ordered for one start, or null = no limit.
-  /// Scraped slot → free lanes at the venue; otherwise the saved venue's
-  /// lane count. (Player capacity per lane, i.e. tandem doubling, only shows
-  /// up later when assigning people.)
+  /// The venue's TOTAL lanes for that start, not just the free ones — the
+  /// occupancy may be our own booking made on the venue's site, and ordering
+  /// happens outside the app anyway, so occupancy is advisory, never a block.
   int? _maxLanes(Slot slot, Venue? venue) {
-    if (slot.hasVenueInfo) return slot.venueFree!.clamp(0, 1 << 30);
+    if (slot.hasVenueInfo) return slot.venueCapacity;
     if (venue != null) return venue.laneCount;
     return null;
   }

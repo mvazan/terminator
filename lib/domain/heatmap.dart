@@ -119,14 +119,14 @@ Map<String, TournamentInterest> interestByTournament({
   required Set<String> endedTournamentIds,
   String? uid,
 }) {
-  // slot id -> (tournament, day), skipping venue-full slots. Past days count
-  // only for ended tournaments (Odehrané history); a running one summarizes
-  // just what's still ahead — matching the detail, which hides its past days.
+  // slot id -> (tournament, day). Past days count only for ended tournaments
+  // (Odehrané history); a running one summarizes just what's still ahead —
+  // matching the detail, which hides its past days. Venue-full slots count
+  // too: the grid shows them (they may be full because WE booked them).
   final slotInfo = <String, (String, Day)>{
     for (final s in slots)
-      if (!s.venueFull &&
-          (endedTournamentIds.contains(s.tournamentId) ||
-              !s.date.isBefore(today)))
+      if (endedTournamentIds.contains(s.tournamentId) ||
+          !s.date.isBefore(today))
         s.id: (s.tournamentId, s.date),
   };
 

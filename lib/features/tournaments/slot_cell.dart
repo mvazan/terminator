@@ -6,9 +6,11 @@ import '../../domain/models.dart';
 /// of our team ticked this slot. When the tournament is scraped, the count
 /// reads "team/free" — team members available over free lanes at the venue
 /// (team can exceed capacity). A check icon marks "enough people to order"
-/// (orderable); a thick primary border marks MY tick. Popularity shading
-/// rounds it out. Purely presentational — callbacks injected — so it's
-/// widget-testable.
+/// (orderable); a thick primary border marks MY tick. A home icon marks
+/// occupancy booked by US on the venue's site; a foreign-full slot is dimmed
+/// with a struck-through time but stays fully interactive — occupancy is
+/// advisory, never a block. Purely presentational — callbacks injected — so
+/// it's widget-testable.
 class SlotCell extends StatelessWidget {
   const SlotCell({
     super.key,
@@ -20,6 +22,7 @@ class SlotCell extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.venueFree,
+    this.venueOurs = 0,
   });
 
   final HourMinute time;
@@ -35,8 +38,15 @@ class SlotCell extends StatelessWidget {
   /// Free lanes at the venue (scraped); null = no occupancy info.
   final int? venueFree;
 
+  /// Occupied places at the venue booked by OUR team (scraped); 0 = none.
+  final int venueOurs;
+
   bool get _scraped => venueFree != null;
   bool get _venueFull => venueFree != null && venueFree! <= 0;
+
+  /// Full only with foreign bookings — the discouraging look. Full-by-us
+  /// renders friendly (it's our own reservation waiting for an order).
+  bool get _blockedByOthers => _venueFull && venueOurs <= 0;
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +56,7 @@ class SlotCell extends StatelessWidget {
       onTap: onTap,
       onLongPress: onLongPress,
       child: Opacity(
-        opacity: _venueFull ? 0.55 : 1,
+        opacity: _blockedByOthers ? 0.55 : 1,
         child: Container(
           width: 80,
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
@@ -56,10 +66,10 @@ class SlotCell extends StatelessWidget {
                 scheme.surfaceContainerHighest, scheme.primaryContainer,
                 intensity),
             border: Border.all(
-              color: _venueFull
+              color: _blockedByOthers
                   ? scheme.error
                   : (mine ? scheme.primary : scheme.outlineVariant),
-              width: mine && !_venueFull ? 2 : 1,
+              width: mine && !_blockedByOthers ? 2 : 1,
             ),
           ),
           child: Column(
@@ -68,7 +78,7 @@ class SlotCell extends StatelessWidget {
                 time.display(),
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       decoration:
-                          _venueFull ? TextDecoration.lineThrough : null,
+                          _blockedByOthers ? TextDecoration.lineThrough : null,
                     ),
               ),
               const SizedBox(height: 2),
@@ -80,6 +90,13 @@ class SlotCell extends StatelessWidget {
                       padding: const EdgeInsets.only(right: 2),
                       child: Icon(Icons.check_circle,
                           size: 14, color: scheme.primary),
+                    ),
+                  // Our own booking at the venue.
+                  if (venueOurs > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 2),
+                      child:
+                          Icon(Icons.home, size: 14, color: scheme.primary),
                     ),
                   // Plain team count, or "team/free lanes" when scraped.
                   Text(

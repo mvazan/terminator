@@ -43,6 +43,18 @@ void main() {
     expect(eleven.free, 3);
   });
 
+  test('occupant text includes the klub cell; ourNeedle counts our lanes', () {
+    final terms = parseGalantaHtml(html);
+    final booked = terms.where((t) => t.occupied).toList();
+    expect(booked.first.occupant, contains('Sučany')); // Milan Kováč's klub
+
+    // Case-insensitive contains on the whole row text (name + klub).
+    final slots = aggregateTerms(terms, ourNeedle: 'sučany');
+    final ten = slots[0];
+    expect(ten.occupiedOurs, 1); // only Kováč's lane, not Janík's
+    expect(ten.occupied, 2);
+  });
+
   test('reads the tournament name from the "- prihláška" heading', () {
     expect(parseGalantaName(html), 'Memoriál ZOLIHO MADARÁSA 2026');
   });

@@ -25,6 +25,18 @@ void main() {
     expect(first.free, 4);
   });
 
+  test('219: taken rows carry the oddíl text; ourNeedle counts our starts',
+      () {
+    final r = parseTurnajeKuzelkyHtml(fixture('219'), ourTeam: 'chýnov');
+    // Blanka Mašková (TJ Sokol Chýnov) has one taken 10:00 start — with the
+    // needle it counts as ours; every other taken start stays foreign.
+    final taken = r.slots.where((s) => s.occupied > 0).toList();
+    expect(taken, isNotEmpty);
+    final ours = r.slots.where((s) => s.occupiedOurs > 0).toList();
+    expect(ours, isNotEmpty);
+    expect(ours.every((s) => s.occupiedOurs <= s.occupied), isTrue);
+  });
+
   test('221: pairs (2x120HS) — capacity counts player places, not starts', () {
     final r = parseTurnajeKuzelkyHtml(fixture('221'));
 

@@ -30,14 +30,14 @@ class TurnajeKuzelkyScraper implements TournamentScraper {
   String get name => 'turnajekuzelky.cz';
 
   @override
-  Future<ScrapeResult> fetch(Uri url) async {
+  Future<ScrapeResult> fetch(Uri url, {String ourTeam = ''}) async {
     final response = await _client.get(url).timeout(
           const Duration(seconds: 20),
         );
     if (response.statusCode != 200) {
       throw Exception('Stránka vrátila ${response.statusCode}');
     }
-    return parseTurnajeKuzelkyHtml(response.body);
+    return parseTurnajeKuzelkyHtml(response.body, ourTeam: ourTeam);
   }
 }
 
@@ -45,7 +45,10 @@ final _dayHeaderPattern =
     RegExp(r'date-header.*?(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})', dotAll: true);
 final _slotRowPattern = RegExp(
   r'slot-row\s+(slot-taken|slot-free)"[^>]*>\s*'
-  r'<div class="slot-time">\s*(\d{1,2}:\d{2})',
+  r'<div class="slot-time">\s*(\d{1,2}:\d{2})'
+  // Through the row up to slot-actions: taken rows carry the player name +
+  // "(oddíl)" inside slot-label — captured to recognize our own bookings.
+  r'(.*?)(?:<div class="slot-actions"|</div>\s*</div>)',
   dotAll: true,
 );
 final _gamepadPattern =
@@ -53,7 +56,7 @@ final _gamepadPattern =
 final _titlePattern = RegExp(r'<title>\s*(.*?)\s*</title>', dotAll: true);
 
 /// Pure parser — unit-tested against fixtures of the real pages.
-ScrapeResult parseTurnajeKuzelkyHtml(String html) {
+ScrapeResult parseTurnajeKuzelkyHtml(String html, {String ourTeam = ''}) {
   // Split into day blocks so each slot-row is attributed to its date-header.
   final headers = _dayHeaderPattern.allMatches(html).toList();
   final terms = <VenueTerm>[];
@@ -67,10 +70,17 @@ ScrapeResult parseTurnajeKuzelkyHtml(String html) {
       int.parse(h.group(1)!),
     );
     for (final row in _slotRowPattern.allMatches(block)) {
+      final occupied = row.group(1) == 'slot-taken';
       terms.add(VenueTerm(
         date: date,
         time: HourMinute.parse(row.group(2)!),
-        occupied: row.group(1) == 'slot-taken',
+        occupied: occupied,
+        occupant: occupied
+            ? (row.group(3) ?? '')
+                .replaceAll(RegExp(r'<[^>]+>'), ' ')
+                .replaceAll(RegExp(r'\s+'), ' ')
+                .trim()
+            : '',
       ));
     }
   }
@@ -78,7 +88,8 @@ ScrapeResult parseTurnajeKuzelkyHtml(String html) {
   return ScrapeResult(
     // The "N×" in the format is how many players share one start (dvojice → 2),
     // so a start's places = starts × N. Two free 2× starts at 16:00 → 0/4.
-    slots: aggregateTerms(terms, playersPerTerm: _parsePlayersPerStart(html)),
+    slots: aggregateTerms(terms,
+        playersPerTerm: _parsePlayersPerStart(html), ourNeedle: ourTeam),
     name: _parseName(html),
     kind: _parseKind(html),
     discipline: _parseDiscipline(html),

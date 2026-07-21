@@ -74,9 +74,12 @@ class _TournamentDetailScreenState
 
     final scrapable = ScraperRegistry.forUrl(tournament.sourceUrl) != null;
 
-    // Fully booked venue slots aren't ours to fill — hide them from the grid.
+    // ALL starts, including fully booked ones — a full slot may be full
+    // because WE booked it on the venue's site (highlighted as ours), and
+    // even foreign-full slots stay tickable/orderable (occupancy is
+    // advisory; ordering happens outside the app anyway).
     final slots = (ref.watch(slotsProvider).value ?? const [])
-        .where((s) => s.tournamentId == tournamentId && !s.venueFull)
+        .where((s) => s.tournamentId == tournamentId)
         .toList()
       ..sort(Slot.compare);
     final slotIds = {for (final s in slots) s.id};
@@ -266,6 +269,11 @@ class _TournamentDetailScreenState
               '✓ = dost lidí na objednání · zvýrazněný rámeček = tvoje volba',
               style: Theme.of(context).textTheme.bodySmall,
             ),
+            if (scrapable)
+              Text(
+                '⌂ = obsazeno námi (naše rezervace) · přeškrtnuté = plné cizími',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
           ],
           const SizedBox(height: 8),
           for (final day in visibleDays)
@@ -587,6 +595,7 @@ class _DayRowState extends ConsumerState<_DayRow> {
       isOrderable: stats?.isOrderable ?? false,
       mine: mine,
       venueFree: slot.venueFree,
+      venueOurs: slot.venueOccupiedOurs ?? 0,
       // Through tryAction so a dropped connection is a friendly snackbar, not
       // an uncaught (fatal) error — the tap is otherwise fire-and-forget.
       onTap: readOnly

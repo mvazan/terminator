@@ -141,7 +141,7 @@ void main() {
       expect(t2.mine, isFalse);
     });
 
-    test('venue-full slots are excluded, matching the detail grid', () {
+    test('venue-full slots count too — the grid shows them (may be ours)', () {
       final full = Slot(
         id: 'full',
         tournamentId: 't1',
@@ -159,7 +159,7 @@ void main() {
         endedTournamentIds: const {},
         uid: 'u1',
       );
-      expect(interest, isEmpty);
+      expect(interest['t1']!.players, 1);
     });
 
     test('no ticks -> tournament absent from the map', () {

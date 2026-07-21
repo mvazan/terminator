@@ -21,6 +21,20 @@ void main() {
     expect(first.occupied, isFalse);
   });
 
+  test('captures the occupant text and counts our bookings', () {
+    final terms = parseMkwareHtml(html);
+    final booked = terms.where((t) => t.occupied).toList();
+    expect(booked.first.occupant, contains('KK Veverky'));
+    expect(terms.where((t) => !t.occupied).every((t) => t.occupant.isEmpty),
+        isTrue);
+
+    final slots = aggregateTerms(terms, ourNeedle: 'veverky');
+    final sixteen = slots[0]; // 31.07 16:00 — booked by KK Veverky
+    expect(sixteen.occupiedOurs, 1);
+    // The other booked start (Sokol) isn't ours.
+    expect(slots.fold(0, (n, s) => n + s.occupiedOurs), 1);
+  });
+
   test('aggregates into per-start occupancy', () {
     final slots = aggregateTerms(parseMkwareHtml(html));
 

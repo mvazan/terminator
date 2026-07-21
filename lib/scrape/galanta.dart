@@ -24,7 +24,7 @@ class GalantaScraper implements TournamentScraper {
   String get name => 'kolky-galanta.sk';
 
   @override
-  Future<ScrapeResult> fetch(Uri url) async {
+  Future<ScrapeResult> fetch(Uri url, {String ourTeam = ''}) async {
     final response = await _client.get(url).timeout(
           const Duration(seconds: 20),
         );
@@ -33,7 +33,7 @@ class GalantaScraper implements TournamentScraper {
     }
     final html = response.body;
     return ScrapeResult(
-      slots: aggregateTerms(parseGalantaHtml(html)),
+      slots: aggregateTerms(parseGalantaHtml(html), ourNeedle: ourTeam),
       name: parseGalantaName(html),
     );
   }
@@ -67,6 +67,9 @@ List<VenueTerm> parseGalantaHtml(String html) {
     final body = row.group(1)!;
     final dt = _dateTimePattern.firstMatch(body);
     if (dt == null) continue; // header/decoration rows have no date+time
+    // A free lane renders a booking form (<input name=jmeno>); a booked one
+    // shows the player's name + klub as plain text.
+    final occupied = !body.contains('name=jmeno');
     terms.add(VenueTerm(
       date: Day(
         int.parse(dt.group(3)!),
@@ -74,9 +77,13 @@ List<VenueTerm> parseGalantaHtml(String html) {
         int.parse(dt.group(1)!),
       ),
       time: HourMinute(int.parse(dt.group(4)!), int.parse(dt.group(5)!)),
-      // A free lane renders a booking form (<input name=jmeno>); a booked one
-      // shows the player's name as plain text.
-      occupied: !body.contains('name=jmeno'),
+      occupied: occupied,
+      occupant: occupied
+          ? body
+              .replaceAll(RegExp(r'<[^>]+>'), ' ')
+              .replaceAll(RegExp(r'\s+'), ' ')
+              .trim()
+          : '',
     ));
   }
   return terms;
