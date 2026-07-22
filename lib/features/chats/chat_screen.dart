@@ -48,6 +48,9 @@ class _Pending {
 }
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
+  /// Captured in initState — dispose() must not touch `ref` (TERMINATOR-7:
+  /// tree finalization forbids it), and the draft is saved exactly there.
+  late final ChatDraftsNotifier _drafts;
   final _input = TextEditingController();
   final _scroll = ScrollController();
   final _pending = <_Pending>[];
@@ -66,8 +69,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    final drafts = ref.read(chatDraftsProvider);
-    _input.text = drafts[_chatKey] ?? '';
+    _drafts = ref.read(chatDraftsProvider.notifier);
+    _input.text = ref.read(chatDraftsProvider)[_chatKey] ?? '';
     _input.addListener(_saveDraft);
     _scroll.addListener(() {
       final show = _scroll.hasClients && _scroll.offset > 600;
@@ -80,7 +83,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _draftTimer?.cancel();
     final text = _input.text;
     _draftTimer = Timer(const Duration(milliseconds: 400), () {
-      ref.read(chatDraftsProvider.notifier).set(_chatKey, text);
+      _drafts.set(_chatKey, text);
     });
   }
 
@@ -88,7 +91,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void dispose() {
     _draftTimer?.cancel();
     // Persist whatever is typed right now, without the debounce.
-    ref.read(chatDraftsProvider.notifier).set(_chatKey, _input.text);
+    _drafts.set(_chatKey, _input.text);
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -114,7 +117,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _replyTo = null;
       _input.clear();
     });
-    ref.read(chatDraftsProvider.notifier).set(_chatKey, '');
+    _drafts.set(_chatKey, '');
     await _deliver(pending);
   }
 
