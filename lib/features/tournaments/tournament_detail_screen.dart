@@ -358,7 +358,8 @@ class _TournamentDetailScreenState
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             Text(
-              'zelená = objednáno, ⌂ číslo = přiřazení hráči/objednané dráhy',
+              'zelená = objednáno (⌂ číslo = přiřazení/dráhy), klepnutím '
+              'se přidáš/odhlásíš',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -373,6 +374,7 @@ class _TournamentDetailScreenState
               readOnly: readOnly,
               orderedLanesBySlot: orderedLanesBySlot,
               assignedBySlot: assignedBySlot,
+              playersPerLane: tournament.kind.playersPerLane,
             ),
           const SizedBox(height: 48),
           ],
@@ -572,6 +574,7 @@ class _DayRow extends ConsumerStatefulWidget {
     this.readOnly = false,
     this.orderedLanesBySlot = const {},
     this.assignedBySlot = const {},
+    this.playersPerLane = 1,
   });
 
   final Day day;
@@ -585,6 +588,10 @@ class _DayRow extends ConsumerStatefulWidget {
   /// "ordered" look of the cells.
   final Map<String, int> orderedLanesBySlot;
   final Map<String, int> assignedBySlot;
+
+  /// Players one ordered lane holds (tandem → 2) — the roster capacity of an
+  /// ordered start is lanes × this.
+  final int playersPerLane;
 
   @override
   ConsumerState<_DayRow> createState() => _DayRowState();
@@ -604,7 +611,7 @@ class _DayRowState extends ConsumerState<_DayRow> {
   /// One tap for the whole day: tick everything, or untick everything when
   /// all of the day's slots are already mine.
   Future<void> _selectDay(bool allMine) async {
-    HapticFeedback.lightImpact();
+    HapticFeedback.mediumImpact();
     setState(() => _busy = true);
     try {
       await tryAction(
@@ -672,6 +679,7 @@ class _DayRowState extends ConsumerState<_DayRow> {
   Widget _cell(BuildContext context, Slot slot) {
     final stats = heatmap.bySlotId[slot.id];
     final mine = uid != null && (stats?.userIds.contains(uid) ?? false);
+    final ordered = (widget.orderedLanesBySlot[slot.id] ?? 0) > 0;
 
     return SlotCell(
       time: slot.time,
@@ -685,17 +693,47 @@ class _DayRowState extends ConsumerState<_DayRow> {
       assigned: widget.assignedBySlot[slot.id] ?? 0,
       // Through tryAction so a dropped connection is a friendly snackbar, not
       // an uncaught (fatal) error — the tap is otherwise fire-and-forget.
+      // An ordered (green) start is past the interest phase: tapping toggles
+      // my ROSTER spot on the order instead of the availability tick.
       onTap: readOnly
           ? null
           : () {
-              HapticFeedback.lightImpact();
-              tryAction(context, () => Api.setAvailability(slot.id, !mine));
+              HapticFeedback.mediumImpact();
+              if (ordered) {
+                _toggleRoster(context, slot);
+              } else {
+                tryAction(
+                    context, () => Api.setAvailability(slot.id, !mine));
+              }
             },
       // Scraped slots are owned by the web sync — no manual deletion.
       onLongPress: readOnly || slot.hasVenueInfo
           ? null
           : () => _confirmDelete(context, slot),
     );
+  }
+
+  /// Join/leave the ordered start's roster from the grid cell.
+  Future<void> _toggleRoster(BuildContext context, Slot slot) async {
+    final rosters = ref.read(rostersProvider).value ?? const <RosterEntry>[];
+    final mine = rosters
+        .where((r) => r.slotId == slot.id && r.userId == uid)
+        .firstOrNull;
+    if (mine != null) {
+      await tryAction(context, () => Api.removeRosterEntry(mine.id),
+          success: 'Odhlášen ze startu ${slot.time.display()}.');
+      return;
+    }
+    final capacity =
+        (widget.orderedLanesBySlot[slot.id] ?? 0) * widget.playersPerLane;
+    final assigned = widget.assignedBySlot[slot.id] ?? 0;
+    if (assigned >= capacity) {
+      snack(context,
+          'Start ${slot.time.display()} je plný ($assigned/$capacity).');
+      return;
+    }
+    await tryAction(context, () => Api.joinSlot(slot.id),
+        success: 'Přidán na start ${slot.time.display()}.');
   }
 
   /// Who can make this day, one entry per person with a summarized range
