@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const _showWhoIsInKey = 'show_who_is_in';
 const _chatReadsKey = 'chat_reads';
+const _chatDraftsKey = 'chat_drafts';
 
 /// Whether the "who's in" name list is shown under every slot in the
 /// tournament heatmap (vs. just the count). Toggled from the tournament
@@ -70,5 +71,39 @@ class ChatReadsNotifier extends Notifier<Map<String, DateTime>> {
         jsonEncode({
           for (final e in state.entries) e.key: e.value.toIso8601String(),
         }));
+  }
+}
+
+/// Unsent message drafts per chat (muteKey-keyed) — leaving a chat mid-typing
+/// keeps the text on this device.
+final chatDraftsProvider =
+    NotifierProvider<ChatDraftsNotifier, Map<String, String>>(
+        ChatDraftsNotifier.new);
+
+class ChatDraftsNotifier extends Notifier<Map<String, String>> {
+  @override
+  Map<String, String> build() {
+    _load();
+    return const {};
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_chatDraftsKey);
+    if (raw == null) return;
+    state = (jsonDecode(raw) as Map<String, dynamic>).cast<String, String>();
+  }
+
+  Future<void> set(String chatKey, String draft) async {
+    if ((state[chatKey] ?? '') == draft) return;
+    final next = {...state};
+    if (draft.trim().isEmpty) {
+      next.remove(chatKey);
+    } else {
+      next[chatKey] = draft;
+    }
+    state = next;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_chatDraftsKey, jsonEncode(state));
   }
 }

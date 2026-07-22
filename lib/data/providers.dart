@@ -356,6 +356,34 @@ final teamMessagesProvider = StreamProvider<List<ChatMessage>>((ref) {
   ).map((rows) => rows.map(ChatMessage.fromTeamJson).toList());
 });
 
+/// Emoji reactions for tournament/day-chat messages, messageId → reactions.
+final reactionsProvider = StreamProvider<Map<String, List<Reaction>>>((ref) {
+  if (ref.watch(_userIdProvider) == null) return Stream.value(const {});
+  return cachedRows(
+    key: 'message_reactions',
+    live: () => _db.from('message_reactions').stream(primaryKey: ['id']),
+  ).map(_reactionsById);
+});
+
+/// Emoji reactions for team-chat messages, messageId → reactions.
+final teamReactionsProvider = StreamProvider<Map<String, List<Reaction>>>((ref) {
+  if (ref.watch(_userIdProvider) == null) return Stream.value(const {});
+  return cachedRows(
+    key: 'team_message_reactions',
+    live: () =>
+        _db.from('team_message_reactions').stream(primaryKey: ['id']),
+  ).map(_reactionsById);
+});
+
+Map<String, List<Reaction>> _reactionsById(List<Map<String, dynamic>> rows) {
+  final map = <String, List<Reaction>>{};
+  for (final row in rows) {
+    final r = Reaction.fromJson(row);
+    map.putIfAbsent(r.messageId, () => []).add(r);
+  }
+  return map;
+}
+
 /// The caller's chat mutes as "tournamentId|day" keys ('' day = tournament
 /// chat). The team chat is muted via a separate table, folded in here under the
 /// [teamChatId] sentinel key so the UI can treat all mutes uniformly.
@@ -788,19 +816,46 @@ class Api {
       _db.rpc('rejoin_day_chat',
           params: {'p_tournament': tournamentId, 'p_day': day.toSql()});
 
-  static Future<void> sendMessage(String tournamentId, Day? day, String body) =>
+  static Future<void> sendMessage(String tournamentId, Day? day, String body,
+          {String? replyTo}) =>
       _db.from('messages').insert({
         'tournament_id': tournamentId,
         'day': day?.toSql(),
         'user_id': currentUserId!,
         'body': body,
+        'reply_to': ?replyTo,
       });
 
-  static Future<void> sendTeamMessage(String body) =>
+  static Future<void> sendTeamMessage(String body, {String? replyTo}) =>
       _db.from('team_messages').insert({
         'user_id': currentUserId!,
         'body': body,
+        'reply_to': ?replyTo,
       });
+
+  /// Deleting is RLS-limited to the caller's own messages.
+  static Future<void> deleteMessage(String id, {required bool team}) =>
+      _db.from(team ? 'team_messages' : 'messages').delete().eq('id', id);
+
+  /// Adds my [emoji] on a message, or removes it when [mine] says I already
+  /// reacted with it (the stream tells the UI which case it is).
+  static Future<void> toggleReaction(String messageId, String emoji,
+      {required bool team, required bool mine}) {
+    final table = team ? 'team_message_reactions' : 'message_reactions';
+    if (mine) {
+      return _db
+          .from(table)
+          .delete()
+          .eq('message_id', messageId)
+          .eq('user_id', currentUserId!)
+          .eq('emoji', emoji);
+    }
+    return _db.from(table).insert({
+      'message_id': messageId,
+      'user_id': currentUserId!,
+      'emoji': emoji,
+    });
+  }
 
   static Future<void> setTeamChatMuted(bool muted) async {
     final uid = currentUserId!;

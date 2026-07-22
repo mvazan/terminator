@@ -567,6 +567,7 @@ class ChatMessage {
     required this.body,
     required this.createdAt,
     this.day,
+    this.replyTo,
   });
 
   final String id;
@@ -578,6 +579,9 @@ class ChatMessage {
   final String body;
   final DateTime createdAt;
 
+  /// Id of the quoted message (same chat), null = plain message.
+  final String? replyTo;
+
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
         id: json['id'] as String,
         tournamentId: json['tournament_id'] as String,
@@ -585,6 +589,7 @@ class ChatMessage {
         userId: json['user_id'] as String,
         body: json['body'] as String,
         createdAt: DateTime.parse(json['created_at'] as String),
+        replyTo: json['reply_to'] as String?,
       );
 
   /// A row from the separate `team_messages` table (the team-wide chat), which
@@ -597,12 +602,36 @@ class ChatMessage {
         userId: json['user_id'] as String,
         body: json['body'] as String,
         createdAt: DateTime.parse(json['created_at'] as String),
+        replyTo: json['reply_to'] as String?,
       );
 }
 
 /// See [teamChatId] in providers — kept here too so the model layer, which
 /// can't import providers, can stamp team messages with the same sentinel.
 const teamChatSentinelId = 'team';
+
+/// One emoji reaction on a chat message (either message table — the caller
+/// knows which chat it's reading reactions for).
+class Reaction {
+  const Reaction({
+    required this.id,
+    required this.messageId,
+    required this.userId,
+    required this.emoji,
+  });
+
+  final String id;
+  final String messageId;
+  final String userId;
+  final String emoji;
+
+  factory Reaction.fromJson(Map<String, dynamic> json) => Reaction(
+        id: json['id'] as String,
+        messageId: json['message_id'] as String,
+        userId: json['user_id'] as String,
+        emoji: json['emoji'] as String,
+      );
+}
 
 class Venue {
   const Venue({
