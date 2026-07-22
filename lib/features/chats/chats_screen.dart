@@ -39,7 +39,7 @@ class ChatsScreen extends ConsumerWidget {
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
           ),
           for (final (i, chat) in model.open.indexed) ...[
-            if (i > 0) const Divider(height: 1, indent: 56),
+            if (i > 0) const Divider(height: 1),
             _ChatTile(data: chat, mutes: mutes, members: members),
           ],
           if (model.archived.isNotEmpty)
@@ -48,7 +48,7 @@ class ChatsScreen extends ConsumerWidget {
               title: Text('Archiv (${model.archived.length})'),
               children: [
                 for (final (i, chat) in model.archived.indexed) ...[
-                  if (i > 0) const Divider(height: 1, indent: 56),
+                  if (i > 0) const Divider(height: 1),
                   _ChatTile(data: chat, mutes: mutes, members: members),
                 ],
               ],
