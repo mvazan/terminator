@@ -1,9 +1,7 @@
--- Chat UX pack: delete own messages, reply threading, emoji reactions.
+-- Chat UX pack: reply threading and emoji reactions. (Deleting your own
+-- message needs no schema change — both message tables have had a
+-- *_delete_own policy since 0001/0008; the client only now grew the UI.)
 -- Additive — build 44 clients ignore all of it.
-
--- Deleting your own message (team_messages has this since 0008).
-create policy messages_delete_own on messages for delete
-  using (is_approved() and user_id = auth.uid());
 
 -- Reply threading: a message may quote an earlier one in the same table.
 alter table messages add column reply_to uuid references messages (id)
