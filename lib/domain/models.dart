@@ -377,6 +377,9 @@ class Availability {
       );
 }
 
+/// `confirmed` is legacy — the confirm step was dropped (orders are recorded
+/// only once they're real), but old rows/clients may still carry it; it
+/// behaves exactly like `ordered`.
 enum OrderStatus { proposed, ordered, confirmed, cancelled }
 
 class Order {

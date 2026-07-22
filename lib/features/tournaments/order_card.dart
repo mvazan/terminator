@@ -64,8 +64,7 @@ class OrderCard extends ConsumerWidget {
                   child: Text(
                     order.isProposal
                         ? 'Návrh — $creator'
-                        : 'Objednáno — $creator'
-                            '${order.status == OrderStatus.confirmed ? ' ✓ potvrzeno' : ''}',
+                        : 'Objednáno — $creator',
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
@@ -115,10 +114,6 @@ class OrderCard extends ConsumerWidget {
             await tryAction(
                 context, () => Api.setOrderStatus(order.id, OrderStatus.ordered),
                 success: 'Označeno jako objednané.');
-          case 'confirmed':
-            await tryAction(context,
-                () => Api.setOrderStatus(order.id, OrderStatus.confirmed),
-                success: 'Potvrzeno.');
           case 'cancel':
             await tryAction(context,
                 () => Api.setOrderStatus(order.id, OrderStatus.cancelled),
@@ -129,9 +124,6 @@ class OrderCard extends ConsumerWidget {
         if (order.isProposal)
           const PopupMenuItem(
               value: 'ordered', child: Text('Objednal(a) jsem to ✓')),
-        if (order.status == OrderStatus.ordered)
-          const PopupMenuItem(
-              value: 'confirmed', child: Text('Pořadatel potvrdil')),
         const PopupMenuItem(value: 'cancel', child: Text('Zrušit')),
       ],
     );
