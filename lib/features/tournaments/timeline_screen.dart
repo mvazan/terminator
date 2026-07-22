@@ -14,14 +14,16 @@ const _labelWidth = 140.0;
 /// show-hidden toggle is on.
 const _hiddenBarColor = Color(0xFFBDBDBD);
 
-/// Marker line colors: a day I ticked vs. a day with an active order.
+/// Marker line colors: a day I ticked vs. a day I'm playing (rostered on an
+/// ordered start).
 const _tickMarkerColor = Colors.black54;
 const _orderedMarkerColor = Color(0xFFD32F2F);
 
 /// Season calendar — the team's spreadsheet as a screen: rows = tournaments,
 /// columns = weeks, colored bars = duration. Overlaps at a glance.
-/// Vertical lines inside a bar mark days I ticked (dark) and days with an
-/// active order (red). Display only by design (no trip suggestions).
+/// Vertical lines inside a bar mark days I ticked (dark) and days where I'M
+/// assigned on an ordered start (red) — my season, not the team's orders.
+/// Display only by design (no trip suggestions).
 class TimelineScreen extends ConsumerStatefulWidget {
   const TimelineScreen({super.key});
 
@@ -62,11 +64,17 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
     }
     final orderSlots = ref.watch(orderSlotsProvider).value ??
         const <String, Map<String, int>>{};
+    // Red = MY starts: days of active orders where I'm on the roster.
+    final myRosteredSlotIds = {
+      for (final r in ref.watch(rostersProvider).value ?? const <RosterEntry>[])
+        if (r.userId == uid) r.slotId,
+    };
     final orderedDays = <String, Set<Day>>{};
     for (final order in ref.watch(ordersProvider).value ?? const <Order>[]) {
       if (!order.isActive) continue;
       for (final slotId
           in (orderSlots[order.id] ?? const <String, int>{}).keys) {
+        if (!myRosteredSlotIds.contains(slotId)) continue;
         final slot = slotById[slotId];
         if (slot != null) {
           orderedDays.putIfAbsent(order.tournamentId, () => {}).add(slot.date);
