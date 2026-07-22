@@ -252,9 +252,14 @@ class _TournamentDetailScreenState
           ),
         ],
       ),
-      body: ListView(
+      // Non-lazy on purpose: the content is small, and "open scrolled to the
+      // orders" (day-chat bar) needs the whole body laid out so
+      // ensureVisible has a context to scroll to.
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(12),
-        children: [
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
           if (archived || hiddenByMe)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -351,7 +356,8 @@ class _TournamentDetailScreenState
                 ),
           ],
           const SizedBox(height: 48),
-        ],
+          ],
+        ),
       ),
     );
   }

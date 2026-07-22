@@ -100,85 +100,110 @@ class _ChatTile extends ConsumerWidget {
         : '${last.userId == uid ? 'ty' : memberName(members, last.userId)}: '
             '${last.body.replaceAll('\n', ' ')}';
 
-    return ListTile(
-      leading: Badge(
-        isLabelVisible: unread > 0,
-        label: Text('$unread'),
-        child: Icon(
-          isTeam ? Icons.forum : (day == null ? Icons.groups : Icons.event),
-          color: isTeam ? scheme.primary : null,
-        ),
-      ),
-      title: Text(
-        title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: isTeam ? scheme.primary : null,
-          fontWeight: unread > 0
-              ? FontWeight.w700
-              : (isTeam ? FontWeight.w600 : null),
-        ),
-      ),
-      isThreeLine: preview != null,
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(kindLine,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  )),
-          if (preview != null)
-            Text(
-              preview,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: unread > 0
-                  ? const TextStyle(fontWeight: FontWeight.w600)
-                  : null,
-            ),
-        ],
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (last != null)
-            Text(
-              chatListTime(last.createdAt, now: DateTime.now()),
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: unread > 0 ? scheme.primary : scheme.outline,
-                    fontWeight: unread > 0 ? FontWeight.w700 : null,
-                  ),
-            ),
-          const SizedBox(width: 2),
-          if (data.locked)
-            const Icon(Icons.lock_outline, size: 16)
-          else
-            BusyIconButton(
-              icon: Icon(
-                muted
-                    ? Icons.notifications_off
-                    : Icons.notifications_active_outlined,
-                size: 18,
-              ),
-              tooltip: muted ? 'Zapnout upozornění' : 'Ztlumit',
-              onPressed: () async {
-                await tryAction(
-                    context,
-                    () => isTeam
-                        ? Api.setTeamChatMuted(!muted)
-                        : Api.setMuted(t.id, day, !muted));
-              },
-            ),
-        ],
-      ),
+    final small = Theme.of(context)
+        .textTheme
+        .bodySmall
+        ?.copyWith(color: scheme.outline);
+
+    return InkWell(
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => isTeam
               ? const ChatScreen.team()
               : ChatScreen(tournamentId: t.id, day: day),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Badge(
+                  isLabelVisible: unread > 0,
+                  label: Text('$unread'),
+                  child: Icon(
+                    isTeam
+                        ? Icons.forum
+                        : (day == null ? Icons.groups : Icons.event),
+                    color: isTeam ? scheme.primary : null,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: isTeam ? scheme.primary : null,
+                          fontWeight:
+                              unread > 0 ? FontWeight.w700 : FontWeight.w600,
+                        ),
+                      ),
+                      if (t != null)
+                        Text(t.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: small),
+                      Text(kindLine,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: small),
+                    ],
+                  ),
+                ),
+                if (last != null)
+                  Text(
+                    chatListTime(last.createdAt, now: DateTime.now()),
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: unread > 0 ? scheme.primary : scheme.outline,
+                          fontWeight: unread > 0 ? FontWeight.w700 : null,
+                        ),
+                  ),
+                const SizedBox(width: 2),
+                if (data.locked)
+                  const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Icon(Icons.lock_outline, size: 16),
+                  )
+                else
+                  BusyIconButton(
+                    icon: Icon(
+                      muted
+                          ? Icons.notifications_off
+                          : Icons.notifications_active_outlined,
+                      size: 18,
+                    ),
+                    tooltip: muted ? 'Zapnout upozornění' : 'Ztlumit',
+                    onPressed: () async {
+                      await tryAction(
+                          context,
+                          () => isTeam
+                              ? Api.setTeamChatMuted(!muted)
+                              : Api.setMuted(t.id, day, !muted));
+                    },
+                  ),
+              ],
+            ),
+            // The last message runs the FULL row width, under icon and bell.
+            if (preview != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 2, right: 8),
+                child: Text(
+                  preview,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: unread > 0
+                      ? const TextStyle(fontWeight: FontWeight.w600)
+                      : Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+          ],
         ),
       ),
     );
