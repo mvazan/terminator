@@ -97,6 +97,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _send() async {
     final body = _input.text.trim();
     if (body.isEmpty) return;
+    HapticFeedback.lightImpact();
     final editing = _editing;
     if (editing != null) {
       setState(() {
@@ -235,6 +236,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ChatMessage message, String emoji, List<Reaction> current) async {
     final mine = current
         .any((r) => r.userId == currentUserId && r.emoji == emoji);
+    HapticFeedback.selectionClick();
     await tryAction(
         context,
         () => Api.toggleReaction(message.id, emoji,

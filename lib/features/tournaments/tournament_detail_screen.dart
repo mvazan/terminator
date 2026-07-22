@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/ui.dart';
@@ -603,6 +604,7 @@ class _DayRowState extends ConsumerState<_DayRow> {
   /// One tap for the whole day: tick everything, or untick everything when
   /// all of the day's slots are already mine.
   Future<void> _selectDay(bool allMine) async {
+    HapticFeedback.lightImpact();
     setState(() => _busy = true);
     try {
       await tryAction(
@@ -685,7 +687,10 @@ class _DayRowState extends ConsumerState<_DayRow> {
       // an uncaught (fatal) error — the tap is otherwise fire-and-forget.
       onTap: readOnly
           ? null
-          : () => tryAction(context, () => Api.setAvailability(slot.id, !mine)),
+          : () {
+              HapticFeedback.lightImpact();
+              tryAction(context, () => Api.setAvailability(slot.id, !mine));
+            },
       // Scraped slots are owned by the web sync — no manual deletion.
       onLongPress: readOnly || slot.hasVenueInfo
           ? null

@@ -31,6 +31,11 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
   /// hide/unhide in bulk. Off = hidden ones simply disappear.
   bool _showHidden = false;
 
+  /// Search mode: the app bar swaps for a text field filtering by tournament
+  /// or venue name (diacritics-insensitive).
+  bool _searching = false;
+  final _searchCtl = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -131,6 +136,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _commitSilently();
+    _searchCtl.dispose();
     super.dispose();
   }
 
@@ -159,10 +165,28 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
     return Scaffold(
       appBar: AppBar(
         // Long-press the title to reach the hidden manage mode (PIN-gated).
-        title: ManageGestureTitle(
-          child: const Text('Turnaje'),
-        ),
+        title: _searching
+            ? TextField(
+                controller: _searchCtl,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Hledat turnaj nebo kuželnu…',
+                  border: InputBorder.none,
+                ),
+                onChanged: (_) => setState(() {}),
+              )
+            : ManageGestureTitle(
+                child: const Text('Turnaje'),
+              ),
         actions: [
+          IconButton(
+            tooltip: _searching ? 'Zavřít hledání' : 'Hledat',
+            icon: Icon(_searching ? Icons.close : Icons.search),
+            onPressed: () => setState(() {
+              if (_searching) _searchCtl.clear();
+              _searching = !_searching;
+            }),
+          ),
           // Eye mode: reveal my hidden tournaments with checkboxes to
           // hide/unhide in bulk; closing commits everything at once.
           IconButton(
@@ -220,12 +244,21 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
                 const <Tournament>[]))
               if (!t.isHidden) t,
           ];
-          final all = _showHidden
+          var all = _showHidden
               ? teamVisible
               : [
                   for (final t in teamVisible)
                     if (!_effectiveHidden(t.id, myHiddenIds)) t,
                 ];
+          final query = searchFold(_searchCtl.text.trim());
+          if (_searching && query.isNotEmpty) {
+            all = [
+              for (final t in all)
+                if (searchFold(t.name).contains(query) ||
+                    searchFold(venueNames[t.venueId] ?? '').contains(query))
+                  t,
+            ];
+          }
           var active = [
             for (final t in all)
               if (!t.isArchived && !t.endsOn.isBefore(now)) t,
@@ -244,8 +277,11 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
           }
 
           if (all.isEmpty) {
-            return const Center(
-              child: Text('Zatím žádný turnaj.\nZalož první!',
+            return Center(
+              child: Text(
+                  _searching && query.isNotEmpty
+                      ? 'Nic nenalezeno.'
+                      : 'Zatím žádný turnaj.\nZalož první!',
                   textAlign: TextAlign.center),
             );
           }

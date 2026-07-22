@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/ui.dart';
@@ -140,11 +141,14 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
               Builder(builder: (context) {
                 final selected = _selected.containsKey(slot.id);
                 final max = _maxLanes(slot, venue);
-                void toggle() => setState(() {
-                      selected
-                          ? _selected.remove(slot.id)
-                          : _selected[slot.id] = _defaultLanes(slot);
-                    });
+                void toggle() {
+                  HapticFeedback.selectionClick();
+                  setState(() {
+                    selected
+                        ? _selected.remove(slot.id)
+                        : _selected[slot.id] = _defaultLanes(slot);
+                  });
+                }
                 final scheme = Theme.of(context).colorScheme;
                 return Column(
                   children: [

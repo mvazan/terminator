@@ -63,6 +63,18 @@ class MyStartsScreen extends ConsumerWidget {
                     if (r.slotId == start.slot.id && r.userId != uid)
                       rosterEntryName(r, members),
                 ];
+                // The nearest start leads as a hero card with a countdown.
+                if (i == 0) {
+                  return _heroCard(
+                    context,
+                    start: start,
+                    venueName: venueName,
+                    teammates: teammates,
+                    inDays: _inDaysLabel(start.slot.date, now),
+                    onCancelDay: () =>
+                        _cancelDayInterest(context, ref, start.slot),
+                  );
+                }
                 return Card(
                   margin:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -94,6 +106,87 @@ class MyStartsScreen extends ConsumerWidget {
                 );
               },
             ),
+    );
+  }
+
+  /// "dnes" / "zítra" / "za 3 dny" / "za 8 dní".
+  static String _inDaysLabel(Day date, Day today) {
+    final diff = DateTime.utc(date.year, date.month, date.day)
+        .difference(DateTime.utc(today.year, today.month, today.day))
+        .inDays;
+    return switch (diff) {
+      0 => 'dnes',
+      1 => 'zítra',
+      >= 2 && <= 4 => 'za $diff dny',
+      _ => 'za $diff dní',
+    };
+  }
+
+  static Widget _heroCard(BuildContext context,
+      {required ({Slot slot, Tournament tournament}) start,
+      required String venueName,
+      required List<String> teammates,
+      required String inDays,
+      required VoidCallback onCancelDay}) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+      color: scheme.primaryContainer,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) =>
+                TournamentDetailScreen(tournamentId: start.tournament.id),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Nejbližší start · $inDays',
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelMedium
+                          ?.copyWith(color: scheme.primary),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${dayFull(start.slot.date)} '
+                      '${start.slot.time.display()}',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(start.tournament.timelineLabel(venueName)),
+                    Text(start.tournament.name,
+                        style: Theme.of(context).textTheme.bodySmall),
+                    if (teammates.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text('S: ${teammates.join(', ')}',
+                            style: Theme.of(context).textTheme.bodySmall),
+                      ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Zrušit zájem v tento den',
+                icon: const Icon(Icons.event_busy),
+                onPressed: onCancelDay,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

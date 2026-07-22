@@ -16,6 +16,21 @@ export '../domain/models.dart' show rangeLabel;
 
 const weekdaysShort = ['po', 'út', 'st', 'čt', 'pá', 'so', 'ne'];
 
+const _diacritics = 'áäčďéěíĺľňóôřŕšťúůýžÁÄČĎÉĚÍĹĽŇÓÔŘŔŠŤÚŮÝŽ';
+const _plain = 'aacdeeillnoorrstuuyzAACDEEILLNOORRSTUUYZ';
+
+/// Lowercased, diacritics-stripped form for search matching ("Vážan" and
+/// "vazan" find each other).
+String searchFold(String s) {
+  final buffer = StringBuffer();
+  for (final rune in s.runes) {
+    final ch = String.fromCharCode(rune);
+    final i = _diacritics.indexOf(ch);
+    buffer.write(i >= 0 ? _plain[i] : ch);
+  }
+  return buffer.toString().toLowerCase();
+}
+
 /// Czech-declined lane count: "1 dráha", "2 dráhy", "5 drah".
 String lanesLabel(int n) {
   final word = n == 1
