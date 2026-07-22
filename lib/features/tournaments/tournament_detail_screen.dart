@@ -299,12 +299,41 @@ class _TournamentDetailScreenState
             venue: ref.watch(venueByIdProvider(tournament.venueId)),
           ),
           const SizedBox(height: 12),
-          if (!readOnly) ...[
+          // "Nejsilnější termíny" only once someone can actually play; the
+          // order button stays reachable either way.
+          if (!readOnly && bestPicks(heatmap: heatmap).isNotEmpty) ...[
             _BestPicksCard(
                 tournament: tournament,
                 heatmap: heatmap,
                 orderedLanesBySlot: orderedLanesBySlot),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+          ] else if (!readOnly) ...[
+            FilledButton.icon(
+              icon: const Icon(Icons.receipt_long),
+              label: const Text('Zadat objednávku'),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => ProposalScreen(
+                  tournament: tournament,
+                  preselected: const {},
+                  directlyOrdered: true,
+                ),
+              )),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (orders.any((o) => o.status != OrderStatus.cancelled)) ...[
+            Text('Objednávky',
+                key: _ordersKey,
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            for (final order in orders)
+              if (order.status != OrderStatus.cancelled)
+                OrderCard(
+                  order: order,
+                  tournament: tournament,
+                  readOnly: readOnly,
+                ),
+            const SizedBox(height: 12),
           ],
           Text(
               readOnly
@@ -344,20 +373,6 @@ class _TournamentDetailScreenState
               orderedLanesBySlot: orderedLanesBySlot,
               assignedBySlot: assignedBySlot,
             ),
-          const SizedBox(height: 16),
-          if (orders.any((o) => o.status != OrderStatus.cancelled)) ...[
-            Text('Návrhy a objednávky',
-                key: _ordersKey,
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            for (final order in orders)
-              if (order.status != OrderStatus.cancelled)
-                OrderCard(
-                  order: order,
-                  tournament: tournament,
-                  readOnly: readOnly,
-                ),
-          ],
           const SizedBox(height: 48),
           ],
         ),
