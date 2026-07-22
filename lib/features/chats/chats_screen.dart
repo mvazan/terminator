@@ -3,271 +3,164 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/busy.dart';
 import '../../core/ui.dart';
-import '../../data/local_prefs.dart';
 import '../../data/providers.dart';
-import '../../domain/chat_policy.dart';
+import '../../domain/chat_items.dart';
 import '../../domain/models.dart';
+import 'chat_list.dart';
 import 'chat_screen.dart';
 
-/// All chats: for every tournament its team chat, plus a day chat for each
-/// day that has ordered starts. Locked ones live in the archive section.
+/// All chats: the team-wide chat pinned on top, tournament chats that have
+/// messages, my day chats. Locked ones live in the archive section. Tiles
+/// carry a last-message preview + relative time so the list is scannable
+/// without opening anything.
 class ChatsScreen extends ConsumerWidget {
   const ChatsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tournaments = ref.watch(tournamentsProvider).value ?? const [];
-    final orders = ref.watch(ordersProvider).value ?? const [];
-    final orderSlots = ref.watch(orderSlotsProvider).value ??
-        const <String, Map<String, int?>>{};
-    final slots = ref.watch(slotsProvider).value ?? const [];
+    final model = ref.watch(chatListProvider);
     final mutes = ref.watch(myMutesProvider).value ?? const <String>{};
-
-    final slotById = {for (final s in slots) s.id: s};
-    final now = today();
-
-    // Days with ordered starts, per tournament — remembering when each day
-    // chat came into existence (= when its first order was placed).
-    final orderedDays = <String, Set<Day>>{};
-    final chatCreatedAt = <String, DateTime>{
-      for (final t in tournaments) muteKey(t.id, null): t.createdAt,
-    };
-    for (final order in orders) {
-      if (!order.isActive) continue;
-      final orderTime = order.orderedAt ?? order.createdAt;
-      for (final slotId
-          in (orderSlots[order.id] ?? const <String, int?>{}).keys) {
-        final slot = slotById[slotId];
-        if (slot != null) {
-          orderedDays.putIfAbsent(order.tournamentId, () => {}).add(slot.date);
-          final key = muteKey(order.tournamentId, slot.date);
-          final existing = chatCreatedAt[key];
-          if (existing == null || orderTime.isBefore(existing)) {
-            chatCreatedAt[key] = orderTime;
-          }
-        }
-      }
-    }
-
-    // Last activity and unread count per chat ("tournamentId|day" key). The
-    // team-wide chat rides along under the teamChatId sentinel key.
-    final messages = ref.watch(allMessagesProvider).value ?? const [];
-    final teamMessages = ref.watch(teamMessagesProvider).value ?? const [];
-    final reads = ref.watch(chatReadsProvider);
-    final uid = currentUserId;
-    final lastAt = <String, DateTime>{};
-    final unread = <String, int>{};
-    for (final msg in [...messages, ...teamMessages]) {
-      final key = muteKey(msg.tournamentId, msg.day);
-      final last = lastAt[key];
-      if (last == null || msg.createdAt.isAfter(last)) {
-        lastAt[key] = msg.createdAt;
-      }
-      final readAt = reads[key];
-      if (msg.userId != uid &&
-          (readAt == null || msg.createdAt.isAfter(readAt))) {
-        unread[key] = (unread[key] ?? 0) + 1;
-      }
-    }
-    final teamKey = muteKey(teamChatId, null);
-    final teamMuted = mutes.contains(teamKey);
-    final teamUnread = unread[teamKey] ?? 0;
-
-    // Day chats are closed groups — show only the ones I'm a member of.
-    final membership = ref.watch(dayChatMembershipProvider);
-
-    final open = <_ChatTileData>[];
-    final archived = <_ChatTileData>[];
-    for (final t in tournaments) {
-      // The tournament-wide chat exists for every tournament, so most are
-      // empty — show it only once it has messages (start it from the
-      // tournament detail). Day chats are deliberate (an ordered day) and few,
-      // so they show even empty.
-      final tournamentChatUsed =
-          lastAt.containsKey(muteKey(t.id, null));
-      final chats = <_ChatTileData>[
-        if (tournamentChatUsed) _ChatTileData(tournament: t),
-        for (final day in (orderedDays[t.id] ?? const <Day>{}).toList()
-          ..sort())
-          if (uid != null &&
-              (membership[muteKey(t.id, day)]?.contains(uid) ?? false))
-            _ChatTileData(
-              tournament: t,
-              day: day,
-              memberCount:
-                  membership[muteKey(t.id, day)]?.members.length ?? 0,
-            ),
-      ];
-      for (final chat in chats) {
-        (isChatLocked(tournament: t, day: chat.day, today: now)
-                ? archived
-                : open)
-            .add(chat);
-      }
-    }
-
-    // Most recently active first. A chat without messages counts as active
-    // at its creation — a brand-new chat starts near the top, not last.
-    DateTime activity(_ChatTileData c) {
-      final key = muteKey(c.tournament.id, c.day);
-      return lastAt[key] ??
-          chatCreatedAt[key] ??
-          DateTime.fromMillisecondsSinceEpoch(0);
-    }
-
-    int byActivity(_ChatTileData a, _ChatTileData b) =>
-        activity(b).compareTo(activity(a));
-
-    open.sort(byActivity);
-    archived.sort(byActivity);
-
-    // The team-wide chat always sits at the very top of the list.
-    final teamTile = _TeamChatTile(muted: teamMuted, unread: teamUnread);
+    final members = ref.watch(membersProvider).value ?? const [];
 
     return Scaffold(
       appBar: AppBar(title: const Text('Chaty')),
       body: ListView(
+        children: [
+          _ChatTile(
+            data: model.team,
+            mutes: mutes,
+            members: members,
+          ),
+          const Divider(height: 1),
+          for (final chat in model.open)
+            _ChatTile(data: chat, mutes: mutes, members: members),
+          if (model.archived.isNotEmpty)
+            ExpansionTile(
+              leading: const Icon(Icons.archive_outlined),
+              title: Text('Archiv (${model.archived.length})'),
               children: [
-                teamTile,
-                const Divider(height: 1),
-                for (final chat in open)
-                  _ChatTile(
-                    data: chat,
-                    mutes: mutes,
-                    unread:
-                        unread[muteKey(chat.tournament.id, chat.day)] ?? 0,
-                  ),
-                if (archived.isNotEmpty)
-                  ExpansionTile(
-                    leading: const Icon(Icons.archive_outlined),
-                    title: Text('Archiv (${archived.length})'),
-                    children: [
-                      for (final chat in archived)
-                        _ChatTile(data: chat, mutes: mutes, locked: true),
-                    ],
-                  ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-                  child: Text(
-                    'Prázdné chaty turnajů se nezobrazují — chat k turnaji '
-                    'otevřeš (a založíš) v jeho detailu.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                  ),
-                ),
+                for (final chat in model.archived)
+                  _ChatTile(data: chat, mutes: mutes, members: members),
               ],
             ),
-    );
-  }
-}
-
-class _ChatTileData {
-  const _ChatTileData({required this.tournament, this.day, this.memberCount});
-
-  final Tournament tournament;
-  final Day? day;
-
-  /// Members of a day chat (null for tournament/team chats).
-  final int? memberCount;
-}
-
-/// The standing team-wide chat, pinned at the top of the chat list.
-class _TeamChatTile extends StatelessWidget {
-  const _TeamChatTile({required this.muted, required this.unread});
-
-  final bool muted;
-  final int unread;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return ListTile(
-      leading: Badge(
-        isLabelVisible: unread > 0,
-        label: Text('$unread'),
-        child: Icon(Icons.forum, color: scheme.primary),
-      ),
-      title: Text(
-        'Celý tým',
-        style: TextStyle(
-          color: scheme.primary,
-          fontWeight: unread > 0 ? FontWeight.w700 : FontWeight.w600,
-        ),
-      ),
-      subtitle: const Text('společný chat celé party'),
-      trailing: BusyIconButton(
-        icon: Icon(
-          muted
-              ? Icons.notifications_off
-              : Icons.notifications_active_outlined,
-          size: 20,
-        ),
-        tooltip: muted ? 'Zapnout upozornění' : 'Ztlumit',
-        onPressed: () async {
-          await tryAction(context, () => Api.setTeamChatMuted(!muted));
-        },
-      ),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const ChatScreen.team()),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+            child: Text(
+              'Prázdné chaty turnajů se nezobrazují — chat k turnaji '
+              'otevřeš (a založíš) v jeho detailu.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _ChatTile extends StatelessWidget {
+class _ChatTile extends ConsumerWidget {
   const _ChatTile({
     required this.data,
     required this.mutes,
-    this.unread = 0,
-    this.locked = false,
+    required this.members,
   });
 
-  final _ChatTileData data;
+  final ChatTileModel data;
   final Set<String> mutes;
-  final int unread;
-  final bool locked;
+  final List<Profile> members;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     final t = data.tournament;
     final day = data.day;
-    final muted = mutes.contains(muteKey(t.id, day));
+    final isTeam = t == null;
+    final muted = mutes.contains(data.key);
+    final unread = data.unread;
+    final uid = ref.watch(currentUserIdProvider);
+
+    final title = isTeam
+        ? 'Celý tým'
+        : (day == null ? t.name : '${t.name} — ${dayLabel(day)}');
+    final fallbackSubtitle = isTeam
+        ? 'společný chat celé party'
+        : (day == null
+            ? 'chat k turnaji · celá parta'
+            : 'chat hracího dne · ${peopleLabel(data.memberCount ?? 0)}');
+
+    // "Miloš: Beru auto o 15:30" — the last message, mine shown as "ty:".
+    final last = data.lastMessage;
+    final preview = last == null
+        ? fallbackSubtitle
+        : '${last.userId == uid ? 'ty' : memberName(members, last.userId)}: '
+            '${last.body.replaceAll('\n', ' ')}';
 
     return ListTile(
       leading: Badge(
         isLabelVisible: unread > 0,
         label: Text('$unread'),
-        child: Icon(day == null ? Icons.groups : Icons.event),
+        child: Icon(
+          isTeam ? Icons.forum : (day == null ? Icons.groups : Icons.event),
+          color: isTeam ? scheme.primary : null,
+        ),
       ),
       title: Text(
-        day == null ? t.name : '${t.name} — ${dayLabel(day)}',
-        style: unread > 0
-            ? const TextStyle(fontWeight: FontWeight.w700)
-            : null,
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: isTeam ? scheme.primary : null,
+          fontWeight: unread > 0
+              ? FontWeight.w700
+              : (isTeam ? FontWeight.w600 : null),
+        ),
       ),
-      subtitle: Text(day == null
-          ? 'chat k turnaji · celá parta'
-          : 'chat hracího dne · ${peopleLabel(data.memberCount ?? 0)}'),
-      trailing: locked
-          ? const Icon(Icons.lock_outline, size: 18)
-          : BusyIconButton(
+      subtitle: Text(
+        preview,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: unread > 0 ? const TextStyle(fontWeight: FontWeight.w600) : null,
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (last != null)
+            Text(
+              chatListTime(last.createdAt, now: DateTime.now()),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: unread > 0 ? scheme.primary : scheme.outline,
+                    fontWeight: unread > 0 ? FontWeight.w700 : null,
+                  ),
+            ),
+          const SizedBox(width: 2),
+          if (data.locked)
+            const Icon(Icons.lock_outline, size: 16)
+          else
+            BusyIconButton(
               icon: Icon(
                 muted
                     ? Icons.notifications_off
                     : Icons.notifications_active_outlined,
-                size: 20,
+                size: 18,
               ),
               tooltip: muted ? 'Zapnout upozornění' : 'Ztlumit',
               onPressed: () async {
                 await tryAction(
-                    context, () => Api.setMuted(t.id, day, !muted));
+                    context,
+                    () => isTeam
+                        ? Api.setTeamChatMuted(!muted)
+                        : Api.setMuted(t.id, day, !muted));
               },
             ),
+        ],
+      ),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => ChatScreen(tournamentId: t.id, day: day),
+          builder: (_) => isTeam
+              ? const ChatScreen.team()
+              : ChatScreen(tournamentId: t.id, day: day),
         ),
       ),
     );
