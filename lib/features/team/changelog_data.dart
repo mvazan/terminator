@@ -14,6 +14,17 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.2.1', '22. 7. 2026', [
+    'Objednané starty jsou v mřížce zeleně — ⌂ s počtem přiřazených hráčů/'
+        'objednaných drah.',
+    'Naše rezervace na webu kuželny mají ⌂, neblokují objednávku a při '
+        'záznamu předvyplní počet drah.',
+    'Detail běžícího turnaje skrývá termíny plné cizími.',
+    'Opraveno: delší turnaje ukazovaly po startu jen první dny.',
+    'Opraveno: obsazenost z mkware stránek přehlížela zeleně potvrzené '
+        'rezervace.',
+    'Zrušen krok „Pořadatel potvrdil" u objednávek.',
+  ]),
   Release('2.2.0', '15. 7. 2026', [
     'Chat hracího dne je teď jen pro účastníky (hráči toho dne, organizátor '
         'a pozvaní) — už nespamuje celý tým. Kdo hraje, je uvnitř; organizátor '
