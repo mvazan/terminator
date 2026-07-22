@@ -74,8 +74,18 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     final venue = ref.watch(venueByIdProvider(widget.tournament.venueId));
     final slots = (ref.watch(slotsProvider).value ?? const [])
         .where((s) => s.tournamentId == widget.tournament.id)
+        // Starts fully booked by strangers can't be ordered — drop them from
+        // the picker. Our own full booking stays: that's exactly the start
+        // being recorded as an order.
+        .where((s) => !s.venueFull || s.venueOurs)
         .toList()
       ..sort(Slot.compare);
+    // A preselected slot may have just become foreign-full — don't let an
+    // invisible row count toward the submit.
+    if (slots.isNotEmpty) {
+      final visible = {for (final s in slots) s.id};
+      _selected.removeWhere((id, _) => !visible.contains(id));
+    }
     final slotIds = {for (final s in slots) s.id};
     final availability = (ref.watch(availabilityProvider).value ?? const [])
         .where((a) => slotIds.contains(a.slotId))

@@ -625,25 +625,16 @@ class Api {
   /// Downloads the tournament's reservation page and upserts the slot grid
   /// with venue occupancy. Returns the number of starts found; throws with a
   /// human message when the page is unusable. No-op for unrecognized URLs.
+  /// [ourTeam] (the caller reads it from [myTeamProvider]) marks occupancy
+  /// booked by us on the venue's page ("obsazeno, ale námi"); empty = no
+  /// ours-detection for this sync.
   static Future<int> syncFromWeb({
     required String tournamentId,
     required String sourceUrl,
+    String ourTeam = '',
   }) async {
     final scraper = ScraperRegistry.forUrl(sourceUrl);
     if (scraper == null) return 0;
-
-    // Our team's name marks occupancy booked by us on the venue's page
-    // ("obsazeno, ale námi") — best-effort, an unknown name just means no
-    // ours-detection.
-    var ourTeam = '';
-    try {
-      final row = await _db
-          .from('profiles')
-          .select('teams(name)')
-          .eq('id', currentUserId!)
-          .single();
-      ourTeam = ((row['teams'] as Map?)?['name'] as String?) ?? '';
-    } catch (_) {}
 
     final result = await scraper.fetch(Uri.parse(sourceUrl), ourTeam: ourTeam);
     final venueSlots = result.slots;

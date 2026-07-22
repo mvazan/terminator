@@ -225,7 +225,9 @@ class _TournamentEditScreenState extends ConsumerState<TournamentEditScreen> {
         );
         if (scraping) {
           final count = await Api.syncFromWeb(
-              tournamentId: id, sourceUrl: _url.text.trim());
+              tournamentId: id,
+              sourceUrl: _url.text.trim(),
+              ourTeam: ref.read(myTeamProvider)?.name ?? '');
           if (mounted) snack(context, 'Načteno $count startů z webu.');
         }
       }

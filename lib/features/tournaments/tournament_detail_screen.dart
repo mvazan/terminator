@@ -54,6 +54,7 @@ class _TournamentDetailScreenState
       final count = await Api.syncFromWeb(
         tournamentId: tournament.id,
         sourceUrl: tournament.sourceUrl,
+        ourTeam: ref.read(myTeamProvider)?.name ?? '',
       );
       if (manual && mounted) {
         snack(context, 'Obsazenost aktualizována ($count startů).');
