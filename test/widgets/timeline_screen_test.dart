@@ -21,6 +21,7 @@ void main() {
     List<Availability> availability = const [],
     List<Order> orders = const [],
     Map<String, Map<String, int>> orderSlots = const {},
+    List<RosterEntry> rosters = const [],
   }) =>
       ProviderScope(
         overrides: [
@@ -33,6 +34,7 @@ void main() {
               .overrideWithValue(AsyncValue.data(availability)),
           ordersProvider.overrideWithValue(AsyncValue.data(orders)),
           orderSlotsProvider.overrideWithValue(AsyncValue.data(orderSlots)),
+          rostersProvider.overrideWithValue(AsyncValue.data(rosters)),
           venueNamesProvider.overrideWithValue({'v1': 'Vracov'}),
           currentUserIdProvider.overrideWithValue('me'),
         ],
@@ -85,7 +87,7 @@ void main() {
     expect(marker, findsOneWidget);
     expect(tester.getSize(marker).width, 2);
 
-    // Make the day ordered -> the marker turns red.
+    // A team order alone does NOT paint my calendar red…
     final order = makeOrder(id: 'o1', tournamentId: tournament.id);
     await tester.pumpWidget(wrap(
       slots: [slot],
@@ -96,11 +98,24 @@ void main() {
       },
     ));
     await tester.pump();
+    Finder red() => find.byWidgetPredicate(
+        (w) => w is ColoredBox && w.color == const Color(0xFFD32F2F));
+    expect(red(), findsNothing);
 
-    expect(
-      find.byWidgetPredicate(
-          (w) => w is ColoredBox && w.color == const Color(0xFFD32F2F)),
-      findsOneWidget,
-    );
+    // …only a day where I'M on the roster does.
+    await tester.pumpWidget(wrap(
+      slots: [slot],
+      availability: [myTick],
+      orders: [order],
+      orderSlots: {
+        'o1': {'s1': 1},
+      },
+      rosters: [
+        const RosterEntry(
+            id: 'r1', slotId: 's1', addedBy: 'me', userId: 'me'),
+      ],
+    ));
+    await tester.pump();
+    expect(red(), findsOneWidget);
   });
 }
