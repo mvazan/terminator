@@ -14,6 +14,16 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.3.0', '22. 7. 2026', [
+    'Chaty ve velkém: náhledy zpráv a nepřečtené (i na spodní liště), '
+        'oddělovače dnů, odkazy, reakce, odpovědi, úpravy a mazání '
+        'vlastních zpráv, koncepty.',
+    'Na chat jde odpovědět přímo z upozornění na liště.',
+    'Chat hracího dne: lišta se starty a proklik na objednávku.',
+    'Moje starty: nejbližší start v čele s odpočtem. Turnaje: hledání '
+        'podle názvu i kuželny.',
+    'Klepnutí na zelený (objednaný) start tě přidá/odhlásí z objednávky.',
+  ]),
   Release('2.2.2', '22. 7. 2026', [
     'Moje starty: nové tlačítko „Zrušit zájem v tento den" — odhlásí tě '
         'z ostatních zaškrtnutých termínů toho dne ve všech turnajích '
