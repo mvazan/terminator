@@ -39,8 +39,12 @@ class MkwareScraper implements TournamentScraper {
   }
 }
 
+// Booked rows carry extra attributes after the id (the venue highlights them
+// green: `style="background-color:#CEFFCB"`), so the tag must be matched up
+// to `>` — requiring the quote to close the tag would silently skip every
+// booked lane-start and freeze the slot's occupancy at its last free state.
 final _rowPattern = RegExp(
-  r'<tr id="(\d{4}-\d{2}-\d{2})-\d+">(.*?)</tr>',
+  r'<tr id="(\d{4}-\d{2}-\d{2})-\d+"[^>]*>(.*?)</tr>',
   dotAll: true,
 );
 final _timePattern = RegExp(r'(\d{1,2}:\d{2})\s*-');

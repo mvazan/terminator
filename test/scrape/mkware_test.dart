@@ -35,6 +35,15 @@ void main() {
     expect(slots.fold(0, (n, s) => n + s.occupiedOurs), 1);
   });
 
+  test('booked rows keep their green style attribute and still parse', () {
+    // Real pages mark booked rows with style="background-color:#CEFFCB" on
+    // the <tr>; the row regex must tolerate attributes after the id, or
+    // every booked lane-start silently disappears from the scrape.
+    final styled =
+        parseMkwareHtml(html).where((t) => t.occupant.contains('KK Veverky'));
+    expect(styled, hasLength(1));
+  });
+
   test('aggregates into per-start occupancy', () {
     final slots = aggregateTerms(parseMkwareHtml(html));
 

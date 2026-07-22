@@ -123,37 +123,56 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
                           ? _selected.remove(slot.id)
                           : _selected[slot.id] = 1;
                     });
+                final scheme = Theme.of(context).colorScheme;
                 return Column(
                   children: [
-                    Row(
-                      children: [
-                        // Tap target is the checkbox only, not the whole row —
-                        // so tapping a disabled stepper button can't toggle it.
-                        Checkbox(
-                          value: selected,
-                          onChanged: (_) => toggle(),
-                        ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(slot.time.display()),
-                              Text(
-                                '${heatmap.bySlotId[slot.id]?.count ?? 0} '
-                                'hráčů může',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
+                    Container(
+                      // Our own venue booking — highlight the start we already
+                      // reserved on the venue's site, so it's obvious which
+                      // one to record as ordered.
+                      color: slot.venueOurs
+                          ? scheme.primaryContainer.withValues(alpha: 0.35)
+                          : null,
+                      child: Row(
+                        children: [
+                          // Tap target is the checkbox only, not the whole row —
+                          // so tapping a disabled stepper button can't toggle it.
+                          Checkbox(
+                            value: selected,
+                            onChanged: (_) => toggle(),
                           ),
-                        ),
-                        if (selected)
-                          _LanesStepper(
-                            lanes: _selected[slot.id]!,
-                            max: max,
-                            onChanged: (n) =>
-                                setState(() => _selected[slot.id] = n),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(slot.time.display()),
+                                    if (slot.venueOurs) ...[
+                                      const SizedBox(width: 6),
+                                      Icon(Icons.home,
+                                          size: 16, color: scheme.primary),
+                                    ],
+                                  ],
+                                ),
+                                Text(
+                                  '${heatmap.bySlotId[slot.id]?.count ?? 0} '
+                                  'hráčů může'
+                                  '${slot.venueOurs ? ' · naše rezervace (${lanesLabel(slot.venueOccupiedOurs!)})' : ''}',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
                           ),
-                      ],
+                          if (selected)
+                            _LanesStepper(
+                              lanes: _selected[slot.id]!,
+                              max: max,
+                              onChanged: (n) =>
+                                  setState(() => _selected[slot.id] = n),
+                            ),
+                        ],
+                      ),
                     ),
                     const Divider(height: 1),
                   ],
