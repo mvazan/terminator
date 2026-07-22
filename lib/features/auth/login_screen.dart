@@ -91,10 +91,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     setState(() => _sending = false);
   }
 
+  /// Loose shape check: something@something.tld without spaces — typos like
+  /// a missing domain or a stray space get caught before the server does.
+  static final _emailShape = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+
   Future<void> _send() async {
     final email = _email.text.trim();
-    if (email.isEmpty || !email.contains('@')) {
-      snack(context, 'Zadej platný e-mail.');
+    if (!_emailShape.hasMatch(email)) {
+      snack(context,
+          'Tenhle e-mail nevypadá platně — zkontroluj překlepy '
+          '(např. jmeno@seznam.cz).');
       return;
     }
     if (AppConfig.isDemoLogin(email)) {

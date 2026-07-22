@@ -97,6 +97,10 @@ String? businessError(Object e) {
     return 'Tenhle člověk není členem týmu.';
   }
   if (s.contains('forbidden')) return 'Na tohle nemáš oprávnění.';
+  // GoTrue rejecting the e-mail shape — user typo, not a defect.
+  if (s.contains('validation_failed') && s.contains('email')) {
+    return 'Tenhle e-mail nevypadá platně — zkontroluj překlepy.';
+  }
   return null;
 }
 
