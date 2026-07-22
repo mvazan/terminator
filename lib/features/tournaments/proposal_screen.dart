@@ -142,7 +142,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
                 final selected = _selected.containsKey(slot.id);
                 final max = _maxLanes(slot, venue);
                 void toggle() {
-                  HapticFeedback.lightImpact();
+                  HapticFeedback.selectionClick();
                   setState(() {
                     selected
                         ? _selected.remove(slot.id)

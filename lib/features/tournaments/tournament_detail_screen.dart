@@ -611,7 +611,7 @@ class _DayRowState extends ConsumerState<_DayRow> {
   /// One tap for the whole day: tick everything, or untick everything when
   /// all of the day's slots are already mine.
   Future<void> _selectDay(bool allMine) async {
-    HapticFeedback.mediumImpact();
+    HapticFeedback.lightImpact();
     setState(() => _busy = true);
     try {
       await tryAction(
@@ -698,7 +698,7 @@ class _DayRowState extends ConsumerState<_DayRow> {
       onTap: readOnly
           ? null
           : () {
-              HapticFeedback.mediumImpact();
+              HapticFeedback.lightImpact();
               if (ordered) {
                 _toggleRoster(context, slot);
               } else {
