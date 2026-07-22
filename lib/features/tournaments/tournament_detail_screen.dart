@@ -75,12 +75,46 @@ class _TournamentDetailScreenState
 
     final scrapable = ScraperRegistry.forUrl(tournament.sourceUrl) != null;
 
-    // ALL starts, including fully booked ones — a full slot may be full
-    // because WE booked it on the venue's site (highlighted as ours), and
-    // even foreign-full slots stay tickable/orderable (occupancy is
-    // advisory; ordering happens outside the app anyway).
+    final archived = tournament.isArchived;
+    // A finished tournament is history: show every day read-only so people can
+    // still see who was signed up where. A running one hides its already-past
+    // days — you can't sign up for them anymore, so they'd only be clutter.
+    final now = today();
+    final ended = archived || tournament.endsOn.isBefore(now);
+
+    final orders = (ref.watch(ordersProvider).value ?? const [])
+        .where((o) => o.tournamentId == tournamentId)
+        .toList();
+    // Ordered lanes per slot (active orders only) and assigned players per
+    // slot — the grid shows an ordered start as "assigned/lanes" in green.
+    final activeOrderIds = {
+      for (final o in orders)
+        if (o.isActive) o.id,
+    };
+    final orderSlots = ref.watch(orderSlotsProvider).value ?? const {};
+    final orderedLanesBySlot = <String, int>{};
+    for (final entry in orderSlots.entries) {
+      if (!activeOrderIds.contains(entry.key)) continue;
+      for (final se in entry.value.entries) {
+        orderedLanesBySlot[se.key] = (orderedLanesBySlot[se.key] ?? 0) + se.value;
+      }
+    }
+    final assignedBySlot = <String, int>{};
+    for (final r in ref.watch(rostersProvider).value ?? const <RosterEntry>[]) {
+      assignedBySlot[r.slotId] = (assignedBySlot[r.slotId] ?? 0) + 1;
+    }
+
+    // A running tournament shows only starts the team can still use: free
+    // lanes at the venue, our own venue booking (⌂), or an active order
+    // (green). Starts fully booked by strangers are dead — hidden. History
+    // (ended/archived) keeps every start.
     final slots = (ref.watch(slotsProvider).value ?? const [])
         .where((s) => s.tournamentId == tournamentId)
+        .where((s) =>
+            ended ||
+            !s.venueFull ||
+            s.venueOurs ||
+            (orderedLanesBySlot[s.id] ?? 0) > 0)
         .toList()
       ..sort(Slot.compare);
     final slotIds = {for (final s in slots) s.id};
@@ -92,21 +126,11 @@ class _TournamentDetailScreenState
       slots: slots,
       availability: availability,
     );
-    final orders = (ref.watch(ordersProvider).value ?? const [])
-        .where((o) => o.tournamentId == tournamentId)
-        .toList();
     final members = ref.watch(membersProvider).value ?? const [];
     final showWhoIsIn = ref.watch(showWhoIsInProvider);
     final uid = currentUserId;
 
     final byDay = slotsByDay(slots);
-
-    final archived = tournament.isArchived;
-    // A finished tournament is history: show every day read-only so people can
-    // still see who was signed up where. A running one hides its already-past
-    // days — you can't sign up for them anymore, so they'd only be clutter.
-    final now = today();
-    final ended = archived || tournament.endsOn.isBefore(now);
     // A tournament I've hidden ("nezajímá mě") is view-only — no signing up.
     final hiddenByMe = ref
             .watch(myHiddenTournamentsProvider)
@@ -272,9 +296,13 @@ class _TournamentDetailScreenState
             ),
             if (scrapable)
               Text(
-                '⌂ = obsazeno námi (naše rezervace) · přeškrtnuté = plné cizími',
+                '⌂ = obsazeno námi (naše rezervace)',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
+            Text(
+              'zelený rámeček = objednáno, číslo = přiřazení/objednané dráhy',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ],
           const SizedBox(height: 8),
           for (final day in visibleDays)
@@ -285,6 +313,8 @@ class _TournamentDetailScreenState
               members: members,
               uid: uid,
               readOnly: readOnly,
+              orderedLanesBySlot: orderedLanesBySlot,
+              assignedBySlot: assignedBySlot,
             ),
           const SizedBox(height: 16),
           if (orders.any((o) => o.status != OrderStatus.cancelled)) ...[
@@ -494,6 +524,8 @@ class _DayRow extends ConsumerStatefulWidget {
     required this.members,
     required this.uid,
     this.readOnly = false,
+    this.orderedLanesBySlot = const {},
+    this.assignedBySlot = const {},
   });
 
   final Day day;
@@ -502,6 +534,11 @@ class _DayRow extends ConsumerStatefulWidget {
   final List<Profile> members;
   final String? uid;
   final bool readOnly;
+
+  /// slot id → lanes in active orders / players assigned; feeds the green
+  /// "ordered" look of the cells.
+  final Map<String, int> orderedLanesBySlot;
+  final Map<String, int> assignedBySlot;
 
   @override
   ConsumerState<_DayRow> createState() => _DayRowState();
@@ -597,6 +634,8 @@ class _DayRowState extends ConsumerState<_DayRow> {
       mine: mine,
       venueFree: slot.venueFree,
       venueOurs: slot.venueOccupiedOurs ?? 0,
+      orderedLanes: widget.orderedLanesBySlot[slot.id] ?? 0,
+      assigned: widget.assignedBySlot[slot.id] ?? 0,
       // Through tryAction so a dropped connection is a friendly snackbar, not
       // an uncaught (fatal) error — the tap is otherwise fire-and-forget.
       onTap: readOnly

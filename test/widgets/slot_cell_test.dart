@@ -119,6 +119,59 @@ void main() {
     expect(timeText.style?.decoration, isNot(TextDecoration.lineThrough));
   });
 
+  testWidgets('ordered cell: green border, assigned/lanes, no phase icons',
+      (tester) async {
+    await tester.pumpWidget(wrap(SlotCell(
+      time: const HourMinute(17, 30),
+      count: 2,
+      intensity: 0.5,
+      isOrderable: true, // would show ✓ — the order supersedes it
+      mine: false,
+      venueFree: 0, // full…
+      venueOurs: 5, // …by us, would show ⌂ — superseded too
+      orderedLanes: 5,
+      assigned: 3,
+      onTap: () {},
+    )));
+
+    expect(find.text('3/5'), findsOneWidget);
+    expect(find.byIcon(Icons.home), findsNothing);
+    expect(find.byIcon(Icons.check_circle), findsNothing);
+    final border = borderOf(tester);
+    expect(border.top.color, Colors.green);
+    expect(border.top.width, 2);
+  });
+
+  testWidgets('ordered wins over the foreign-full blocked look',
+      (tester) async {
+    const theme = ColorScheme.light();
+    await tester.pumpWidget(MaterialApp(
+      theme: ThemeData(colorScheme: theme),
+      home: Scaffold(
+        body: Center(
+          child: SlotCell(
+            time: const HourMinute(18, 0),
+            count: 0,
+            intensity: 0,
+            isOrderable: false,
+            mine: false,
+            venueFree: 0,
+            venueOurs: 0, // full by others…
+            orderedLanes: 2, // …but ordered anyway
+            assigned: 4,
+            onTap: () {},
+          ),
+        ),
+      ),
+    ));
+
+    final border = borderOf(tester);
+    expect(border.top.color, isNot(theme.error));
+    final timeText = tester.widget<Text>(find.text('18:00'));
+    expect(timeText.style?.decoration, isNot(TextDecoration.lineThrough));
+    expect(find.text('4/2'), findsOneWidget);
+  });
+
   testWidgets('scraped cell shows team/free lanes as X/Y', (tester) async {
     await tester.pumpWidget(wrap(SlotCell(
       time: const HourMinute(18, 0),

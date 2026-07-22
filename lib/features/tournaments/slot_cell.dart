@@ -9,8 +9,12 @@ import '../../domain/models.dart';
 /// (orderable); a thick primary border marks MY tick. A home icon marks
 /// occupancy booked by US on the venue's site; a foreign-full slot is dimmed
 /// with a struck-through time but stays fully interactive — occupancy is
-/// advisory, never a block. Purely presentational — callbacks injected — so
-/// it's widget-testable.
+/// advisory, never a block.
+///
+/// Once the slot is part of an active order it flips to the "ordered" look:
+/// green border, count reads "assigned players/ordered lanes", and the
+/// interest-phase markers (check, home, blocked strike-through) drop away.
+/// Purely presentational — callbacks injected — so it's widget-testable.
 class SlotCell extends StatelessWidget {
   const SlotCell({
     super.key,
@@ -23,6 +27,8 @@ class SlotCell extends StatelessWidget {
     this.onLongPress,
     this.venueFree,
     this.venueOurs = 0,
+    this.orderedLanes = 0,
+    this.assigned = 0,
   });
 
   final HourMinute time;
@@ -41,12 +47,20 @@ class SlotCell extends StatelessWidget {
   /// Occupied places at the venue booked by OUR team (scraped); 0 = none.
   final int venueOurs;
 
+  /// Lanes on this slot across the team's active orders; 0 = not ordered.
+  final int orderedLanes;
+
+  /// Players already assigned (roster) to this slot; shown with the order.
+  final int assigned;
+
   bool get _scraped => venueFree != null;
   bool get _venueFull => venueFree != null && venueFree! <= 0;
+  bool get _ordered => orderedLanes > 0;
 
   /// Full only with foreign bookings — the discouraging look. Full-by-us
-  /// renders friendly (it's our own reservation waiting for an order).
-  bool get _blockedByOthers => _venueFull && venueOurs <= 0;
+  /// renders friendly (it's our own reservation waiting for an order), and an
+  /// ordered slot is past discouraging by definition.
+  bool get _blockedByOthers => _venueFull && venueOurs <= 0 && !_ordered;
 
   @override
   Widget build(BuildContext context) {
@@ -66,10 +80,12 @@ class SlotCell extends StatelessWidget {
                 scheme.surfaceContainerHighest, scheme.primaryContainer,
                 intensity),
             border: Border.all(
-              color: _blockedByOthers
-                  ? scheme.error
-                  : (mine ? scheme.primary : scheme.outlineVariant),
-              width: mine && !_blockedByOthers ? 2 : 1,
+              color: _ordered
+                  ? Colors.green
+                  : _blockedByOthers
+                      ? scheme.error
+                      : (mine ? scheme.primary : scheme.outlineVariant),
+              width: _ordered || (mine && !_blockedByOthers) ? 2 : 1,
             ),
           ),
           child: Column(
@@ -85,22 +101,25 @@ class SlotCell extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  if (isOrderable)
+                  if (isOrderable && !_ordered)
                     Padding(
                       padding: const EdgeInsets.only(right: 2),
                       child: Icon(Icons.check_circle,
                           size: 14, color: scheme.primary),
                     ),
-                  // Our own booking at the venue.
-                  if (venueOurs > 0)
+                  // Our own booking at the venue — superseded by the order.
+                  if (venueOurs > 0 && !_ordered)
                     Padding(
                       padding: const EdgeInsets.only(right: 2),
                       child:
                           Icon(Icons.home, size: 14, color: scheme.primary),
                     ),
-                  // Plain team count, or "team/free lanes" when scraped.
+                  // Ordered: assigned players over ordered lanes. Otherwise
+                  // plain team count, or "team/free lanes" when scraped.
                   Text(
-                    _scraped ? '$count/$venueFree' : '$count',
+                    _ordered
+                        ? '$assigned/$orderedLanes'
+                        : (_scraped ? '$count/$venueFree' : '$count'),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
