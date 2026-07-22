@@ -31,16 +31,26 @@ class ChatsScreen extends ConsumerWidget {
             mutes: mutes,
             members: members,
           ),
-          const Divider(height: 1),
-          for (final chat in model.open)
+          // The team chat is its own world — a strong cut below it, thin
+          // indented dividers between the tournament chats.
+          Divider(
+            height: 8,
+            thickness: 3,
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          ),
+          for (final (i, chat) in model.open.indexed) ...[
+            if (i > 0) const Divider(height: 1, indent: 56),
             _ChatTile(data: chat, mutes: mutes, members: members),
+          ],
           if (model.archived.isNotEmpty)
             ExpansionTile(
               leading: const Icon(Icons.archive_outlined),
               title: Text('Archiv (${model.archived.length})'),
               children: [
-                for (final chat in model.archived)
+                for (final (i, chat) in model.archived.indexed) ...[
+                  if (i > 0) const Divider(height: 1, indent: 56),
                   _ChatTile(data: chat, mutes: mutes, members: members),
+                ],
               ],
             ),
           Padding(
