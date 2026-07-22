@@ -315,7 +315,6 @@ class _TournamentDetailScreenState
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => ProposalScreen(
                   tournament: tournament,
-                  preselected: const {},
                   directlyOrdered: true,
                 ),
               )),
@@ -843,7 +842,6 @@ class _BestPicksCard extends StatelessWidget {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => ProposalScreen(
         tournament: tournament,
-        preselected: {for (final s in suggestedBundle(heatmap)) s.slot.id},
         directlyOrdered: direct,
       ),
     ));

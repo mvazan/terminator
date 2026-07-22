@@ -267,22 +267,25 @@ class _OrderedBody extends ConsumerWidget {
             readOnly: readOnly,
           ),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          children: [
-            for (final day in days)
-              ActionChip(
-                avatar: const Icon(Icons.chat_bubble_outline, size: 16),
-                label: Text('Chat ${dayLabel(day)}'),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ChatScreen(
-                        tournamentId: tournament.id, day: day),
+        // Day chats are closed groups — offer the shortcut only to people
+        // actually assigned on this order.
+        if (rosters.any((r) => r.userId == uid))
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final day in days)
+                ActionChip(
+                  avatar: const Icon(Icons.chat_bubble_outline, size: 16),
+                  label: Text('Chat ${dayLabel(day)}'),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ChatScreen(
+                          tournamentId: tournament.id, day: day),
+                    ),
                   ),
                 ),
-              ),
-          ],
-        ),
+            ],
+          ),
       ],
     );
   }

@@ -406,27 +406,39 @@ async function handle(payload: WebhookPayload) {
         kind: "order",
         tournament_id: record.tournament_id as string,
       };
-      if (isNewProposal) {
-        await sendToTokens(
-          await teamTokens("proposal",
-            [record.created_by as string, ...hiders], teamId),
-          `Návrh: ${name}`,
-          "Beru / Nemůžu / Radši jiný den — hlasuj v aplikaci.",
-          orderData,
-        );
-      } else if (isOrdered) {
+      // Proposals are gone from the app — no push for a stray one.
+      if (isNewProposal) return;
+      if (isOrdered) {
+        // The ordered starts themselves ("st 26.8. 17:30 · st 26.8. 19:00")
+        // beat a generic sentence.
+        const { data: os } = await supabase.from("order_slots")
+          .select("slot_id").eq("order_id", record.id as string);
+        const slotIds = (os ?? []).map((r) => r.slot_id as string);
+        let when = "";
+        if (slotIds.length > 0) {
+          const { data: slotRows } = await supabase.from("slots")
+            .select("date, time").in("id", slotIds);
+          when = (slotRows ?? [])
+            .sort((a, b) =>
+              `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
+            .map((s) =>
+              `${dayLabel(s.date as string)} ${timeLabel(s.time as string)}`)
+            .join(" · ");
+        }
         await sendToTokens(
           await teamTokens("order",
             [record.created_by as string, ...hiders], teamId),
           `Objednáno: ${name}`,
-          "Termín je objednaný — přidej se, dokud je místo!",
+          when === ""
+            ? "Termín je objednaný — přidej se, dokud je místo!"
+            : `${when} — přidej se, dokud je místo!`,
           orderData,
         );
       } else {
         await sendToTokens(
           await teamTokens("order", hiders, teamId),
           `Zrušeno: ${name}`,
-          "Návrh/objednávka byla zrušena.",
+          "Objednávka byla zrušena.",
           orderData,
         );
       }

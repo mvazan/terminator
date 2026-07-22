@@ -338,7 +338,7 @@ class _TournamentsScreenState extends ConsumerState<TournamentsScreen>
 }
 
 /// The interest line: people, best single-day overlap (from 2 people up), and
-/// ordered slots — e.g. "7 lidí · nej shoda 2 lidé · obj. termínů: 1". Null
+/// ordered slots — e.g. "7 lidí · nej shoda 2 lidé · termíny: 1". Null
 /// when there's nothing to say (nobody ticked and nothing ordered).
 String? _interestLine(TournamentInterest? i, int ordered) {
   final parts = <String>[];
@@ -350,7 +350,7 @@ String? _interestLine(TournamentInterest? i, int ordered) {
       parts.add('nej shoda ${peopleLabel(i.bestDayPlayers)}');
     }
   }
-  if (ordered > 0) parts.add('obj. termínů: $ordered');
+  if (ordered > 0) parts.add('termíny: $ordered');
   return parts.isEmpty ? null : parts.join(' · ');
 }
 

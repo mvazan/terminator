@@ -13,12 +13,10 @@ class ProposalScreen extends ConsumerStatefulWidget {
   const ProposalScreen({
     super.key,
     required this.tournament,
-    required this.preselected,
     this.directlyOrdered = false,
   });
 
   final Tournament tournament;
-  final Set<String> preselected;
   final bool directlyOrdered;
 
   @override
@@ -26,11 +24,10 @@ class ProposalScreen extends ConsumerStatefulWidget {
 }
 
 class _ProposalScreenState extends ConsumerState<ProposalScreen> {
-  /// Selected slots with the number of *lanes* to order for each. Filled
-  /// from [ProposalScreen.preselected] on the first build with slot data —
-  /// the default depends on the slot, see [_defaultLanes].
+  /// Selected slots with the number of *lanes* to order for each. Starts
+  /// empty on purpose — the user picks; the default per tick depends on the
+  /// slot, see [_defaultLanes].
   final Map<String, int> _selected = {};
-  bool _preselectApplied = false;
   final _note = TextEditingController();
   bool _saving = false;
 
@@ -77,28 +74,13 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
   @override
   Widget build(BuildContext context) {
     final venue = ref.watch(venueByIdProvider(widget.tournament.venueId));
+    // Every start shows, including web-full ones: the occupancy may be OUR
+    // booking under a different name (the "sebevražedný oddíl" case), and
+    // recording it must never be blocked.
     final slots = (ref.watch(slotsProvider).value ?? const [])
         .where((s) => s.tournamentId == widget.tournament.id)
-        // Starts fully booked by strangers can't be ordered — drop them from
-        // the picker. Our own full booking stays: that's exactly the start
-        // being recorded as an order.
-        .where((s) => !s.venueFull || s.venueOurs)
         .toList()
       ..sort(Slot.compare);
-    // A preselected slot may have just become foreign-full — don't let an
-    // invisible row count toward the submit.
-    if (slots.isNotEmpty) {
-      final visible = {for (final s in slots) s.id};
-      _selected.removeWhere((id, _) => !visible.contains(id));
-      if (!_preselectApplied) {
-        _preselectApplied = true;
-        for (final slot in slots) {
-          if (widget.preselected.contains(slot.id)) {
-            _selected[slot.id] = _defaultLanes(slot);
-          }
-        }
-      }
-    }
     final slotIds = {for (final s in slots) s.id};
     final availability = (ref.watch(availabilityProvider).value ?? const [])
         .where((a) => slotIds.contains(a.slotId))
@@ -129,6 +111,31 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
                 : 'Které starty navrhuješ vzít? Parta dostane upozornění '
                     'a odhlasuje si to.',
             style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Aplikace objednávku sama NEODEŠLE. Objednej na webu '
+                    'kuželny (odkaz v detailu turnaje), u turnajů bez webu '
+                    'telefonicky nebo e-mailem — a tady ji jen zaznamenej '
+                    'pro partu.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 8),
           for (final day in byDay.keys) ...[
