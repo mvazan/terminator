@@ -1,3 +1,5 @@
+import 'dart:ui' show PlatformDispatcher;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,6 +29,9 @@ Future<void> main() async {
         options.beforeSend = (event, hint) {
           final err = event.throwable;
           if (err != null && isOfflineError(err)) return null;
+          // Expired sign-in links are user timing, not a defect — the
+          // onError hook below shows the friendly dialog.
+          if (err != null && _isExpiredAuthLink(err)) return null;
           return event;
         };
       },
@@ -35,6 +40,39 @@ Future<void> main() async {
   } else {
     await _bootstrap();
   }
+}
+
+/// A tapped sign-in e-mail link that's stale: GoTrue's deeplink handler
+/// throws this uncaught, the user gets silence. Both fields seen in the
+/// wild: statusCode "otp_expired", code "access_denied".
+bool _isExpiredAuthLink(Object error) =>
+    error is AuthException &&
+    (error.statusCode == 'otp_expired' ||
+        error.code == 'otp_expired' ||
+        error.message.toLowerCase().contains('invalid or has expired'));
+
+/// Explains an expired link instead of doing nothing — the user is on the
+/// sign-in screen anyway; tell them why and what to do.
+void _showExpiredLinkNotice() {
+  Future<void>.delayed(const Duration(milliseconds: 300), () {
+    final context = Push.navigatorKey.currentContext;
+    if (context == null || !context.mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Odkaz už neplatí'),
+        content: const Text(
+            'Přihlašovací odkaz z e-mailu mezitím vypršel. Zadej e-mail '
+            'znovu a pošleme ti čerstvý kód.'),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Rozumím'),
+          ),
+        ],
+      ),
+    );
+  });
 }
 
 /// Backend init + runApp — shared so Sentry's appRunner and the no-Sentry path
@@ -46,6 +84,17 @@ Future<void> _bootstrap() async {
       publishableKey: AppConfig.supabaseAnonKey,
     );
     await Push.init();
+
+    // Catch the expired-sign-in-link throw from the deeplink handler before
+    // it lands as an unhandled fatal; everything else chains on (Sentry).
+    final previousOnError = PlatformDispatcher.instance.onError;
+    PlatformDispatcher.instance.onError = (error, stack) {
+      if (_isExpiredAuthLink(error)) {
+        _showExpiredLinkNotice();
+        return true;
+      }
+      return previousOnError?.call(error, stack) ?? false;
+    };
   }
 
   runApp(const ProviderScope(child: TerminatorApp()));
