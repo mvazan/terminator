@@ -15,6 +15,7 @@ import '../domain/day_chat.dart';
 import '../domain/heatmap.dart';
 import '../domain/models.dart';
 import '../scrape/scraper.dart';
+import 'paged_stream.dart';
 import 'table_cache.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
@@ -215,11 +216,15 @@ final tournamentsProvider = Provider<AsyncValue<List<Tournament>>>((ref) {
       .toList());
 });
 
+// slots and availability are the two tables that outgrow PostgREST's
+// max-rows response cap (slots passed 2000 rows within weeks), so their
+// snapshots are paginated — see paged_stream.dart for the failure mode.
 final slotsProvider = StreamProvider<List<Slot>>((ref) {
   if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
   return cachedRows(
     key: 'slots',
-    live: () => _db.from('slots').stream(primaryKey: ['id']),
+    live: () =>
+        pagedTableStream(_db, table: 'slots', primaryKey: const ['id']),
   ).map((rows) => rows.map(Slot.fromJson).toList());
 });
 
@@ -227,8 +232,8 @@ final availabilityProvider = StreamProvider<List<Availability>>((ref) {
   if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
   return cachedRows(
     key: 'availability',
-    live: () =>
-        _db.from('availability').stream(primaryKey: ['slot_id', 'user_id']),
+    live: () => pagedTableStream(_db,
+        table: 'availability', primaryKey: const ['slot_id', 'user_id']),
   ).map((rows) => rows.map(Availability.fromJson).toList());
 });
 
