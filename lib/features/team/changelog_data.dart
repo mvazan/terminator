@@ -14,6 +14,15 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.3.1', '22. 7. 2026', [
+    'Zadat objednávku: všechny starty (i plné), nic nepředškrtáváme; '
+        'appka objednávku sama neodešle — jen ji zaznamená.',
+    'Upozornění na objednávku vypisuje konkrétní starty.',
+    'Sezónní kalendář: červená = den, kdy hraju já.',
+    'Chat dne: tlačítko jen pro přiřazené, nečlenům se pravidla vysvětlí.',
+    'Srozumitelné hlášky (vypršelý odkaz, překlep v e-mailu) a oprava '
+        'pádu při zavírání chatu.',
+  ]),
   Release('2.3.0', '22. 7. 2026', [
     'Chaty ve velkém: náhledy zpráv a nepřečtené (i na spodní liště), '
         'oddělovače dnů, odkazy, reakce, odpovědi, úpravy a mazání '
