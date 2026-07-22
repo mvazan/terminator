@@ -300,7 +300,10 @@ class _TournamentDetailScreenState
           ),
           const SizedBox(height: 12),
           if (!readOnly) ...[
-            _BestPicksCard(tournament: tournament, heatmap: heatmap),
+            _BestPicksCard(
+                tournament: tournament,
+                heatmap: heatmap,
+                orderedLanesBySlot: orderedLanesBySlot),
             const SizedBox(height: 16),
           ],
           Text(
@@ -732,10 +735,18 @@ class _DayRowState extends ConsumerState<_DayRow> {
 }
 
 class _BestPicksCard extends StatelessWidget {
-  const _BestPicksCard({required this.tournament, required this.heatmap});
+  const _BestPicksCard({
+    required this.tournament,
+    required this.heatmap,
+    this.orderedLanesBySlot = const {},
+  });
 
   final Tournament tournament;
   final Heatmap heatmap;
+
+  /// slot id -> lanes in active orders; an ordered pick shows the order
+  /// instead of the player count.
+  final Map<String, int> orderedLanesBySlot;
 
   @override
   Widget build(BuildContext context) {
@@ -755,7 +766,7 @@ class _BestPicksCard extends StatelessWidget {
             else
               for (final p in picks)
                 Text('• ${dayLabel(p.slot.date)} ${p.slot.time.display()} — '
-                    '${p.count} hráčů'),
+                    '${(orderedLanesBySlot[p.slot.id] ?? 0) > 0 ? 'objednáno ${lanesLabel(orderedLanesBySlot[p.slot.id]!)}' : '${p.count} hráčů'}'),
             const SizedBox(height: 12),
             // Voting ("Hlasování") is hidden for now — its role is being
             // reconsidered. Direct ordering stays.
