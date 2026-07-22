@@ -247,8 +247,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   /// Day-chat membership sheet: who's in (players/organizer/fans), invite a
-  /// fan, or leave (organizer/fans only — rostered players stay and mute).
-  void _showMembers(List<Profile> members, bool locked) {
+  /// fan (members only — the backend enforces the same), or leave
+  /// (organizer/fans only — rostered players stay and mute).
+  void _showMembers(List<Profile> members, bool locked,
+      {required bool isMember}) {
     final tId = widget.tournamentId;
     final day = widget.day!;
     final key = muteKey(tId, day);
@@ -297,7 +299,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ),
                 if (!locked) ...[
                   const Divider(),
-                  if (candidates.isNotEmpty)
+                  if (isMember && candidates.isNotEmpty)
                     ListTile(
                       leading: const Icon(Icons.person_add_alt_1_outlined),
                       title: const Text('Pozvat fanouška'),
@@ -388,6 +390,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final muted = mutes.contains(_chatKey);
     final uid = currentUserId;
 
+    // A day chat is a closed group. Until membership data has loaded the
+    // benefit of the doubt goes to the user (no banner flash) — the backend
+    // enforces the rules anyway.
+    final membership = widget.day == null
+        ? null
+        : ref.watch(dayChatMembershipProvider)[_chatKey];
+    final isMember = widget.isTeam ||
+        widget.day == null ||
+        membership == null ||
+        (uid != null && membership.contains(uid));
+
     // Snapshot the read state once, for the unread divider. The provider
     // loads from disk asynchronously, so wait for the first data.
     if (!_dividerCaptured) {
@@ -459,7 +472,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             IconButton(
               tooltip: 'Kdo je tu',
               icon: const Icon(Icons.groups_outlined),
-              onPressed: () => _showMembers(members, locked),
+              onPressed: () =>
+                  _showMembers(members, locked, isMember: isMember),
             ),
           IconButton(
             tooltip: muted ? 'Zapnout upozornění' : 'Ztlumit',
@@ -510,7 +524,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ],
             ),
           ),
-          if (!locked) _composer(byId, members),
+          if (!locked && isMember) _composer(byId, members),
+          if (!locked && !isMember)
+            SafeArea(
+              child: Container(
+                width: double.infinity,
+                color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                padding: const EdgeInsets.all(12),
+                child: const Text(
+                  'Chat hracího dne je jen pro účastníky (hráči, organizátor '
+                  'a pozvaní). Přidej se na start v detailu turnaje, nebo '
+                  'popros člena o pozvání.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
         ],
       ),
     );

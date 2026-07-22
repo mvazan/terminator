@@ -85,6 +85,21 @@ const offlineMessage =
 String friendlyError(Object e) =>
     isOfflineError(e) ? offlineMessage : 'Nepovedlo se: $e';
 
+/// DB-raised business rules (P0001 from our RPCs) mapped to human text —
+/// the backend saying "no" by design, not a defect; these skip Sentry.
+String? businessError(Object e) {
+  final s = '$e';
+  if (s.contains('not_a_member')) {
+    return 'Chat hracího dne je jen pro účastníky — přidej se na start, '
+        'nebo popros člena chatu o pozvání.';
+  }
+  if (s.contains('not_a_teammate')) {
+    return 'Tenhle člověk není členem týmu.';
+  }
+  if (s.contains('forbidden')) return 'Na tohle nemáš oprávnění.';
+  return null;
+}
+
 /// Runs [action]; on failure shows the error as a snackbar.
 /// Returns true when the action succeeded.
 ///
@@ -109,6 +124,12 @@ Future<bool> tryAction(BuildContext context, Future<void> Function() action,
     // no Sentry noise.
     if (isOfflineError(e)) {
       if (context.mounted) snack(context, offlineMessage);
+      return false;
+    }
+    // Backend-enforced rules get their human wording, also without Sentry.
+    final business = businessError(e);
+    if (business != null) {
+      if (context.mounted) snack(context, business);
       return false;
     }
     // Report the swallowed failure as a non-fatal (scrape/Supabase errors
