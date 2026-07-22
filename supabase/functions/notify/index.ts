@@ -118,6 +118,10 @@ async function sendToTokens(
   // Same tag = the new notification replaces the old one in the tray
   // (Android). Used so a tournament never stacks threshold notifications.
   tag?: string,
+  // Data-only delivery: title/body ride inside `data` and the APP renders
+  // the notification (needed for the inline reply action on chat pushes —
+  // system-drawn notifications can't carry actions). Requires client >= 45.
+  dataOnly = false,
 ) {
   if (tokens.length === 0) return;
   const accessToken = await getAccessToken();
@@ -136,16 +140,22 @@ async function sendToTokens(
       body: JSON.stringify({
         message: {
           token,
-          notification: { title, body },
-          // `channel` also travels in data so the app's foreground handler
-          // picks the same channel for its local notification.
-          data: { ...data, channel },
+          ...(dataOnly ? {} : { notification: { title, body } }),
+          // `channel` also travels in data so the app's local rendering
+          // picks the same channel; data-only carries title/body/tag too.
+          data: {
+            ...data,
+            channel,
+            ...(dataOnly ? { title, body, ...(tag ? { tag } : {}) } : {}),
+          },
           android: {
             priority: "HIGH",
-            notification: {
-              channel_id: channel,
-              ...(tag ? { tag } : {}),
-            },
+            ...(dataOnly ? {} : {
+              notification: {
+                channel_id: channel,
+                ...(tag ? { tag } : {}),
+              },
+            }),
           },
         },
       }),
@@ -475,6 +485,8 @@ async function handle(payload: WebhookPayload) {
           tournament_id: tournamentId,
           ...(day === null ? {} : { day }),
         },
+        undefined,
+        true, // data-only → the app draws it with the inline reply
       );
       return;
     }
@@ -494,6 +506,8 @@ async function handle(payload: WebhookPayload) {
         "Celý tým",
         `${author?.display_name ?? "?"}: ${record.body}`,
         { kind: "team_chat" },
+        undefined,
+        true, // data-only → the app draws it with the inline reply
       );
       return;
     }
