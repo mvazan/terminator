@@ -14,6 +14,11 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.2.2', '22. 7. 2026', [
+    'Moje starty: nové tlačítko „Zrušit zájem v tento den" — odhlásí tě '
+        'z ostatních zaškrtnutých termínů toho dne ve všech turnajích '
+        '(volitelně i den před a po). Nahrazuje přidání do kalendáře.',
+  ]),
   Release('2.2.1', '22. 7. 2026', [
     'Objednané starty jsou v mřížce zeleně — ⌂ s počtem přiřazených hráčů/'
         'objednaných drah.',

@@ -1,14 +1,15 @@
-import 'package:add_2_calendar/add_2_calendar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/ui.dart';
 import '../../data/providers.dart';
+import '../../domain/day_cancel.dart';
 import '../../domain/models.dart';
 import '../tournaments/tournament_detail_screen.dart';
 
 /// Home screen: the signed-in user's upcoming ordered starts — when, where,
-/// with whom — plus one-tap "add to phone calendar".
+/// with whom. Each start offers "zrušit zájem v tento den": untick my
+/// availability everywhere else that day, since I'm already playing here.
 class MyStartsScreen extends ConsumerWidget {
   const MyStartsScreen({super.key});
 
@@ -78,10 +79,10 @@ class MyStartsScreen extends ConsumerWidget {
                     ].join('\n')),
                     isThreeLine: teammates.isNotEmpty,
                     trailing: IconButton(
-                      tooltip: 'Přidat do kalendáře',
-                      icon: const Icon(Icons.event_available),
+                      tooltip: 'Zrušit zájem v tento den',
+                      icon: const Icon(Icons.event_busy),
                       onPressed: () =>
-                          _addToCalendar(context, start, venue, venueName),
+                          _cancelDayInterest(context, ref, start.slot),
                     ),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
@@ -96,19 +97,77 @@ class MyStartsScreen extends ConsumerWidget {
     );
   }
 
-  void _addToCalendar(BuildContext context,
-      ({Slot slot, Tournament tournament}) start, Venue? venue,
-      String venueName) {
-    final d = start.slot.date;
-    final t = start.slot.time;
-    final begin = DateTime(d.year, d.month, d.day, t.hour, t.minute);
-    Add2Calendar.addEvent2Cal(Event(
-      title: 'Kuželky: ${start.tournament.name}',
-      description:
-          'Start ${t.display()} — ${start.tournament.timelineLabel(venueName)}',
-      location: venue?.address.isNotEmpty == true ? venue!.address : venueName,
-      startDate: begin,
-      endDate: begin.add(const Duration(hours: 2)),
-    ));
+  /// Confirmation first (with the optional ±1 day), then bulk-untick my
+  /// availability everywhere else on the chosen day(s). Starts I'm rostered
+  /// on are never unticked.
+  Future<void> _cancelDayInterest(
+      BuildContext context, WidgetRef ref, Slot slot) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    var neighbors = false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setState) => AlertDialog(
+          title: const Text('Zrušit zájem v tento den?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Hraješ ${dayFull(slot.date)} ${slot.time.display()}. '
+                'Odhlásí tě to ze všech ostatních zaškrtnutých termínů '
+                'v tento den — ve všech turnajích. Starty, na kterých '
+                'hraješ, zůstanou.',
+              ),
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                value: neighbors,
+                onChanged: (v) => setState(() => neighbors = v ?? false),
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: const Text('I den před a den po'),
+                subtitle: const Text('když nechceš hrát 2 dny po sobě'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Zpět'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Odhlásit'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final targets = dayCancelTargets(
+      uid: uid,
+      day: slot.date,
+      includeNeighbors: neighbors,
+      slots: ref.read(slotsProvider).value ?? const [],
+      availability: ref.read(availabilityProvider).value ?? const [],
+      keep: {
+        for (final r in ref.read(rostersProvider).value ?? const [])
+          if (r.userId == uid) r.slotId,
+      },
+    );
+    if (targets.isEmpty) {
+      snack(context, 'Žádné další zaškrtnuté termíny tam nemáš.');
+      return;
+    }
+    await tryAction(
+      context,
+      () => Api.setAvailabilityBulk(targets, false),
+      success: targets.length == 1
+          ? 'Odhlášeno z 1 termínu.'
+          : 'Odhlášeno ze ${targets.length} termínů.',
+    );
   }
 }
