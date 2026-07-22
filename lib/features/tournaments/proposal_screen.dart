@@ -25,13 +25,17 @@ class ProposalScreen extends ConsumerStatefulWidget {
 }
 
 class _ProposalScreenState extends ConsumerState<ProposalScreen> {
-  /// Selected slots with the number of *lanes* to order for each. Starts at
-  /// one lane; the team can bump it up to the venue's lane count.
-  late final Map<String, int> _selected = {
-    for (final id in widget.preselected) id: 1,
-  };
+  /// Selected slots with the number of *lanes* to order for each. Filled
+  /// from [ProposalScreen.preselected] on the first build with slot data —
+  /// the default depends on the slot, see [_defaultLanes].
+  final Map<String, int> _selected = {};
+  bool _preselectApplied = false;
   final _note = TextEditingController();
   bool _saving = false;
+
+  /// One lane to start with — except a start we already booked at the venue,
+  /// which pre-fills the lane count detected from the reservation page.
+  int _defaultLanes(Slot slot) => slot.venueOurs ? slot.venueOccupiedOurs! : 1;
 
   @override
   void dispose() {
@@ -85,6 +89,14 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     if (slots.isNotEmpty) {
       final visible = {for (final s in slots) s.id};
       _selected.removeWhere((id, _) => !visible.contains(id));
+      if (!_preselectApplied) {
+        _preselectApplied = true;
+        for (final slot in slots) {
+          if (widget.preselected.contains(slot.id)) {
+            _selected[slot.id] = _defaultLanes(slot);
+          }
+        }
+      }
     }
     final slotIds = {for (final s in slots) s.id};
     final availability = (ref.watch(availabilityProvider).value ?? const [])
@@ -131,7 +143,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
                 void toggle() => setState(() {
                       selected
                           ? _selected.remove(slot.id)
-                          : _selected[slot.id] = 1;
+                          : _selected[slot.id] = _defaultLanes(slot);
                     });
                 final scheme = Theme.of(context).colorScheme;
                 return Column(
