@@ -20,11 +20,15 @@ class ChatTileModel {
     this.lastMessage,
     required this.activity,
     this.locked = false,
+    this.venueName = '',
   });
 
   /// null = the team-wide chat.
   final Tournament? tournament;
   final Day? day;
+
+  /// The tournament's venue — chats are titled venue-first, like tournaments.
+  final String venueName;
 
   /// Members of a day chat (null for tournament/team chats).
   final int? memberCount;
@@ -59,6 +63,8 @@ final chatListProvider = Provider<ChatListModel>((ref) {
       const <String, Map<String, int?>>{};
   final slots = ref.watch(slotsProvider).value ?? const [];
   final slotById = {for (final s in slots) s.id: s};
+  final venues = ref.watch(venuesProvider).value ?? const [];
+  final venueById = {for (final v in venues) v.id: v};
   final now = today();
 
   // Days with ordered starts, per tournament — remembering when each day
@@ -133,6 +139,7 @@ final chatListProvider = Provider<ChatListModel>((ref) {
         tournament: t,
         day: c.day,
         memberCount: c.memberCount,
+        venueName: venueById[t.venueId]?.name ?? '?',
         unread: locked ? 0 : (unread[key] ?? 0),
         lastMessage: lastMsg[key],
         // A chat without messages counts as active at its creation — a

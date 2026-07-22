@@ -391,10 +391,13 @@ final myMutesProvider = StreamProvider<Set<String>>((ref) {
   final uid = ref.watch(_userIdProvider);
   if (uid == null) return Stream.value(const <String>{});
   final teamMuted = ref.watch(_teamChatMutedProvider).value ?? false;
+  // No .eq(user_id) filter on purpose: DELETE events carry only the primary
+  // key, so a server-side filter on a non-PK column silently drops them and
+  // un-muting never reaches the UI. RLS (chat_mutes_own) already scopes the
+  // fetch to my rows; foreign DELETE ids just no-op client-side.
   return cachedRows(
     key: 'chat_mutes',
-    live: () =>
-        _db.from('chat_mutes').stream(primaryKey: ['id']).eq('user_id', uid),
+    live: () => _db.from('chat_mutes').stream(primaryKey: ['id']),
   ).map((rows) => {
         for (final row in rows) '${row['tournament_id']}|${row['day'] ?? ''}',
         if (teamMuted) muteKey(teamChatId, null),
@@ -836,6 +839,13 @@ class Api {
   /// Deleting is RLS-limited to the caller's own messages.
   static Future<void> deleteMessage(String id, {required bool team}) =>
       _db.from(team ? 'team_messages' : 'messages').delete().eq('id', id);
+
+  /// Editing is RLS-limited to the caller's own messages.
+  static Future<void> editMessage(String id, String body,
+          {required bool team}) =>
+      _db
+          .from(team ? 'team_messages' : 'messages')
+          .update({'body': body}).eq('id', id);
 
   /// Adds my [emoji] on a message, or removes it when [mine] says I already
   /// reacted with it (the stream tells the UI which case it is).

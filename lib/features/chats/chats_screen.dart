@@ -81,19 +81,22 @@ class _ChatTile extends ConsumerWidget {
     final unread = data.unread;
     final uid = ref.watch(currentUserIdProvider);
 
+    // Venue-first titles, same as tournaments — the team thinks in alleys.
     final title = isTeam
         ? 'Celý tým'
-        : (day == null ? t.name : '${t.name} — ${dayLabel(day)}');
-    final fallbackSubtitle = isTeam
+        : (day == null
+            ? data.venueName
+            : '${dayLabel(day)}: ${data.venueName}');
+    final kindLine = isTeam
         ? 'společný chat celé party'
         : (day == null
-            ? 'chat k turnaji · celá parta'
+            ? 'společný chat celého turnaje'
             : 'chat hracího dne · ${peopleLabel(data.memberCount ?? 0)}');
 
     // "Miloš: Beru auto o 15:30" — the last message, mine shown as "ty:".
     final last = data.lastMessage;
     final preview = last == null
-        ? fallbackSubtitle
+        ? null
         : '${last.userId == uid ? 'ty' : memberName(members, last.userId)}: '
             '${last.body.replaceAll('\n', ' ')}';
 
@@ -117,11 +120,26 @@ class _ChatTile extends ConsumerWidget {
               : (isTeam ? FontWeight.w600 : null),
         ),
       ),
-      subtitle: Text(
-        preview,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: unread > 0 ? const TextStyle(fontWeight: FontWeight.w600) : null,
+      isThreeLine: preview != null,
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(kindLine,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  )),
+          if (preview != null)
+            Text(
+              preview,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: unread > 0
+                  ? const TextStyle(fontWeight: FontWeight.w600)
+                  : null,
+            ),
+        ],
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,

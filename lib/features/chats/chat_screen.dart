@@ -52,6 +52,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _scroll = ScrollController();
   final _pending = <_Pending>[];
   ChatMessage? _replyTo;
+  ChatMessage? _editing;
   bool _showJump = false;
   Timer? _draftTimer;
 
@@ -75,6 +76,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _saveDraft() {
+    if (_editing != null) return; // edited text is not a draft
     _draftTimer?.cancel();
     final text = _input.text;
     _draftTimer = Timer(const Duration(milliseconds: 400), () {
@@ -95,6 +97,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _send() async {
     final body = _input.text.trim();
     if (body.isEmpty) return;
+    final editing = _editing;
+    if (editing != null) {
+      setState(() {
+        _editing = null;
+        _input.clear();
+      });
+      await tryAction(context,
+          () => Api.editMessage(editing.id, body, team: widget.isTeam));
+      return;
+    }
     final pending = _Pending(body, _replyTo?.id);
     setState(() {
       _pending.add(pending);
@@ -154,13 +166,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ],
                 ),
               ),
-            if (!locked)
+            if (!locked && !mine)
               ListTile(
                 leading: const Icon(Icons.reply),
                 title: const Text('Odpovědět'),
                 onTap: () {
                   Navigator.pop(sheetCtx);
-                  setState(() => _replyTo = message);
+                  setState(() {
+                    _replyTo = message;
+                    _editing = null;
+                  });
+                },
+              ),
+            if (!locked && mine)
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('Upravit'),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  setState(() {
+                    _editing = message;
+                    _replyTo = null;
+                    _input.text = message.body;
+                    _input.selection = TextSelection.collapsed(
+                        offset: message.body.length);
+                  });
                 },
               ),
             ListTile(
@@ -385,20 +415,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final locked = tournament != null &&
         isChatLocked(
             tournament: tournament, day: widget.day, today: today());
+    // Venue-first, like everywhere else — with the chat kind riding below.
+    final venueName = tournament == null
+        ? ''
+        : (ref.watch(venueByIdProvider(tournament.venueId))?.name ?? '?');
     final title = widget.isTeam
         ? 'Celý tým'
         : (tournament == null
             ? 'Chat'
             : (widget.day == null
-                ? tournament.name
-                : '${tournament.name} — ${dayLabel(widget.day!)}'));
+                ? venueName
+                : '${dayLabel(widget.day!)}: $venueName'));
+    final kindLine = widget.isTeam
+        ? 'společný chat celé party'
+        : (widget.day == null
+            ? 'společný chat celého turnaje'
+            : 'chat hracího dne');
 
     final byId = {for (final m in messages) m.id: m};
     final items = buildChatItems(messages, readAt: _dividerReadAt, uid: uid);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(title),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(kindLine,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
         actions: [
           // Day chats are closed groups — show/manage who's in.
           if (!widget.isTeam && widget.day != null)
@@ -514,6 +563,35 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (_editing != null)
+            Container(
+              margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.edit_outlined, size: 16),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text('Úprava zprávy',
+                        style: Theme.of(context).textTheme.bodySmall),
+                  ),
+                  InkWell(
+                    onTap: () => setState(() {
+                      _editing = null;
+                      _input.clear();
+                    }),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(Icons.close, size: 16),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           if (replyTo != null)
             Container(
               margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
@@ -619,7 +697,8 @@ class _DayContextBar extends ConsumerWidget {
     return InkWell(
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => TournamentDetailScreen(tournamentId: tournament.id),
+          builder: (_) => TournamentDetailScreen(
+              tournamentId: tournament.id, scrollToOrders: true),
         ),
       ),
       child: Container(

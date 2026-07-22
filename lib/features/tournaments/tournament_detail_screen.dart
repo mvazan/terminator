@@ -16,9 +16,13 @@ import 'slot_cell.dart';
 import 'tournament_edit_screen.dart';
 
 class TournamentDetailScreen extends ConsumerStatefulWidget {
-  const TournamentDetailScreen({super.key, required this.tournamentId});
+  const TournamentDetailScreen(
+      {super.key, required this.tournamentId, this.scrollToOrders = false});
 
   final String tournamentId;
+
+  /// Open with the "Návrhy a objednávky" section in view (day-chat bar tap).
+  final bool scrollToOrders;
 
   @override
   ConsumerState<TournamentDetailScreen> createState() =>
@@ -30,6 +34,8 @@ class _TournamentDetailScreenState
   String get tournamentId => widget.tournamentId;
   bool _autoSyncDone = false;
   bool _syncing = false;
+  final _ordersKey = GlobalKey();
+  bool _scrolledToOrders = false;
 
   @override
   void initState() {
@@ -146,6 +152,20 @@ class _TournamentDetailScreenState
     final manage = ref.watch(manageUnlockedProvider);
     final venueName =
         ref.watch(venueByIdProvider(tournament.venueId))?.name ?? '?';
+
+    // Opened from a day chat's context bar: bring the orders into view once
+    // they're actually built (data may land a frame or two later).
+    if (widget.scrollToOrders && !_scrolledToOrders && orders.isNotEmpty) {
+      _scrolledToOrders = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final ctx = _ordersKey.currentContext;
+        if (ctx != null && mounted) {
+          Scrollable.ensureVisible(ctx,
+              duration: const Duration(milliseconds: 300),
+              alignment: 0.05);
+        }
+      });
+    }
     return Scaffold(
       appBar: AppBar(
         // Long-press the title to reach the hidden manage mode (PIN-gated).
@@ -319,6 +339,7 @@ class _TournamentDetailScreenState
           const SizedBox(height: 16),
           if (orders.any((o) => o.status != OrderStatus.cancelled)) ...[
             Text('Návrhy a objednávky',
+                key: _ordersKey,
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             for (final order in orders)
