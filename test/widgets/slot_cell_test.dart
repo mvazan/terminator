@@ -119,7 +119,8 @@ void main() {
     expect(timeText.style?.decoration, isNot(TextDecoration.lineThrough));
   });
 
-  testWidgets('ordered cell: green border, assigned/lanes, no phase icons',
+  testWidgets(
+      'ordered cell: green border+background, home icon, assigned/lanes',
       (tester) async {
     await tester.pumpWidget(wrap(SlotCell(
       time: const HourMinute(17, 30),
@@ -127,19 +128,46 @@ void main() {
       intensity: 0.5,
       isOrderable: true, // would show ✓ — the order supersedes it
       mine: false,
-      venueFree: 0, // full…
-      venueOurs: 5, // …by us, would show ⌂ — superseded too
+      venueFree: 0,
+      venueOurs: 5,
       orderedLanes: 5,
       assigned: 3,
       onTap: () {},
     )));
 
     expect(find.text('3/5'), findsOneWidget);
-    expect(find.byIcon(Icons.home), findsNothing);
+    // Home stays — it flags the number as "ours: assigned/lanes".
+    expect(find.byIcon(Icons.home), findsOneWidget);
     expect(find.byIcon(Icons.check_circle), findsNothing);
-    final border = borderOf(tester);
+    final container = tester.widget<Container>(
+      find.descendant(
+          of: find.byType(SlotCell), matching: find.byType(Container)),
+    );
+    final decoration = container.decoration! as BoxDecoration;
+    final border = decoration.border! as Border;
     expect(border.top.color, Colors.green);
     expect(border.top.width, 2);
+    // The background leaves the heat scale for a soft green.
+    final scheme = ThemeData.light().colorScheme;
+    expect(decoration.color,
+        Color.lerp(scheme.surfaceContainerHighest, Colors.green, 0.18));
+  });
+
+  testWidgets('ordered cell without a venue booking still shows the home',
+      (tester) async {
+    await tester.pumpWidget(wrap(SlotCell(
+      time: const HourMinute(17, 30),
+      count: 1,
+      intensity: 0,
+      isOrderable: false,
+      mine: false,
+      orderedLanes: 2, // manual tournament — no venue info at all
+      assigned: 4,
+      onTap: () {},
+    )));
+
+    expect(find.byIcon(Icons.home), findsOneWidget);
+    expect(find.text('4/2'), findsOneWidget);
   });
 
   testWidgets('ordered wins over the foreign-full blocked look',

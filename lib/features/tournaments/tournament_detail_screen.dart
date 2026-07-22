@@ -300,7 +300,7 @@ class _TournamentDetailScreenState
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             Text(
-              'zelený rámeček = objednáno, číslo = přiřazení/objednané dráhy',
+              'zelená = objednáno, ⌂ číslo = přiřazení hráči/objednané dráhy',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],

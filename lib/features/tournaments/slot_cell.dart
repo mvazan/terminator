@@ -76,9 +76,14 @@ class SlotCell extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            color: Color.lerp(
-                scheme.surfaceContainerHighest, scheme.primaryContainer,
-                intensity),
+            // Ordered cells leave the popularity heat scale — their soft
+            // green background says "done deal", not "how many can play".
+            color: _ordered
+                ? Color.lerp(
+                    scheme.surfaceContainerHighest, Colors.green, 0.18)
+                : Color.lerp(
+                    scheme.surfaceContainerHighest, scheme.primaryContainer,
+                    intensity),
             border: Border.all(
               color: _ordered
                   ? Colors.green
@@ -107,12 +112,15 @@ class SlotCell extends StatelessWidget {
                       child: Icon(Icons.check_circle,
                           size: 14, color: scheme.primary),
                     ),
-                  // Our own booking at the venue — superseded by the order.
-                  if (venueOurs > 0 && !_ordered)
+                  // Home = ours: primary while it's just our venue booking,
+                  // green once ordered — it also flags that the number now
+                  // means assigned/lanes instead of interest.
+                  if (_ordered || venueOurs > 0)
                     Padding(
                       padding: const EdgeInsets.only(right: 2),
-                      child:
-                          Icon(Icons.home, size: 14, color: scheme.primary),
+                      child: Icon(Icons.home,
+                          size: 14,
+                          color: _ordered ? Colors.green : scheme.primary),
                     ),
                   // Ordered: assigned players over ordered lanes. Otherwise
                   // plain team count, or "team/free lanes" when scraped.
