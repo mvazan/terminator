@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/busy.dart';
 import '../../core/ui.dart';
 import '../../data/providers.dart';
+import '../../domain/commitments.dart';
 import '../../domain/models.dart';
 import '../../domain/places.dart';
 import '../chats/chat_screen.dart';
@@ -243,6 +244,14 @@ class _OrderedBody extends ConsumerWidget {
       tickedBySlot.putIfAbsent(a.slotId, () => {}).add(a.userId);
     }
 
+    // Same-day "you're already playing elsewhere" data for the ⚠️ guard.
+    final commitments = ref.watch(commitmentsProvider);
+    final venueNames = ref.watch(venueNamesProvider);
+    String venueOf(String tournamentId) {
+      final t = ref.watch(tournamentByIdProvider(tournamentId));
+      return t == null ? '?' : (venueNames[t.venueId] ?? '?');
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -265,6 +274,8 @@ class _OrderedBody extends ConsumerWidget {
             ticked: tickedBySlot[slotPlaces.slot.id] ?? const {},
             uid: uid,
             readOnly: readOnly,
+            commitments: commitments,
+            venueOf: venueOf,
           ),
         const SizedBox(height: 8),
         // Day chats are closed groups — offer the shortcut only to people
@@ -299,6 +310,8 @@ class _SlotRoster extends StatelessWidget {
     required this.ticked,
     required this.uid,
     this.readOnly = false,
+    this.commitments = const [],
+    required this.venueOf,
   });
 
   final SlotPlaces slotPlaces;
@@ -310,6 +323,30 @@ class _SlotRoster extends StatelessWidget {
 
   final String? uid;
   final bool readOnly;
+
+  /// All active-order commitments — to warn when the person being added is
+  /// already playing elsewhere that day. `venueOf` labels a tournament.
+  final List<Commitment> commitments;
+  final String Function(String tournamentId) venueOf;
+
+  /// True to proceed: no same-day clash, or the user confirmed the ⚠️.
+  Future<bool> _okToAdd(BuildContext context, String userId) async {
+    final clashes = conflictsFor(commitments,
+        userId: userId,
+        day: slotPlaces.slot.date,
+        exceptSlotId: slotPlaces.slot.id);
+    if (clashes.isEmpty) return true;
+    final name = memberName(members, userId);
+    final where = clashes
+        .map((c) => '${venueOf(c.tournamentId)} ${c.time.display()}')
+        .join(', ');
+    return confirmDialog(
+      context,
+      title: '⚠️ Hraje jinde',
+      message: '$name už v tento den hraje: $where. Přidat i sem?',
+      confirmLabel: 'Přidat i tak',
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -341,6 +378,10 @@ class _SlotRoster extends StatelessWidget {
                     avatar: const Icon(Icons.person_add, size: 16),
                     label: const Text('Přidám se'),
                     onPressed: () async {
+                      if (uid != null && !await _okToAdd(context, uid!)) {
+                        return;
+                      }
+                      if (!context.mounted) return;
                       await tryAction(
                           context, () => Api.joinSlot(slot.id));
                     },
@@ -356,6 +397,14 @@ class _SlotRoster extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Adds [userId] to this start after the same-day ⚠️ guard.
+  Future<void> _addMember(BuildContext context, String userId) async {
+    if (!await _okToAdd(context, userId)) return;
+    if (!context.mounted) return;
+    await tryAction(
+        context, () => Api.joinSlot(slotPlaces.slot.id, userId: userId));
   }
 
   Future<void> _addSomeone(BuildContext context) async {
@@ -385,8 +434,7 @@ class _SlotRoster extends StatelessWidget {
                 subtitle: const Text('hlásí se na tento start'),
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  tryAction(context,
-                      () => Api.joinSlot(slotPlaces.slot.id, userId: m.id));
+                  _addMember(context, m.id);
                 },
               ),
             if (signedUp.isNotEmpty && others.isNotEmpty)
@@ -397,8 +445,7 @@ class _SlotRoster extends StatelessWidget {
                 title: Text(m.displayName),
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  tryAction(context,
-                      () => Api.joinSlot(slotPlaces.slot.id, userId: m.id));
+                  _addMember(context, m.id);
                 },
               ),
             ListTile(

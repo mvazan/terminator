@@ -95,7 +95,9 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
         .toList()
       ..sort(Slot.compare);
     final slotIds = {for (final s in slots) s.id};
-    final availability = (ref.watch(availabilityProvider).value ?? const [])
+    // Effective: players committed elsewhere that day don't inflate the
+    // "X hráčů může" counts in the picker.
+    final availability = ref.watch(effectiveAvailabilityProvider)
         .where((a) => slotIds.contains(a.slotId))
         .toList();
     final heatmap = Heatmap.build(

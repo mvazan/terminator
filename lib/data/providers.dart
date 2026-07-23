@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config.dart';
+import '../domain/commitments.dart';
 import '../domain/day_chat.dart';
 import '../domain/heatmap.dart';
 import '../domain/models.dart';
@@ -156,7 +157,9 @@ final tournamentInterestProvider =
   final now = Day.fromDateTime(DateTime.now());
   return interestByTournament(
     slots: ref.watch(slotsProvider).value ?? const [],
-    availability: ref.watch(availabilityProvider).value ?? const [],
+    // Effective (not raw): players already committed elsewhere that day
+    // don't inflate the list's interest counts.
+    availability: ref.watch(effectiveAvailabilityProvider),
     today: now,
     endedTournamentIds: _endedTournamentIds(ref, now),
     uid: currentUserId,
@@ -235,6 +238,49 @@ final availabilityProvider = StreamProvider<List<Availability>>((ref) {
     live: () => pagedTableStream(_db,
         table: 'availability', primaryKey: const ['slot_id', 'user_id']),
   ).map((rows) => rows.map(Availability.fromJson).toList());
+});
+
+/// The single source of truth for "who is already playing on which day":
+/// active-order roster spots, one [Commitment] each. Everything that needs to
+/// respect "committed elsewhere" reads this (interest suppression, the day
+/// lock, the assign-conflict warning) — see lib/domain/commitments.dart.
+final commitmentsProvider = Provider<List<Commitment>>((ref) {
+  final activeOrderIds = {
+    for (final o in ref.watch(ordersProvider).value ?? const <Order>[])
+      if (o.isActive) o.id,
+  };
+  final orderSlots = ref.watch(orderSlotsProvider).value ?? const {};
+  final activeOrderSlotIds = <String>{
+    for (final e in orderSlots.entries)
+      if (activeOrderIds.contains(e.key)) ...e.value.keys,
+  };
+  final slotsById = {
+    for (final s in ref.watch(slotsProvider).value ?? const <Slot>[]) s.id: s,
+  };
+  return buildCommitments(
+    rosters: ref.watch(rostersProvider).value ?? const [],
+    activeOrderSlotIds: activeOrderSlotIds,
+    slotsById: slotsById,
+  );
+});
+
+/// userId → days that user is committed — the lock check for the grid.
+final committedDaysProvider = Provider<Map<String, Set<Day>>>(
+    (ref) => committedDaysByUser(ref.watch(commitmentsProvider)));
+
+/// Interest with committed players' same-day ticks removed — the one filtered
+/// list every TEAM-interest display reads instead of the raw availability.
+/// Raw [availabilityProvider] stays for per-user / write paths (manual
+/// day-cancel, my calendar ticks, "hiding drops N ticks" warnings).
+final effectiveAvailabilityProvider = Provider<List<Availability>>((ref) {
+  final availability = ref.watch(availabilityProvider).value ?? const [];
+  final committed = ref.watch(committedDaysProvider);
+  if (committed.isEmpty) return availability;
+  final slotDay = {
+    for (final s in ref.watch(slotsProvider).value ?? const <Slot>[])
+      s.id: s.date,
+  };
+  return effectiveAvailability(availability, committed, slotDay);
 });
 
 final ordersProvider = StreamProvider<List<Order>>((ref) {

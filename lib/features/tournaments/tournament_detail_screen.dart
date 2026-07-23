@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/ui.dart';
 import '../../data/local_prefs.dart';
 import '../../data/providers.dart';
+import '../../domain/commitments.dart';
 import '../../domain/heatmap.dart';
 import '../../domain/models.dart';
 import '../../domain/who_is_in.dart';
@@ -115,15 +116,12 @@ class _TournamentDetailScreenState
         orderedLanesBySlot[se.key] = (orderedLanesBySlot[se.key] ?? 0) + se.value;
       }
     }
-    // Per slot: roster entry count (guests included) and assigned USER ids —
-    // served people are subtracted from the displayed interest count.
+    // Roster entry count per slot (guests included) — feeds the green chips.
+    // Interest suppression of assigned users is handled globally by
+    // effectiveAvailabilityProvider, so no per-slot subtraction here.
     final assignedBySlot = <String, int>{};
-    final rosterUsersBySlot = <String, Set<String>>{};
     for (final r in ref.watch(rostersProvider).value ?? const <RosterEntry>[]) {
       assignedBySlot[r.slotId] = (assignedBySlot[r.slotId] ?? 0) + 1;
-      if (r.userId != null) {
-        rosterUsersBySlot.putIfAbsent(r.slotId, () => {}).add(r.userId!);
-      }
     }
 
     final allSlots = (ref.watch(slotsProvider).value ?? const <Slot>[])
@@ -151,7 +149,9 @@ class _TournamentDetailScreenState
       chips.sort((a, b) => a.time.compareTo(b.time));
     }
     final slotIds = {for (final s in slots) s.id};
-    final availability = (ref.watch(availabilityProvider).value ?? const [])
+    // Effective (not raw): a player committed to a start that day no longer
+    // counts as "interested" on any other slot that day.
+    final availability = ref.watch(effectiveAvailabilityProvider)
         .where((a) => slotIds.contains(a.slotId))
         .toList();
     final heatmap = Heatmap.build(
@@ -181,6 +181,26 @@ class _TournamentDetailScreenState
     final manage = ref.watch(manageUnlockedProvider);
     final venueName =
         ref.watch(venueByIdProvider(tournament.venueId))?.name ?? '?';
+
+    // Days I'm already committed to play (here or elsewhere) are read-only
+    // for me — my interest that day is settled by the order. The hint names
+    // the venue(s) so my vanished ticks make sense.
+    final myCommitted = uid == null
+        ? const <Commitment>[]
+        : [for (final c in ref.watch(commitmentsProvider)) if (c.userId == uid) c];
+    final venueNames = ref.watch(venueNamesProvider);
+    final lockedVenuesByDay = <Day, String>{};
+    if (!readOnly) {
+      final byDayVenues = <Day, List<String>>{};
+      for (final c in myCommitted) {
+        final t = ref.watch(tournamentByIdProvider(c.tournamentId));
+        final name = t == null ? '?' : (venueNames[t.venueId] ?? '?');
+        (byDayVenues[c.day] ??= []).add(name);
+      }
+      for (final e in byDayVenues.entries) {
+        lockedVenuesByDay[e.key] = e.value.toSet().join(', ');
+      }
+    }
 
     // Opened from a day chat's context bar: bring the orders into view once
     // they're actually built (data may land a frame or two later).
@@ -391,9 +411,9 @@ class _TournamentDetailScreenState
               members: members,
               uid: uid,
               readOnly: readOnly,
-              rosterUsersBySlot: rosterUsersBySlot,
               orderedChips: orderedChipsByDay[day] ?? const [],
               onOrderedTap: _scrollToOrders,
+              lockedVenues: lockedVenuesByDay[day],
             ),
           const SizedBox(height: 48),
           ],
@@ -591,9 +611,9 @@ class _DayRow extends ConsumerStatefulWidget {
     required this.members,
     required this.uid,
     this.readOnly = false,
-    this.rosterUsersBySlot = const {},
     this.orderedChips = const [],
     this.onOrderedTap,
+    this.lockedVenues,
   });
 
   final Day day;
@@ -603,13 +623,15 @@ class _DayRow extends ConsumerStatefulWidget {
   final String? uid;
   final bool readOnly;
 
-  /// slot id → assigned USER ids (subtracted from the displayed count).
-  final Map<String, Set<String>> rosterUsersBySlot;
-
   /// This day's ordered starts — rendered as green chips above the cells;
   /// tapping one jumps to the Objednávky section.
   final List<({HourMinute time, int lanes, int players})> orderedChips;
   final VoidCallback? onOrderedTap;
+
+  /// Non-null when I'm already committed to play this day: the venue name(s)
+  /// ("Vracov" / "Vracov, Bratislava"). The day is then read-only for me —
+  /// interest cells are inert, "celý den" is hidden, and a hint explains why.
+  final String? lockedVenues;
 
   @override
   ConsumerState<_DayRow> createState() => _DayRowState();
@@ -642,6 +664,8 @@ class _DayRowState extends ConsumerState<_DayRow> {
     }
   }
 
+  bool get _locked => widget.lockedVenues != null;
+
   @override
   Widget build(BuildContext context) {
     final dayStats = heatmap.byDay[day];
@@ -664,7 +688,8 @@ class _DayRowState extends ConsumerState<_DayRow> {
                 Text('${peopleLabel(dayStats.distinctPlayers)} může',
                     style: Theme.of(context).textTheme.bodySmall),
               const Spacer(),
-              if (!readOnly && slots.isNotEmpty)
+              // Committed this day -> the day is settled for me, no bulk tick.
+              if (!readOnly && !_locked && slots.isNotEmpty)
                 _busy
                     ? const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 12),
@@ -683,6 +708,23 @@ class _DayRowState extends ConsumerState<_DayRow> {
             ],
           ),
           const SizedBox(height: 4),
+          // I'm playing this day — say where, so my hidden interest makes sense.
+          if (_locked)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Icon(Icons.event_available,
+                      size: 15, color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text('Hraješ tento den v: ${widget.lockedVenues}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.primary)),
+                  ),
+                ],
+              ),
+            ),
           // Ordered starts of the day — a different SHAPE on purpose, so an
           // order can't be confused with an interest cell.
           if (widget.orderedChips.isNotEmpty)
@@ -723,18 +765,13 @@ class _DayRowState extends ConsumerState<_DayRow> {
 
   Widget _cell(BuildContext context, Slot slot) {
     final stats = heatmap.bySlotId[slot.id];
+    // Interest suppression of committed players is already applied in the
+    // heatmap (effectiveAvailabilityProvider), so the count is straight.
     final mine = uid != null && (stats?.userIds.contains(uid) ?? false);
-    // People already assigned on an order are served — the cell counts
-    // only the ticks still WAITING (interested but not ordered).
-    final assignedUsers =
-        widget.rosterUsersBySlot[slot.id] ?? const <String>{};
-    final waiting = (stats?.userIds ?? const <String>{})
-        .where((u) => !assignedUsers.contains(u))
-        .length;
 
-    return SlotCell(
+    final cell = SlotCell(
       time: slot.time,
-      count: waiting,
+      count: stats?.count ?? 0,
       intensity: heatmap.intensity(slot.id),
       isOrderable: stats?.isOrderable ?? false,
       mine: mine,
@@ -742,19 +779,19 @@ class _DayRowState extends ConsumerState<_DayRow> {
       venueOurs: slot.venueOccupiedOurs ?? 0,
       // Through tryAction so a dropped connection is a friendly snackbar, not
       // an uncaught (fatal) error — the tap is otherwise fire-and-forget.
-      // Uniform on purpose: EVERY cell (green included) collects interest;
-      // roster assignment happens only in the Objednávky section.
-      onTap: readOnly
+      // Locked = I already play this day -> inert (interest is settled).
+      onTap: readOnly || _locked
           ? null
           : () {
               HapticFeedback.lightImpact();
               tryAction(context, () => Api.setAvailability(slot.id, !mine));
             },
       // Scraped slots are owned by the web sync — no manual deletion.
-      onLongPress: readOnly || slot.hasVenueInfo
+      onLongPress: readOnly || _locked || slot.hasVenueInfo
           ? null
           : () => _confirmDelete(context, slot),
     );
+    return _locked ? Opacity(opacity: 0.45, child: cell) : cell;
   }
 
   /// Who can make this day, one entry per person with a summarized range
