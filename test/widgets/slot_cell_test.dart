@@ -120,24 +120,23 @@ void main() {
   });
 
   testWidgets(
-      'ordered cell: green border+background, home icon, assigned/lanes',
+      'ordered cell: green border+background, ordinary numbers stay',
       (tester) async {
     await tester.pumpWidget(wrap(SlotCell(
       time: const HourMinute(17, 30),
-      count: 2,
+      count: 2, // waiting ticks — the caller already subtracted assigned
       intensity: 0.5,
       isOrderable: true, // would show ✓ — the order supersedes it
       mine: false,
-      venueFree: 0,
+      venueFree: 2,
       venueOurs: 5,
-      orderedLanes: 5,
-      assigned: 3,
+      ordered: true,
       onTap: () {},
     )));
 
-    expect(find.text('3/5'), findsOneWidget);
-    // Home stays — it flags the number as "ours: assigned/lanes".
-    expect(find.byIcon(Icons.home), findsOneWidget);
+    // Same info as any scraped cell: waiting/free — NOT the order's X/Y.
+    expect(find.text('2/2'), findsOneWidget);
+    expect(find.byIcon(Icons.home), findsOneWidget); // our venue booking
     expect(find.byIcon(Icons.check_circle), findsNothing);
     final container = tester.widget<Container>(
       find.descendant(
@@ -153,7 +152,7 @@ void main() {
         Color.lerp(scheme.surfaceContainerHighest, Colors.green, 0.18));
   });
 
-  testWidgets('ordered cell without a venue booking still shows the home',
+  testWidgets('ordered cell without venue info shows the plain count',
       (tester) async {
     await tester.pumpWidget(wrap(SlotCell(
       time: const HourMinute(17, 30),
@@ -161,13 +160,12 @@ void main() {
       intensity: 0,
       isOrderable: false,
       mine: false,
-      orderedLanes: 2, // manual tournament — no venue info at all
-      assigned: 4,
+      ordered: true, // manual tournament — no venue info at all
       onTap: () {},
     )));
 
-    expect(find.byIcon(Icons.home), findsOneWidget);
-    expect(find.text('4/2'), findsOneWidget);
+    expect(find.byIcon(Icons.home), findsNothing); // no venue booking
+    expect(find.text('1'), findsOneWidget);
   });
 
   testWidgets('ordered wins over the foreign-full blocked look',
@@ -185,8 +183,7 @@ void main() {
             mine: false,
             venueFree: 0,
             venueOurs: 0, // full by others…
-            orderedLanes: 2, // …but ordered anyway
-            assigned: 4,
+            ordered: true, // …but ordered anyway
             onTap: () {},
           ),
         ),
@@ -197,7 +194,7 @@ void main() {
     expect(border.top.color, isNot(theme.error));
     final timeText = tester.widget<Text>(find.text('18:00'));
     expect(timeText.style?.decoration, isNot(TextDecoration.lineThrough));
-    expect(find.text('4/2'), findsOneWidget);
+    expect(find.text('0/0'), findsOneWidget); // ordinary numbers, green look
   });
 
   testWidgets('scraped cell shows team/free lanes as X/Y', (tester) async {

@@ -11,10 +11,11 @@ import '../../domain/models.dart';
 /// with a struck-through time but stays fully interactive — occupancy is
 /// advisory, never a block.
 ///
-/// Once the slot is part of an active order it flips to the "ordered" look:
-/// green border, count reads "assigned players/ordered lanes", and the
-/// interest-phase markers (check, home, blocked strike-through) drop away.
-/// Purely presentational — callbacks injected — so it's widget-testable.
+/// Once the slot is part of an active order it only gets the green LOOK
+/// (background + border) — the numbers stay the ordinary interest/free info,
+/// with people already assigned on the order subtracted by the caller; the
+/// order's own details live in the "Objednávky" section. Purely
+/// presentational — callbacks injected — so it's widget-testable.
 class SlotCell extends StatelessWidget {
   const SlotCell({
     super.key,
@@ -27,8 +28,7 @@ class SlotCell extends StatelessWidget {
     this.onLongPress,
     this.venueFree,
     this.venueOurs = 0,
-    this.orderedLanes = 0,
-    this.assigned = 0,
+    this.ordered = false,
   });
 
   final HourMinute time;
@@ -47,20 +47,16 @@ class SlotCell extends StatelessWidget {
   /// Occupied places at the venue booked by OUR team (scraped); 0 = none.
   final int venueOurs;
 
-  /// Lanes on this slot across the team's active orders; 0 = not ordered.
-  final int orderedLanes;
-
-  /// Players already assigned (roster) to this slot; shown with the order.
-  final int assigned;
+  /// The slot is part of an active order — green look, same numbers.
+  final bool ordered;
 
   bool get _scraped => venueFree != null;
   bool get _venueFull => venueFree != null && venueFree! <= 0;
-  bool get _ordered => orderedLanes > 0;
 
   /// Full only with foreign bookings — the discouraging look. Full-by-us
   /// renders friendly (it's our own reservation waiting for an order), and an
   /// ordered slot is past discouraging by definition.
-  bool get _blockedByOthers => _venueFull && venueOurs <= 0 && !_ordered;
+  bool get _blockedByOthers => _venueFull && venueOurs <= 0 && !ordered;
 
   @override
   Widget build(BuildContext context) {
@@ -78,19 +74,19 @@ class SlotCell extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             // Ordered cells leave the popularity heat scale — their soft
             // green background says "done deal", not "how many can play".
-            color: _ordered
+            color: ordered
                 ? Color.lerp(
                     scheme.surfaceContainerHighest, Colors.green, 0.18)
                 : Color.lerp(
                     scheme.surfaceContainerHighest, scheme.primaryContainer,
                     intensity),
             border: Border.all(
-              color: _ordered
+              color: ordered
                   ? Colors.green
                   : _blockedByOthers
                       ? scheme.error
                       : (mine ? scheme.primary : scheme.outlineVariant),
-              width: _ordered || (mine && !_blockedByOthers) ? 2 : 1,
+              width: ordered || (mine && !_blockedByOthers) ? 2 : 1,
             ),
           ),
           child: Column(
@@ -106,28 +102,25 @@ class SlotCell extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  if (isOrderable && !_ordered)
+                  if (isOrderable && !ordered)
                     Padding(
                       padding: const EdgeInsets.only(right: 2),
                       child: Icon(Icons.check_circle,
                           size: 14, color: scheme.primary),
                     ),
-                  // Home = ours: primary while it's just our venue booking,
-                  // green once ordered — it also flags that the number now
-                  // means assigned/lanes instead of interest.
-                  if (_ordered || venueOurs > 0)
+                  // Home = our booking at the venue (green tint when the
+                  // order exists, primary otherwise).
+                  if (venueOurs > 0)
                     Padding(
                       padding: const EdgeInsets.only(right: 2),
                       child: Icon(Icons.home,
                           size: 14,
-                          color: _ordered ? Colors.green : scheme.primary),
+                          color: ordered ? Colors.green : scheme.primary),
                     ),
-                  // Ordered: assigned players over ordered lanes. Otherwise
-                  // plain team count, or "team/free lanes" when scraped.
+                  // Plain team count, or "team/free lanes" when scraped —
+                  // the ordered state changes only the colors.
                   Text(
-                    _ordered
-                        ? '$assigned/$orderedLanes'
-                        : (_scraped ? '$count/$venueFree' : '$count'),
+                    _scraped ? '$count/$venueFree' : '$count',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],

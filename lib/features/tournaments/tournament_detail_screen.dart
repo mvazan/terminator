@@ -106,9 +106,16 @@ class _TournamentDetailScreenState
         orderedLanesBySlot[se.key] = (orderedLanesBySlot[se.key] ?? 0) + se.value;
       }
     }
+    // Per slot: how many roster entries (guests included — capacity) and
+    // which USERS are assigned (their interest tick is already served, so
+    // the grid subtracts them from the count).
     final assignedBySlot = <String, int>{};
+    final rosterUsersBySlot = <String, Set<String>>{};
     for (final r in ref.watch(rostersProvider).value ?? const <RosterEntry>[]) {
       assignedBySlot[r.slotId] = (assignedBySlot[r.slotId] ?? 0) + 1;
+      if (r.userId != null) {
+        rosterUsersBySlot.putIfAbsent(r.slotId, () => {}).add(r.userId!);
+      }
     }
 
     // A running tournament shows only starts the team can still use: free
@@ -357,8 +364,8 @@ class _TournamentDetailScreenState
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             Text(
-              'zelená = objednáno (⌂ číslo = přiřazení/dráhy), klepnutím '
-              'se přidáš/odhlásíš',
+              'zelená = máme objednávku (klepnutím se přidáš/odhlásíš, '
+              'detaily v sekci Objednávky)',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -373,6 +380,7 @@ class _TournamentDetailScreenState
               readOnly: readOnly,
               orderedLanesBySlot: orderedLanesBySlot,
               assignedBySlot: assignedBySlot,
+              rosterUsersBySlot: rosterUsersBySlot,
               playersPerLane: tournament.kind.playersPerLane,
             ),
           const SizedBox(height: 48),
@@ -573,6 +581,7 @@ class _DayRow extends ConsumerStatefulWidget {
     this.readOnly = false,
     this.orderedLanesBySlot = const {},
     this.assignedBySlot = const {},
+    this.rosterUsersBySlot = const {},
     this.playersPerLane = 1,
   });
 
@@ -583,10 +592,11 @@ class _DayRow extends ConsumerStatefulWidget {
   final String? uid;
   final bool readOnly;
 
-  /// slot id → lanes in active orders / players assigned; feeds the green
-  /// "ordered" look of the cells.
+  /// slot id → lanes in active orders / roster entry count (capacity math)
+  /// / assigned USER ids (subtracted from the displayed interest count).
   final Map<String, int> orderedLanesBySlot;
   final Map<String, int> assignedBySlot;
+  final Map<String, Set<String>> rosterUsersBySlot;
 
   /// Players one ordered lane holds (tandem → 2) — the roster capacity of an
   /// ordered start is lanes × this.
@@ -679,17 +689,23 @@ class _DayRowState extends ConsumerState<_DayRow> {
     final stats = heatmap.bySlotId[slot.id];
     final mine = uid != null && (stats?.userIds.contains(uid) ?? false);
     final ordered = (widget.orderedLanesBySlot[slot.id] ?? 0) > 0;
+    // People already assigned on the order are served — the cell counts
+    // only the ticks still WAITING (interested but not ordered).
+    final assignedUsers =
+        widget.rosterUsersBySlot[slot.id] ?? const <String>{};
+    final waiting = (stats?.userIds ?? const <String>{})
+        .where((u) => !assignedUsers.contains(u))
+        .length;
 
     return SlotCell(
       time: slot.time,
-      count: stats?.count ?? 0,
+      count: waiting,
       intensity: heatmap.intensity(slot.id),
       isOrderable: stats?.isOrderable ?? false,
       mine: mine,
       venueFree: slot.venueFree,
       venueOurs: slot.venueOccupiedOurs ?? 0,
-      orderedLanes: widget.orderedLanesBySlot[slot.id] ?? 0,
-      assigned: widget.assignedBySlot[slot.id] ?? 0,
+      ordered: ordered,
       // Through tryAction so a dropped connection is a friendly snackbar, not
       // an uncaught (fatal) error — the tap is otherwise fire-and-forget.
       // An ordered (green) start is past the interest phase: tapping toggles
