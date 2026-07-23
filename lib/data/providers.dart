@@ -741,12 +741,48 @@ class Api {
     }
   }
 
-  static Future<void> createProposal({
+  /// Records an order (or a proposal). Starts already covered by an ACTIVE
+  /// order don't spawn a duplicate — their lanes are ADDED to the existing
+  /// order instead ("objednal jsem další 2 dráhy"). Returns true when at
+  /// least some lanes were merged into an existing order.
+  static Future<bool> createProposal({
     required String tournamentId,
     required Map<String, int> lanesBySlot, // slot_id -> ordered lanes
     String note = '',
     bool directlyOrdered = false,
   }) async {
+    var fresh = lanesBySlot;
+    var merged = false;
+    if (directlyOrdered) {
+      // Which of the selected starts are in an active order already?
+      final active = await _db
+          .from('orders')
+          .select('id')
+          .eq('tournament_id', tournamentId)
+          .inFilter('status', ['ordered', 'confirmed']);
+      final activeIds = [for (final row in active) row['id'] as String];
+      if (activeIds.isNotEmpty) {
+        final existing = await _db
+            .from('order_slots')
+            .select('order_id, slot_id, lanes')
+            .inFilter('order_id', activeIds)
+            .inFilter('slot_id', lanesBySlot.keys.toList());
+        fresh = {...lanesBySlot};
+        for (final row in existing) {
+          final slotId = row['slot_id'] as String;
+          final add = fresh.remove(slotId);
+          if (add == null) continue;
+          merged = true;
+          await _db
+              .from('order_slots')
+              .update({'lanes': (row['lanes'] as int) + add})
+              .eq('order_id', row['order_id'] as String)
+              .eq('slot_id', slotId);
+        }
+      }
+    }
+    if (fresh.isEmpty) return merged;
+
     final inserted = await _db
         .from('orders')
         .insert({
@@ -761,13 +797,14 @@ class Api {
         .single();
     final orderId = inserted['id'] as String;
     await _db.from('order_slots').insert([
-      for (final entry in lanesBySlot.entries)
+      for (final entry in fresh.entries)
         {
           'order_id': orderId,
           'slot_id': entry.key,
           'lanes': entry.value,
         },
     ]);
+    return merged;
   }
 
   static Future<void> vote(String orderId, Vote vote, {String note = ''}) =>
@@ -860,11 +897,17 @@ class Api {
           .eq('user_id', currentUserId!)
           .eq('emoji', emoji);
     }
-    return _db.from(table).insert({
-      'message_id': messageId,
-      'user_id': currentUserId!,
-      'emoji': emoji,
-    });
+    // Upsert-ignore: a double tap (or a stale `mine` from a lagging stream)
+    // must be a no-op, not a duplicate-key error (TERMINATOR-A).
+    return _db.from(table).upsert(
+      {
+        'message_id': messageId,
+        'user_id': currentUserId!,
+        'emoji': emoji,
+      },
+      onConflict: 'message_id,user_id,emoji',
+      ignoreDuplicates: true,
+    );
   }
 
   static Future<void> setTeamChatMuted(bool muted) async {

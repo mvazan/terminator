@@ -47,28 +47,41 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
       return;
     }
     setState(() => _saving = true);
+    var merged = false;
     final ok = await tryAction(
       context,
-      () => Api.createProposal(
-        tournamentId: widget.tournament.id,
-        lanesBySlot: _selected,
-        note: _note.text.trim(),
-        directlyOrdered: widget.directlyOrdered,
-      ),
+      () async {
+        merged = await Api.createProposal(
+          tournamentId: widget.tournament.id,
+          lanesBySlot: _selected,
+          note: _note.text.trim(),
+          directlyOrdered: widget.directlyOrdered,
+        );
+      },
     );
     if (!mounted) return;
     setState(() => _saving = false);
-    if (ok) Navigator.of(context).pop();
+    if (ok) {
+      snack(
+          context,
+          merged
+              ? 'Dráhy přidány k existující objednávce.'
+              : (widget.directlyOrdered
+                  ? 'Objednávka zaznamenána.'
+                  : 'Návrh odeslán.'));
+      Navigator.of(context).pop();
+    }
   }
 
   /// Most lanes that can be ordered for one start, or null = no limit.
-  /// The venue's TOTAL lanes for that start, not just the free ones — the
-  /// occupancy may be our own booking made on the venue's site, and ordering
-  /// happens outside the app anyway, so occupancy is advisory, never a block.
-  int? _maxLanes(Slot slot, Venue? venue) {
-    if (slot.hasVenueInfo) return slot.venueCapacity;
-    if (venue != null) return venue.laneCount;
-    return null;
+  /// The venue's TOTAL lanes for that start minus what the team already has
+  /// ordered — the occupancy may be our own booking made on the venue's
+  /// site, and ordering happens outside the app anyway, so occupancy is
+  /// advisory, never a block.
+  int? _maxLanes(Slot slot, Venue? venue, int orderedHere) {
+    final base = slot.hasVenueInfo ? slot.venueCapacity : venue?.laneCount;
+    if (base == null) return null;
+    return base - orderedHere;
   }
 
   @override
@@ -90,6 +103,22 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
       slots: slots,
       availability: availability,
     );
+
+    // Starts already covered by an active order: ticking one ADDS lanes to
+    // that order instead of creating a duplicate — the row says so.
+    final activeOrderIds = {
+      for (final o in ref.watch(ordersProvider).value ?? const <Order>[])
+        if (o.tournamentId == widget.tournament.id && o.isActive) o.id,
+    };
+    final orderSlots = ref.watch(orderSlotsProvider).value ??
+        const <String, Map<String, int>>{};
+    final orderedBySlot = <String, int>{};
+    for (final entry in orderSlots.entries) {
+      if (!activeOrderIds.contains(entry.key)) continue;
+      for (final se in entry.value.entries) {
+        orderedBySlot[se.key] = (orderedBySlot[se.key] ?? 0) + se.value;
+      }
+    }
 
     final byDay = slotsByDay(slots);
 
@@ -147,13 +176,19 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
             for (final slot in byDay[day]!)
               Builder(builder: (context) {
                 final selected = _selected.containsKey(slot.id);
-                final max = _maxLanes(slot, venue);
+                final orderedHere = orderedBySlot[slot.id] ?? 0;
+                final max = _maxLanes(slot, venue, orderedHere);
+                // No lanes left to add on a fully ordered start.
+                final exhausted = orderedHere > 0 && max != null && max <= 0;
                 void toggle() {
                   HapticFeedback.selectionClick();
                   setState(() {
                     selected
                         ? _selected.remove(slot.id)
-                        : _selected[slot.id] = _defaultLanes(slot);
+                        // Adding to an existing order starts at one lane;
+                        // otherwise our venue booking pre-fills its count.
+                        : _selected[slot.id] =
+                            orderedHere > 0 ? 1 : _defaultLanes(slot);
                   });
                 }
                 final scheme = Theme.of(context).colorScheme;
@@ -172,7 +207,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
                           // so tapping a disabled stepper button can't toggle it.
                           Checkbox(
                             value: selected,
-                            onChanged: (_) => toggle(),
+                            onChanged: exhausted ? null : (_) => toggle(),
                           ),
                           Expanded(
                             child: Column(
@@ -191,7 +226,8 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
                                 Text(
                                   '${heatmap.bySlotId[slot.id]?.count ?? 0} '
                                   'hráčů může'
-                                  '${slot.venueOurs ? ' · naše rezervace (${lanesLabel(slot.venueOccupiedOurs!)})' : ''}',
+                                  '${slot.venueOurs ? ' · naše rezervace (${lanesLabel(slot.venueOccupiedOurs!)})' : ''}'
+                                  '${orderedHere > 0 ? ' · objednáno (${lanesLabel(orderedHere)})' : ''}',
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ],
