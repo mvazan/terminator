@@ -54,6 +54,15 @@ class _TournamentDetailScreenState
     });
   }
 
+  /// Smooth-scrolls to the "Objednávky" section (green chip / day-chat bar).
+  void _scrollToOrders() {
+    final ctx = _ordersKey.currentContext;
+    if (ctx != null && mounted) {
+      Scrollable.ensureVisible(ctx,
+          duration: const Duration(milliseconds: 300), alignment: 0.05);
+    }
+  }
+
   Future<void> _sync(Tournament tournament, {bool manual = false}) async {
     if (_syncing) return;
     setState(() => _syncing = true);
@@ -106,28 +115,38 @@ class _TournamentDetailScreenState
         orderedLanesBySlot[se.key] = (orderedLanesBySlot[se.key] ?? 0) + se.value;
       }
     }
-    // Which USERS are assigned per slot — their interest tick is already
-    // served, so the grid subtracts them from the displayed count.
+    // Per slot: roster entry count (guests included) and assigned USER ids —
+    // served people are subtracted from the displayed interest count.
+    final assignedBySlot = <String, int>{};
     final rosterUsersBySlot = <String, Set<String>>{};
     for (final r in ref.watch(rostersProvider).value ?? const <RosterEntry>[]) {
+      assignedBySlot[r.slotId] = (assignedBySlot[r.slotId] ?? 0) + 1;
       if (r.userId != null) {
         rosterUsersBySlot.putIfAbsent(r.slotId, () => {}).add(r.userId!);
       }
     }
 
-    // A running tournament shows only starts the team can still use: free
-    // lanes at the venue, our own venue booking (⌂), or an active order
-    // (green). Starts fully booked by strangers are dead — hidden. History
-    // (ended/archived) keeps every start.
-    final slots = (ref.watch(slotsProvider).value ?? const [])
+    final allSlots = (ref.watch(slotsProvider).value ?? const <Slot>[])
         .where((s) => s.tournamentId == tournamentId)
-        .where((s) =>
-            ended ||
-            !s.venueFull ||
-            s.venueOurs ||
-            (orderedLanesBySlot[s.id] ?? 0) > 0)
         .toList()
       ..sort(Slot.compare);
+    // The grid collects interest, so it shows only starts with free lanes —
+    // full ones (foreign or ours) are hidden. Ordered starts live in the
+    // green chips + the Objednávky section instead. History keeps everything.
+    final slots = [
+      for (final s in allSlots)
+        if (ended || !s.venueFull) s,
+    ];
+    // Ordered starts per day (from ALL slots — a fully booked ordered start
+    // isn't in the grid anymore): the day's green chips.
+    final orderedChipsByDay =
+        <Day, List<({HourMinute time, int lanes, int players})>>{};
+    for (final s in allSlots) {
+      final lanes = orderedLanesBySlot[s.id] ?? 0;
+      if (lanes == 0) continue;
+      orderedChipsByDay.putIfAbsent(s.date, () => []).add(
+          (time: s.time, lanes: lanes, players: assignedBySlot[s.id] ?? 0));
+    }
     final slotIds = {for (final s in slots) s.id};
     final availability = (ref.watch(availabilityProvider).value ?? const [])
         .where((a) => slotIds.contains(a.slotId))
@@ -149,8 +168,10 @@ class _TournamentDetailScreenState
             ?.contains(tournamentId) ??
         false;
     final readOnly = ended || hiddenByMe;
+    // A day can have chips but no free starts — it still gets its row.
+    final dayKeys = {...byDay.keys, ...orderedChipsByDay.keys}.toList()..sort();
     final visibleDays = [
-      for (final day in byDay.keys)
+      for (final day in dayKeys)
         if (ended || !day.isBefore(now)) day,
     ];
 
@@ -162,14 +183,7 @@ class _TournamentDetailScreenState
     // they're actually built (data may land a frame or two later).
     if (widget.scrollToOrders && !_scrolledToOrders && orders.isNotEmpty) {
       _scrolledToOrders = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final ctx = _ordersKey.currentContext;
-        if (ctx != null && mounted) {
-          Scrollable.ensureVisible(ctx,
-              duration: const Duration(milliseconds: 300),
-              alignment: 0.05);
-        }
-      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToOrders());
     }
     return Scaffold(
       appBar: AppBar(
@@ -361,8 +375,7 @@ class _TournamentDetailScreenState
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             Text(
-              'zelená = máme objednávku (přiřazení a detaily v sekci '
-              'Objednávky)',
+              'zelený štítek = objednaný start (klepnutím otevřeš detaily)',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -370,13 +383,15 @@ class _TournamentDetailScreenState
           for (final day in visibleDays)
             _DayRow(
               day: day,
-              slots: byDay[day]!,
+              slots: byDay[day] ?? const [],
               heatmap: heatmap,
               members: members,
               uid: uid,
               readOnly: readOnly,
-              orderedLanesBySlot: orderedLanesBySlot,
               rosterUsersBySlot: rosterUsersBySlot,
+              orderedChips: (orderedChipsByDay[day] ?? const [])
+                ..sort((a, b) => a.time.compareTo(b.time)),
+              onOrderedTap: _scrollToOrders,
             ),
           const SizedBox(height: 48),
           ],
@@ -574,8 +589,9 @@ class _DayRow extends ConsumerStatefulWidget {
     required this.members,
     required this.uid,
     this.readOnly = false,
-    this.orderedLanesBySlot = const {},
     this.rosterUsersBySlot = const {},
+    this.orderedChips = const [],
+    this.onOrderedTap,
   });
 
   final Day day;
@@ -585,10 +601,13 @@ class _DayRow extends ConsumerStatefulWidget {
   final String? uid;
   final bool readOnly;
 
-  /// slot id → lanes in active orders (green look) / assigned USER ids
-  /// (subtracted from the displayed interest count).
-  final Map<String, int> orderedLanesBySlot;
+  /// slot id → assigned USER ids (subtracted from the displayed count).
   final Map<String, Set<String>> rosterUsersBySlot;
+
+  /// This day's ordered starts — rendered as green chips above the cells;
+  /// tapping one jumps to the Objednávky section.
+  final List<({HourMinute time, int lanes, int players})> orderedChips;
+  final VoidCallback? onOrderedTap;
 
   @override
   ConsumerState<_DayRow> createState() => _DayRowState();
@@ -643,7 +662,7 @@ class _DayRowState extends ConsumerState<_DayRow> {
                 Text('${peopleLabel(dayStats.distinctPlayers)} může',
                     style: Theme.of(context).textTheme.bodySmall),
               const Spacer(),
-              if (!readOnly)
+              if (!readOnly && slots.isNotEmpty)
                 _busy
                     ? const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 12),
@@ -662,6 +681,33 @@ class _DayRowState extends ConsumerState<_DayRow> {
             ],
           ),
           const SizedBox(height: 4),
+          // Ordered starts of the day — a different SHAPE on purpose, so an
+          // order can't be confused with an interest cell.
+          if (widget.orderedChips.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  for (final chip in widget.orderedChips)
+                    ActionChip(
+                      avatar: const Icon(Icons.check_circle,
+                          size: 16, color: Colors.green),
+                      label: Text(
+                          '${chip.time.display()} · '
+                          '${lanesLabel(chip.lanes)} · '
+                          '${peopleLabel(chip.players)}'),
+                      side: const BorderSide(color: Colors.green),
+                      backgroundColor: Color.lerp(
+                          Theme.of(context).colorScheme.surface,
+                          Colors.green,
+                          0.12),
+                      onPressed: widget.onOrderedTap,
+                    ),
+                ],
+              ),
+            ),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -676,8 +722,7 @@ class _DayRowState extends ConsumerState<_DayRow> {
   Widget _cell(BuildContext context, Slot slot) {
     final stats = heatmap.bySlotId[slot.id];
     final mine = uid != null && (stats?.userIds.contains(uid) ?? false);
-    final ordered = (widget.orderedLanesBySlot[slot.id] ?? 0) > 0;
-    // People already assigned on the order are served — the cell counts
+    // People already assigned on an order are served — the cell counts
     // only the ticks still WAITING (interested but not ordered).
     final assignedUsers =
         widget.rosterUsersBySlot[slot.id] ?? const <String>{};
@@ -693,7 +738,6 @@ class _DayRowState extends ConsumerState<_DayRow> {
       mine: mine,
       venueFree: slot.venueFree,
       venueOurs: slot.venueOccupiedOurs ?? 0,
-      ordered: ordered,
       // Through tryAction so a dropped connection is a friendly snackbar, not
       // an uncaught (fatal) error — the tap is otherwise fire-and-forget.
       // Uniform on purpose: EVERY cell (green included) collects interest;

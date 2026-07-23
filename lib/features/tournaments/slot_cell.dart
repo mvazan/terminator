@@ -10,12 +10,9 @@ import '../../domain/models.dart';
 /// occupancy booked by US on the venue's site; a foreign-full slot is dimmed
 /// with a struck-through time but stays fully interactive — occupancy is
 /// advisory, never a block.
-///
-/// Once the slot is part of an active order it only gets the green LOOK
-/// (background + border) — the numbers stay the ordinary interest/free info,
-/// with people already assigned on the order subtracted by the caller; the
-/// order's own details live in the "Objednávky" section. Purely
-/// presentational — callbacks injected — so it's widget-testable.
+/// (Ordered starts don't render as cells at all — they're the green chips
+/// above the grid.) Purely presentational — callbacks injected — so it's
+/// widget-testable.
 class SlotCell extends StatelessWidget {
   const SlotCell({
     super.key,
@@ -28,7 +25,6 @@ class SlotCell extends StatelessWidget {
     this.onLongPress,
     this.venueFree,
     this.venueOurs = 0,
-    this.ordered = false,
   });
 
   final HourMinute time;
@@ -47,16 +43,12 @@ class SlotCell extends StatelessWidget {
   /// Occupied places at the venue booked by OUR team (scraped); 0 = none.
   final int venueOurs;
 
-  /// The slot is part of an active order — green look, same numbers.
-  final bool ordered;
-
   bool get _scraped => venueFree != null;
   bool get _venueFull => venueFree != null && venueFree! <= 0;
 
   /// Full only with foreign bookings — the discouraging look. Full-by-us
-  /// renders friendly (it's our own reservation waiting for an order), and an
-  /// ordered slot is past discouraging by definition.
-  bool get _blockedByOthers => _venueFull && venueOurs <= 0 && !ordered;
+  /// renders friendly (it's our own reservation waiting for an order).
+  bool get _blockedByOthers => _venueFull && venueOurs <= 0;
 
   @override
   Widget build(BuildContext context) {
@@ -72,21 +64,14 @@ class SlotCell extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            // Ordered cells leave the popularity heat scale — their soft
-            // green background says "done deal", not "how many can play".
-            color: ordered
-                ? Color.lerp(
-                    scheme.surfaceContainerHighest, Colors.green, 0.18)
-                : Color.lerp(
-                    scheme.surfaceContainerHighest, scheme.primaryContainer,
-                    intensity),
+            color: Color.lerp(
+                scheme.surfaceContainerHighest, scheme.primaryContainer,
+                intensity),
             border: Border.all(
-              color: ordered
-                  ? Colors.green
-                  : _blockedByOthers
-                      ? scheme.error
-                      : (mine ? scheme.primary : scheme.outlineVariant),
-              width: ordered || (mine && !_blockedByOthers) ? 2 : 1,
+              color: _blockedByOthers
+                  ? scheme.error
+                  : (mine ? scheme.primary : scheme.outlineVariant),
+              width: mine && !_blockedByOthers ? 2 : 1,
             ),
           ),
           child: Column(
@@ -102,23 +87,20 @@ class SlotCell extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  if (isOrderable && !ordered)
+                  if (isOrderable)
                     Padding(
                       padding: const EdgeInsets.only(right: 2),
                       child: Icon(Icons.check_circle,
                           size: 14, color: scheme.primary),
                     ),
-                  // Home = our booking at the venue (green tint when the
-                  // order exists, primary otherwise).
+                  // Home = our booking at the venue.
                   if (venueOurs > 0)
                     Padding(
                       padding: const EdgeInsets.only(right: 2),
-                      child: Icon(Icons.home,
-                          size: 14,
-                          color: ordered ? Colors.green : scheme.primary),
+                      child:
+                          Icon(Icons.home, size: 14, color: scheme.primary),
                     ),
-                  // Plain team count, or "team/free lanes" when scraped —
-                  // the ordered state changes only the colors.
+                  // Plain team count, or "team/free lanes" when scraped.
                   Text(
                     _scraped ? '$count/$venueFree' : '$count',
                     style: Theme.of(context).textTheme.bodySmall,
