@@ -147,6 +147,9 @@ class _TournamentDetailScreenState
       orderedChipsByDay.putIfAbsent(s.date, () => []).add(
           (time: s.time, lanes: lanes, players: assignedBySlot[s.id] ?? 0));
     }
+    for (final chips in orderedChipsByDay.values) {
+      chips.sort((a, b) => a.time.compareTo(b.time));
+    }
     final slotIds = {for (final s in slots) s.id};
     final availability = (ref.watch(availabilityProvider).value ?? const [])
         .where((a) => slotIds.contains(a.slotId))
@@ -389,8 +392,7 @@ class _TournamentDetailScreenState
               uid: uid,
               readOnly: readOnly,
               rosterUsersBySlot: rosterUsersBySlot,
-              orderedChips: (orderedChipsByDay[day] ?? const [])
-                ..sort((a, b) => a.time.compareTo(b.time)),
+              orderedChips: orderedChipsByDay[day] ?? const [],
               onOrderedTap: _scrollToOrders,
             ),
           const SizedBox(height: 48),
