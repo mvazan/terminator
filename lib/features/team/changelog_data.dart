@@ -14,6 +14,16 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.3.2', '23. 7. 2026', [
+    'Objednávky jsou v detailu zelené štítky u dne (čas · dráhy · hráči), '
+        'klepnutím detail; mřížka je jen o zájmu a plné termíny se skrývají.',
+    'Záznam startu s existující objednávkou přidá dráhy do ní — žádné '
+        'duplicitní objednávky.',
+    'Chytřejší upozornění: nová objednávka se ozve po 3 minutách jen lidem '
+        'mimo ni (a jen když zbývá místo); přiřazení/odebrání přijde osobně; '
+        'zrušení jen účastníkům.',
+    'Oprava reakcí v chatu při dvojitém ťuknutí.',
+  ]),
   Release('2.3.1', '22. 7. 2026', [
     'Zadat objednávku: všechny starty (i plné), nic nepředškrtáváme; '
         'appka objednávku sama neodešle — jen ji zaznamená.',
