@@ -106,13 +106,10 @@ class _TournamentDetailScreenState
         orderedLanesBySlot[se.key] = (orderedLanesBySlot[se.key] ?? 0) + se.value;
       }
     }
-    // Per slot: how many roster entries (guests included — capacity) and
-    // which USERS are assigned (their interest tick is already served, so
-    // the grid subtracts them from the count).
-    final assignedBySlot = <String, int>{};
+    // Which USERS are assigned per slot — their interest tick is already
+    // served, so the grid subtracts them from the displayed count.
     final rosterUsersBySlot = <String, Set<String>>{};
     for (final r in ref.watch(rostersProvider).value ?? const <RosterEntry>[]) {
-      assignedBySlot[r.slotId] = (assignedBySlot[r.slotId] ?? 0) + 1;
       if (r.userId != null) {
         rosterUsersBySlot.putIfAbsent(r.slotId, () => {}).add(r.userId!);
       }
@@ -364,8 +361,8 @@ class _TournamentDetailScreenState
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             Text(
-              'zelená = máme objednávku (klepnutím se přidáš/odhlásíš, '
-              'detaily v sekci Objednávky)',
+              'zelená = máme objednávku (přiřazení a detaily v sekci '
+              'Objednávky)',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -379,9 +376,7 @@ class _TournamentDetailScreenState
               uid: uid,
               readOnly: readOnly,
               orderedLanesBySlot: orderedLanesBySlot,
-              assignedBySlot: assignedBySlot,
               rosterUsersBySlot: rosterUsersBySlot,
-              playersPerLane: tournament.kind.playersPerLane,
             ),
           const SizedBox(height: 48),
           ],
@@ -580,9 +575,7 @@ class _DayRow extends ConsumerStatefulWidget {
     required this.uid,
     this.readOnly = false,
     this.orderedLanesBySlot = const {},
-    this.assignedBySlot = const {},
     this.rosterUsersBySlot = const {},
-    this.playersPerLane = 1,
   });
 
   final Day day;
@@ -592,15 +585,10 @@ class _DayRow extends ConsumerStatefulWidget {
   final String? uid;
   final bool readOnly;
 
-  /// slot id → lanes in active orders / roster entry count (capacity math)
-  /// / assigned USER ids (subtracted from the displayed interest count).
+  /// slot id → lanes in active orders (green look) / assigned USER ids
+  /// (subtracted from the displayed interest count).
   final Map<String, int> orderedLanesBySlot;
-  final Map<String, int> assignedBySlot;
   final Map<String, Set<String>> rosterUsersBySlot;
-
-  /// Players one ordered lane holds (tandem → 2) — the roster capacity of an
-  /// ordered start is lanes × this.
-  final int playersPerLane;
 
   @override
   ConsumerState<_DayRow> createState() => _DayRowState();
@@ -708,47 +696,19 @@ class _DayRowState extends ConsumerState<_DayRow> {
       ordered: ordered,
       // Through tryAction so a dropped connection is a friendly snackbar, not
       // an uncaught (fatal) error — the tap is otherwise fire-and-forget.
-      // An ordered (green) start is past the interest phase: tapping toggles
-      // my ROSTER spot on the order instead of the availability tick.
+      // Uniform on purpose: EVERY cell (green included) collects interest;
+      // roster assignment happens only in the Objednávky section.
       onTap: readOnly
           ? null
           : () {
               HapticFeedback.lightImpact();
-              if (ordered) {
-                _toggleRoster(context, slot);
-              } else {
-                tryAction(
-                    context, () => Api.setAvailability(slot.id, !mine));
-              }
+              tryAction(context, () => Api.setAvailability(slot.id, !mine));
             },
       // Scraped slots are owned by the web sync — no manual deletion.
       onLongPress: readOnly || slot.hasVenueInfo
           ? null
           : () => _confirmDelete(context, slot),
     );
-  }
-
-  /// Join/leave the ordered start's roster from the grid cell.
-  Future<void> _toggleRoster(BuildContext context, Slot slot) async {
-    final rosters = ref.read(rostersProvider).value ?? const <RosterEntry>[];
-    final mine = rosters
-        .where((r) => r.slotId == slot.id && r.userId == uid)
-        .firstOrNull;
-    if (mine != null) {
-      await tryAction(context, () => Api.removeRosterEntry(mine.id),
-          success: 'Odhlášen ze startu ${slot.time.display()}.');
-      return;
-    }
-    final capacity =
-        (widget.orderedLanesBySlot[slot.id] ?? 0) * widget.playersPerLane;
-    final assigned = widget.assignedBySlot[slot.id] ?? 0;
-    if (assigned >= capacity) {
-      snack(context,
-          'Start ${slot.time.display()} je plný ($assigned/$capacity).');
-      return;
-    }
-    await tryAction(context, () => Api.joinSlot(slot.id),
-        success: 'Přidán na start ${slot.time.display()}.');
   }
 
   /// Who can make this day, one entry per person with a summarized range
