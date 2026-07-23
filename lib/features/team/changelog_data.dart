@@ -14,7 +14,7 @@ class Release {
 }
 
 const appChangelog = <Release>[
-  Release('2.3.2', '23. 7. 2026', [
+  Release('2.3.3', '23. 7. 2026', [
     'Objednávky jsou v detailu zelené štítky u dne (čas · dráhy · hráči), '
         'klepnutím detail; mřížka je jen o zájmu a plné termíny se skrývají.',
     'Záznam startu s existující objednávkou přidá dráhy do ní — žádné '
