@@ -3,11 +3,13 @@
 // Triggered by Supabase Database Webhooks (see SETUP.md) on:
 //   INSERT profiles      -> "new member waiting for approval"
 //   INSERT tournaments   -> "new tournament"
-//   INSERT orders        -> "new proposal" / "ordered" (direct order)
-//   UPDATE orders        -> "ordered" / "cancelled"
+//   UPDATE orders        -> "cancelled" (to the order's people only; new
+//                           orders are silent — deferred jobs speak instead)
 //   INSERT messages      -> chat message (skips muted users and the author)
 //   INSERT availability  -> threshold check: slot just reached min players
 //                           (event-driven; dedup via slots.threshold_notified_at)
+//   CRON notification_jobs -> deferred jobs (0025): assigned/removed player
+//                           notices and the order free-spots digest
 //
 // Sends via FCM HTTP v1. Requires secrets:
 //   FIREBASE_SERVICE_ACCOUNT — the service-account JSON (one line)
@@ -317,11 +319,167 @@ function timeLabel(sqlTime: string): string {
 // ---------------------------------------------------------------------------
 
 type WebhookPayload = {
-  type: "INSERT" | "UPDATE" | "DELETE";
+  type: "INSERT" | "UPDATE" | "DELETE" | "CRON";
   table: string;
   record: Record<string, unknown> | null;
   old_record: Record<string, unknown> | null;
 };
+
+// ---------------------------------------------------------------------------
+// Deferred-notification jobs (see 0025_notification_jobs.sql). The DB
+// debounces and cancels; here every handler REVALIDATES reality before
+// sending, so a stale job can never produce a wrong push.
+// ---------------------------------------------------------------------------
+
+type OrderContext = {
+  order: { id: string; status: string; tournament_id: string;
+    created_by: string };
+  tournament: { name: string; team_id?: string; kind: string };
+  slots: { id: string; date: string; time: string }[];
+  rosterUserIds: (string | null)[];
+  rosterBySlot: Map<string, number>;
+  lanesBySlot: Map<string, number>;
+};
+
+/** Everything a job handler needs about one ACTIVE order; null when the
+ * order is gone or cancelled (job silently expires). */
+async function orderContext(orderId: unknown): Promise<OrderContext | null> {
+  const { data: order } = await supabase.from("orders")
+    .select("id, status, tournament_id, created_by")
+    .eq("id", orderId as string).maybeSingle();
+  if (!order || !["ordered", "confirmed"].includes(order.status as string)) {
+    return null;
+  }
+  const [{ data: t }, { data: os }] = await Promise.all([
+    supabase.from("tournaments").select("name, team_id, kind")
+      .eq("id", order.tournament_id).single(),
+    supabase.from("order_slots").select("slot_id, lanes")
+      .eq("order_id", order.id),
+  ]);
+  const slotIds = (os ?? []).map((r) => r.slot_id as string);
+  if (slotIds.length === 0 || !t) return null;
+  const [{ data: slots }, { data: rosterRows }] = await Promise.all([
+    supabase.from("slots").select("id, date, time").in("id", slotIds),
+    supabase.from("rosters").select("slot_id, user_id").in("slot_id", slotIds),
+  ]);
+  const rosterBySlot = new Map<string, number>();
+  for (const r of rosterRows ?? []) {
+    const id = r.slot_id as string;
+    rosterBySlot.set(id, (rosterBySlot.get(id) ?? 0) + 1);
+  }
+  return {
+    order: order as OrderContext["order"],
+    tournament: t as OrderContext["tournament"],
+    slots: ((slots ?? []) as OrderContext["slots"]).sort((a, b) =>
+      `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)),
+    rosterUserIds: (rosterRows ?? []).map((r) => r.user_id as string | null),
+    rosterBySlot,
+    lanesBySlot: new Map(
+      (os ?? []).map((r) => [r.slot_id as string, r.lanes as number])),
+  };
+}
+
+function whenLabel(ctx: OrderContext): string {
+  return ctx.slots
+    .map((s) => `${dayLabel(s.date)} ${timeLabel(s.time)}`)
+    .join(" · ");
+}
+
+function placesLabel(n: number): string {
+  if (n === 1) return "1 volné místo";
+  if (n >= 2 && n <= 4) return `${n} volná místa`;
+  return `${n} volných míst`;
+}
+
+async function displayName(userId: unknown): Promise<string | null> {
+  if (!userId) return null;
+  const { data } = await supabase.from("profiles").select("display_name")
+    .eq("id", userId as string).maybeSingle();
+  return (data?.display_name as string | null) ?? null;
+}
+
+/** "You were assigned" — sent only if the player is STILL on the order. */
+async function jobAssigned(payload: Record<string, unknown>) {
+  const ctx = await orderContext(payload.order_id);
+  const userId = payload.user_id as string;
+  if (!ctx || !ctx.rosterUserIds.includes(userId)) return;
+  const adder = await displayName(payload.added_by);
+  await sendToTokens(
+    await teamTokens("order", [], ctx.tournament.team_id,
+      new Set([userId])),
+    `Hraješ: ${ctx.tournament.name}`,
+    `${whenLabel(ctx)}${adder ? ` — přidal(a) tě ${adder}.` : ""}`,
+    { kind: "order", tournament_id: ctx.order.tournament_id },
+  );
+}
+
+/** "You were removed" — only if they're really off the whole order. */
+async function jobRemoved(payload: Record<string, unknown>) {
+  const ctx = await orderContext(payload.order_id);
+  const userId = payload.user_id as string;
+  if (!ctx || ctx.rosterUserIds.includes(userId)) return;
+  await sendToTokens(
+    await teamTokens("order", [], ctx.tournament.team_id,
+      new Set([userId])),
+    `Už nehraješ: ${ctx.tournament.name}`,
+    `Byl(a) jsi odebrán(a) ze startu ${whenLabel(ctx)}.`,
+    { kind: "order", tournament_id: ctx.order.tournament_id },
+  );
+}
+
+/** Free-spots digest: full order = silence; otherwise ping teammates who
+ * aren't on it (and don't hide the tournament). */
+async function jobFreeSpots(payload: Record<string, unknown>) {
+  const ctx = await orderContext(payload.order_id);
+  if (!ctx) return;
+  const playersPerLane = ctx.tournament.kind === "tandem" ? 2 : 1;
+  let free = 0;
+  for (const [slotId, lanes] of ctx.lanesBySlot) {
+    free += Math.max(
+      0, lanes * playersPerLane - (ctx.rosterBySlot.get(slotId) ?? 0));
+  }
+  if (free <= 0) return;
+  const hiders = await hidersOf(ctx.order.tournament_id);
+  await sendToTokens(
+    await teamTokens("order",
+      [ctx.order.created_by, ...ctx.rosterUserIds, ...hiders],
+      ctx.tournament.team_id),
+    `${ctx.tournament.name}: volná místa`,
+    `${whenLabel(ctx)} — ${placesLabel(free)}, přidej se.`,
+    { kind: "order", tournament_id: ctx.order.tournament_id },
+    `order-${ctx.order.id}`,
+  );
+}
+
+/** Cron entry: run every due job once, then drop it (handlers revalidate,
+ * so dropping after a handler error only ever loses a convenience push). */
+async function processJobs() {
+  const { data: jobs } = await supabase.from("notification_jobs")
+    .select("id, kind, payload")
+    .lte("run_at", new Date().toISOString())
+    .limit(100);
+  for (const job of jobs ?? []) {
+    try {
+      const payload = job.payload as Record<string, unknown>;
+      switch (job.kind as string) {
+        case "assigned":
+          await jobAssigned(payload);
+          break;
+        case "removed":
+          await jobRemoved(payload);
+          break;
+        case "order_free_spots":
+          await jobFreeSpots(payload);
+          break;
+        default:
+          console.error(`unknown job kind: ${job.kind}`);
+      }
+    } catch (error) {
+      console.error(`job ${job.kind}/${job.id} failed:`, error);
+    }
+    await supabase.from("notification_jobs").delete().eq("id", job.id);
+  }
+}
 
 /** Tournament name + owning team, one fetch — every per-tournament push
  * needs both (title + recipient scoping). */
@@ -340,6 +498,12 @@ async function handle(payload: WebhookPayload) {
   const record = payload.record ?? {};
 
   switch (payload.table) {
+    case "notification_jobs": {
+      // Minutely cron (0025) — process everything that's due.
+      await processJobs();
+      return;
+    }
+
     case "profiles": {
       if (payload.type !== "INSERT" || record.status !== "pending") return;
       await sendToTokens(
@@ -406,42 +570,29 @@ async function handle(payload: WebhookPayload) {
         kind: "order",
         tournament_id: record.tournament_id as string,
       };
-      // Proposals are gone from the app — no push for a stray one.
-      if (isNewProposal) return;
-      if (isOrdered) {
-        // The ordered starts themselves ("st 26.8. 17:30 · st 26.8. 19:00")
-        // beat a generic sentence.
-        const { data: os } = await supabase.from("order_slots")
-          .select("slot_id").eq("order_id", record.id as string);
-        const slotIds = (os ?? []).map((r) => r.slot_id as string);
-        let when = "";
-        if (slotIds.length > 0) {
-          const { data: slotRows } = await supabase.from("slots")
-            .select("date, time").in("id", slotIds);
-          when = (slotRows ?? [])
-            .sort((a, b) =>
-              `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
-            .map((s) =>
-              `${dayLabel(s.date as string)} ${timeLabel(s.time as string)}`)
-            .join(" · ");
+      // Proposals are gone from the app — no push for a stray one. A fresh
+      // order is silent too: the deferred free-spots job (enqueued by a DB
+      // trigger, processed below in processJobs) speaks for it 3 minutes
+      // later, once the creator has had time to assign people.
+      if (isNewProposal || isOrdered) return;
+      // Cancelled: only the people ON the order (and its creator) care.
+      const { data: os } = await supabase.from("order_slots")
+        .select("slot_id").eq("order_id", record.id as string);
+      const slotIds = (os ?? []).map((r) => r.slot_id as string);
+      const affected = new Set<string>([record.created_by as string]);
+      if (slotIds.length > 0) {
+        const { data: rosterRows } = await supabase.from("rosters")
+          .select("user_id").in("slot_id", slotIds);
+        for (const r of rosterRows ?? []) {
+          if (r.user_id) affected.add(r.user_id as string);
         }
-        await sendToTokens(
-          await teamTokens("order",
-            [record.created_by as string, ...hiders], teamId),
-          `Objednáno: ${name}`,
-          when === ""
-            ? "Termín je objednaný — přidej se, dokud je místo!"
-            : `${when} — přidej se, dokud je místo!`,
-          orderData,
-        );
-      } else {
-        await sendToTokens(
-          await teamTokens("order", hiders, teamId),
-          `Zrušeno: ${name}`,
-          "Objednávka byla zrušena.",
-          orderData,
-        );
       }
+      await sendToTokens(
+        await teamTokens("order", hiders, teamId, affected),
+        `Zrušeno: ${name}`,
+        "Objednávka byla zrušena.",
+        orderData,
+      );
       return;
     }
 
