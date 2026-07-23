@@ -14,6 +14,14 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.4.0', '23. 7. 2026', [
+    'Když už někde v daný den hraješ, tvůj zájem o ostatní termíny toho '
+        'dne se automaticky skryje (a sám se vrátí, když tě z objednávky '
+        'odeberou) — mřížka ukazuje reálný zájem, ne duchy.',
+    'Den, kdy hraješ, je pro tebe jen ke čtení s poznámkou „Hraješ tento '
+        'den v: …".',
+    'Přidání hráče, který v ten den hraje jinde, upozorní ⚠️.',
+  ]),
   Release('2.3.3', '23. 7. 2026', [
     'Objednávky jsou v detailu zelené štítky u dne (čas · dráhy · hráči), '
         'klepnutím detail; mřížka je jen o zájmu a plné termíny se skrývají.',
