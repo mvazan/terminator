@@ -100,14 +100,54 @@ keep the two in sync.) That gives you all the v1 notifications: new-member
 approval, new tournament, proposal + ordered + cancelled, chat messages
 (mute-aware), and the "slot reached min players" nudge.
 
-## 8. Keep-alive (free tier pauses after 7 idle days)
+## 8. Google Calendar integration (optional — starts sync into the user's calendar)
+
+Everything below is clicked in the **same Google Cloud project as Firebase**
+(a Firebase project *is* a GCP project — pick it in the console's project
+switcher). Without it the app just hides the calendar tile; nothing else
+changes.
+
+1. **APIs & Services → Library** → enable **Google Calendar API**.
+2. **APIs & Services → OAuth consent screen**:
+   - User type **External** (team members use personal Google accounts).
+   - App name `Termínátor`, support e-mail, developer contact e-mail.
+   - Link the published privacy policy (`docs/privacy.html` on GitHub Pages) —
+     it already describes the calendar access.
+   - **Scopes** → add `.../auth/calendar.app.created` (plus `openid`, `email`).
+     Justification, if asked: *the app creates and manages one secondary
+     calendar it owns, mirroring the user's own tournament starts; it never
+     reads or touches any calendar or event it didn't create.*
+   - **Test users**: while the consent screen is in *Testing*, add every
+     team member's Google e-mail (max 100).
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID →
+   Web application**. Authorized redirect URI (byte for byte):
+   `https://YOURREF.supabase.co/functions/v1/calendar-oauth-callback`
+4. Feed the client to both sides:
+   ```bash
+   supabase secrets set GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...
+   supabase functions deploy calendar-oauth-callback --no-verify-jwt
+   ```
+   and pass `--dart-define=GOOGLE_CLIENT_ID=...` when building the app (CI
+   reads it from the `GOOGLE_CLIENT_ID` GitHub secret). The **client ID is
+   public**; the **client secret must never** reach the app.
+
+> **Publishing status matters.** While the consent screen sits in *Testing*,
+> Google expires refresh tokens after **7 days** — sync would quietly die every
+> week and everyone would have to re-link. Once the feature is verified in
+> practice, switch the consent screen to **In production** (Cloud Console
+> only — unrelated to the Play track). `calendar.app.created` is a narrow
+> scope and is often waived from full verification; if Google does demand a
+> review and it isn't worth it, the fallback is to stay in Testing and live
+> with the weekly re-link.
+
+## 9. Keep-alive (free tier pauses after 7 idle days)
 
 Push this repo to GitHub, then in the repo settings → **Secrets and
 variables → Actions** add `SUPABASE_URL` and `SUPABASE_ANON_KEY`. The
 included workflow [`.github/workflows/keepalive.yml`](.github/workflows/keepalive.yml)
 pings the database twice a week so the project never pauses.
 
-## 9. Build the APK for the team
+## 10. Build the APK for the team
 
 ```bash
 flutter build apk --release \
@@ -116,7 +156,8 @@ flutter build apk --release \
   --dart-define=FIREBASE_API_KEY=... \
   --dart-define=FIREBASE_APP_ID=... \
   --dart-define=FIREBASE_SENDER_ID=... \
-  --dart-define=FIREBASE_PROJECT_ID=...
+  --dart-define=FIREBASE_PROJECT_ID=... \
+  --dart-define=GOOGLE_CLIENT_ID=...
 ```
 
 Share `build/app/outputs/flutter-apk/app-release.apk` with the team

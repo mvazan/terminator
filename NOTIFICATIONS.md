@@ -51,6 +51,25 @@ minutový pg_cron `notification-jobs` → EF `processJobs()`.
 | `order_free_spots` | insert objednávky, delete rosteru | po 3 min: volná místa → push nepřiřazeným bez skrytého turnaje; plno → ticho |
 | `assigned`         | roster insert cizí rukou          | po 3 min: „Hraješ …" dotyčnému; smazán roster deletem (undo) |
 | `removed`          | roster delete cizí rukou          | po 3 min: „Už nehraješ …"; smazán roster insertem (undo) |
+| `calendar_sync`    | roster insert/delete, zrušení objednávky | po 3 min sesouhlasí jeden start s Google kalendářem (0027) — viz níž |
+
+### Výjimka: `calendar_sync` (0027)
+
+Jediný kind, který neposílá push, ale sahá na Google Calendar API. Liší se
+třemi věcmi a všechny jsou schválně:
+
+- **Neřídí se `notification_prefs`** — synchronizace není upozornění. A na
+  rozdíl od `assigned`/`removed` se enqueuje i při self-addu: vlastní start
+  do kalendáře patří, i když sis ho zapsal sám.
+- **Jeden kind pro obojí.** Klíč `calendar:<user>:<slot>` je stejný pro
+  přidání i odebrání; handler si při běhu ověří realitu a podle ní událost
+  založí, nebo smaže. Undo pravidlo tím pádem netřeba — přidání a hned
+  odebrání se debounce-uje do jednoho jobu, který neudělá nic.
+- **Zkouší to znovu.** Push, který nedorazí, si sám nedojde a nikomu neuškodí;
+  událost, která se nezaložila, v kalendáři chybí. Proto má
+  `notification_jobs.attempts` a při chybě Google API se `run_at` posune
+  (1, 2, 4, 8, 16 min, pak se job zahodí). Ostatní kindy se pořád po pokusu
+  mažou, jak se to dělalo vždycky.
 
 ### Kandidáti na přesun (fáze 2)
 

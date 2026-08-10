@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../config.dart';
 import '../../core/ui.dart';
 import '../../data/providers.dart';
 import '../../domain/models.dart';
 import '../venues/venues_screen.dart';
+
+/// The Play review demo account is shared, so linking "your" Google calendar
+/// to it makes no sense — the calendar section stays hidden for it.
+bool get _isDemoAccount =>
+    Supabase.instance.client.auth.currentUser?.email?.toLowerCase() ==
+    AppConfig.demoEmail.toLowerCase();
 
 /// User settings. First section: per-kind notification control —
 /// enabled / disabled / muted for 1h, 3h, 6h, 12h, or a custom number of
@@ -49,6 +57,17 @@ class SettingsScreen extends ConsumerWidget {
                 kind: kind,
                 pref: prefs[kind] ?? NotificationPref.fallback(kind),
               ),
+          // Hidden without a Google client ID baked in, and for the Play
+          // review demo account (a shared account has no calendar to link).
+          if (AppConfig.hasGoogleCalendar && !_isDemoAccount) ...[
+            const Divider(height: 24),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              child: Text('Kalendář',
+                  style: Theme.of(context).textTheme.titleMedium),
+            ),
+            const _CalendarLinkTile(),
+          ],
           const Divider(height: 24),
           ListTile(
             leading: const Icon(Icons.location_on_outlined),
@@ -84,6 +103,115 @@ class SettingsScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Google Calendar link: connect (opens Google's consent page in the
+/// browser), show the current state, or disconnect. Nothing comes back into
+/// the app via a deep link — the backend writes the result and this tile
+/// flips on its own through the live stream.
+class _CalendarLinkTile extends ConsumerStatefulWidget {
+  const _CalendarLinkTile();
+
+  @override
+  ConsumerState<_CalendarLinkTile> createState() => _CalendarLinkTileState();
+}
+
+class _CalendarLinkTileState extends ConsumerState<_CalendarLinkTile> {
+  bool _busy = false;
+
+  Future<void> _connect() async {
+    setState(() => _busy = true);
+    try {
+      final url = await Api.calendarConsentUrl();
+      if (!mounted) return;
+      launchWeb(url.toString());
+      snack(context, 'Dokonči propojení v prohlížeči a vrať se sem.');
+    } catch (e) {
+      if (mounted) snack(context, 'Propojení se nepovedlo: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _disconnect() async {
+    final ok = await confirmDialog(
+      context,
+      title: 'Odpojit kalendář?',
+      message: 'Nové starty se přestanou přidávat. Kalendář „Termínátor" '
+          'ti v Googlu zůstane i s tím, co v něm je — smazat si ho můžeš '
+          'sám(a).',
+      confirmLabel: 'Odpojit',
+    );
+    if (!ok || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await Api.disconnectCalendar();
+      if (mounted) snack(context, 'Kalendář odpojen.');
+    } catch (e) {
+      if (mounted) snack(context, 'Odpojení se nepovedlo: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final link = ref.watch(myCalendarLinkProvider).value ?? CalendarLink.none;
+
+    return switch (link.status) {
+      CalendarLinkStatus.linked => ListTile(
+          leading: const Icon(Icons.event_available_outlined),
+          title: const Text('Google kalendář'),
+          subtitle: Text(link.googleEmail == null
+              ? 'Propojeno — starty se přidávají samy.'
+              : 'Propojeno jako ${link.googleEmail}.'),
+          trailing: _busy
+              ? const _TileSpinner()
+              : TextButton(onPressed: _disconnect, child: const Text('Odpojit')),
+        ),
+      CalendarLinkStatus.pending => ListTile(
+          leading: const Icon(Icons.event_outlined),
+          title: const Text('Google kalendář'),
+          subtitle: Text(link.lastError ?? 'Propojuje se…'),
+          trailing: _busy
+              ? const _TileSpinner()
+              : TextButton(
+                  onPressed: _connect, child: const Text('Zkusit znovu')),
+        ),
+      CalendarLinkStatus.broken => ListTile(
+          leading: Icon(Icons.event_busy_outlined,
+              color: Theme.of(context).colorScheme.error),
+          title: const Text('Google kalendář'),
+          subtitle: Text(link.lastError == null
+              ? 'Propojení se přerušilo.'
+              : '${link.lastError} Propoj ho prosím znovu.'),
+          trailing: _busy
+              ? const _TileSpinner()
+              : TextButton(onPressed: _connect, child: const Text('Propojit')),
+        ),
+      CalendarLinkStatus.notLinked => ListTile(
+          leading: const Icon(Icons.event_outlined),
+          title: const Text('Propojit Google kalendář'),
+          subtitle: const Text(
+              'Tvoje starty se budou samy přidávat do kalendáře „Termínátor" '
+              've tvém Google účtu — a mizet, když se objednávka zruší.'),
+          isThreeLine: true,
+          trailing: _busy ? const _TileSpinner() : null,
+          onTap: _busy ? null : _connect,
+        ),
+    };
+  }
+}
+
+class _TileSpinner extends StatelessWidget {
+  const _TileSpinner();
+
+  @override
+  Widget build(BuildContext context) => const SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
 }
 
 const _kindLabels = {

@@ -28,3 +28,8 @@ jobs:
         # --no-verify-jwt: DB triggers can't send JWTs; the function checks
         # the x-webhook-secret header against its WEBHOOK_SECRET secret.
         run: supabase functions deploy notify --no-verify-jwt
+      - name: Deploy calendar-oauth-callback function
+        # --no-verify-jwt: Google's OAuth redirect is a plain browser GET and
+        # can't carry a JWT; the function trusts the one-time `state` nonce
+        # from start_calendar_link() instead (0027).
+        run: supabase functions deploy calendar-oauth-callback --no-verify-jwt

@@ -671,3 +671,50 @@ class Venue {
         lng: (json['lng'] as num?)?.toDouble(),
       );
 }
+
+/// Where the user's Google Calendar link stands. No row at all means
+/// [notLinked] — the app never writes this table, the backend does.
+enum CalendarLinkStatus {
+  notLinked,
+  /// Google said yes, but the "Termínátor" calendar isn't created yet.
+  pending,
+  linked,
+  /// Access revoked, or the calendar was deleted in Google — offer a re-link.
+  broken;
+
+  static CalendarLinkStatus parse(String? value) => switch (value) {
+        'pending' => CalendarLinkStatus.pending,
+        'linked' => CalendarLinkStatus.linked,
+        'broken' => CalendarLinkStatus.broken,
+        _ => CalendarLinkStatus.notLinked,
+      };
+}
+
+class CalendarLink {
+  const CalendarLink({
+    required this.status,
+    this.googleEmail,
+    this.lastError,
+    this.updatedAt,
+  });
+
+  static const none = CalendarLink(status: CalendarLinkStatus.notLinked);
+
+  final CalendarLinkStatus status;
+
+  /// The linked Google account, for the settings tile. Never used for auth.
+  final String? googleEmail;
+  final String? lastError;
+  final DateTime? updatedAt;
+
+  bool get isLinked => status == CalendarLinkStatus.linked;
+
+  factory CalendarLink.fromJson(Map<String, dynamic> json) => CalendarLink(
+        status: CalendarLinkStatus.parse(json['status'] as String?),
+        googleEmail: json['google_email'] as String?,
+        lastError: json['last_error'] as String?,
+        updatedAt: json['updated_at'] == null
+            ? null
+            : DateTime.parse(json['updated_at'] as String),
+      );
+}

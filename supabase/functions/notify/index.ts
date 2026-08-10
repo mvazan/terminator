@@ -9,13 +9,25 @@
 //   INSERT availability  -> threshold check: slot just reached min players
 //                           (event-driven; dedup via slots.threshold_notified_at)
 //   CRON notification_jobs -> deferred jobs (0025): assigned/removed player
-//                           notices and the order free-spots digest
+//                           notices and the order free-spots digest, plus
+//                           Google Calendar sync (0027) — ten jediný nesahá
+//                           na FCM, ale na Calendar API
 //
 // Sends via FCM HTTP v1. Requires secrets:
 //   FIREBASE_SERVICE_ACCOUNT — the service-account JSON (one line)
+//   GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET — OAuth klient pro Calendar sync
 // SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are injected automatically.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import {
+  deleteEvent,
+  durationMinutes,
+  eventIdFor,
+  GoogleAuthError,
+  localDateTime,
+  refreshAccessToken,
+  upsertEvent,
+} from "../_shared/google_calendar.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -451,14 +463,163 @@ async function jobFreeSpots(payload: Record<string, unknown>) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Google Calendar sync (0027)
+// ---------------------------------------------------------------------------
+
+/** Propojení + token jednoho uživatele, nebo null (nepropojeno / rozbito /
+ * kalendář se ještě nezaložil) — pak se mlčky nic nesynchronizuje. */
+async function calendarLink(
+  userId: string,
+): Promise<{ refreshToken: string; calendarId: string } | null> {
+  const { data: link } = await supabase.from("google_calendar_links")
+    .select("status").eq("user_id", userId).maybeSingle();
+  if (link?.status !== "linked") return null;
+  const { data: token } = await supabase.from("google_calendar_tokens")
+    .select("refresh_token, google_calendar_id")
+    .eq("user_id", userId).maybeSingle();
+  if (!token?.refresh_token || !token.google_calendar_id) return null;
+  return {
+    refreshToken: token.refresh_token as string,
+    calendarId: token.google_calendar_id as string,
+  };
+}
+
+/** Propojení je mrtvé (odvolaný souhlas, smazaný kalendář) — v nastavení se
+ * objeví nabídka propojit znovu. */
+async function markCalendarBroken(userId: string, reason: string) {
+  console.error(`calendar link broken for ${userId}: ${reason}`);
+  await supabase.from("google_calendar_links")
+    .update({
+      status: "broken",
+      last_error: reason,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId);
+}
+
+/** Co má v kalendáři stát za tenhle start — nebo null, pokud start (už)
+ * neplatí. Revalidace: pravda je DB v okamžiku běhu, ne v payloadu. */
+async function startEvent(userId: string, slotId: string) {
+  const { data: roster } = await supabase.from("rosters")
+    .select("id").eq("user_id", userId).eq("slot_id", slotId).maybeSingle();
+  if (!roster) return null;
+
+  const { data: slot } = await supabase.from("slots")
+    .select("date, time, tournament_id").eq("id", slotId).maybeSingle();
+  if (!slot) return null;
+
+  const { data: covering } = await supabase.from("order_slots")
+    .select("orders!inner(status)").eq("slot_id", slotId);
+  const active = (covering ?? []).some((row) => {
+    const order = (row as { orders?: { status?: string } }).orders;
+    return order?.status === "ordered" || order?.status === "confirmed";
+  });
+  if (!active) return null;
+
+  const { data: tournament } = await supabase.from("tournaments")
+    .select("name, kind, discipline, notes, venue_id")
+    .eq("id", slot.tournament_id).maybeSingle();
+  if (!tournament) return null;
+
+  const { data: venue } = await supabase.from("venues")
+    .select("name, address").eq("id", tournament.venue_id).maybeSingle();
+
+  // Stejný popisek jako Tournament.timelineLabel v lib/domain/models.dart.
+  const parts = [tournament.kind as string];
+  if (tournament.discipline && tournament.discipline !== "jiné") {
+    parts.push(tournament.discipline as string);
+  }
+  const where = (venue?.name as string) ?? (tournament.name as string);
+  const start = localDateTime(slot.date as string, slot.time as string);
+  const end = localDateTime(
+    slot.date as string,
+    slot.time as string,
+    durationMinutes(tournament.discipline as string | null),
+  );
+  return {
+    summary: `${where} (${parts.join(" · ")})`,
+    location: (venue?.address as string) ?? undefined,
+    description: [
+      tournament.name as string,
+      tournament.notes as string | null,
+      "— spravuje appka Termínátor, ruční úpravy se přepíšou —",
+    ].filter(Boolean).join("\n\n"),
+    start,
+    end,
+  };
+}
+
+/** Reconcile jednoho (uživatel, slot): realita rozhodne, jestli událost
+ * založit, nebo smazat. Vrací false = zkusit znovu později. */
+async function jobCalendarSync(
+  payload: Record<string, unknown>,
+): Promise<boolean> {
+  const userId = payload.user_id as string;
+  const slotId = payload.slot_id as string;
+  if (!userId || !slotId) return true;
+
+  const link = await calendarLink(userId);
+  if (!link) return true; // nepropojeno — sync je osobní, volitelná věc
+
+  let accessToken: string;
+  try {
+    accessToken = await refreshAccessToken(link.refreshToken);
+  } catch (error) {
+    if (error instanceof GoogleAuthError && error.code === "invalid_grant") {
+      await markCalendarBroken(userId, "Google odvolal přístup.");
+      return true; // terminální — dokud se člověk nepropojí znovu, nemá co zkoušet
+    }
+    console.error(`token refresh failed for ${userId}:`, error);
+    return false;
+  }
+
+  const eventId = await eventIdFor(userId, slotId);
+  const event = await startEvent(userId, slotId);
+  const result = event
+    ? await upsertEvent(accessToken, link.calendarId, eventId, event)
+    : await deleteEvent(accessToken, link.calendarId, eventId);
+
+  switch (result) {
+    case "ok":
+      return true;
+    case "auth":
+      await markCalendarBroken(userId, "Chybí oprávnění ke kalendáři.");
+      return true;
+    case "gone":
+      // Mazání „gone" nikdy nevrátí (tam je to úspěch) — tohle je jen zápis
+      // do kalendáře, který uživatel v Googlu smazal.
+      await markCalendarBroken(userId, "Kalendář Termínátor už v Googlu není.");
+      return true;
+    case "retry":
+      return false;
+  }
+}
+
+const CALENDAR_KINDS = new Set(["calendar_sync"]);
+const CALENDAR_MAX_ATTEMPTS = 5;
+/** Kolik kalendářových jobů běží naráz. Každý sahá 2× na Google, takže
+ * sériově by 100 jobů snadno přerostlo časový limit funkce. */
+const CALENDAR_CONCURRENCY = 5;
+
 /** Cron entry: run every due job once, then drop it (handlers revalidate,
- * so dropping after a handler error only ever loses a convenience push). */
+ * so dropping after a handler error only ever loses a convenience push).
+ * Výjimka jsou kalendářové joby: výpadek Google API stojí za pár opakování
+ * (event, který se nezaložil, si sám nedojde), takže těm posuneme run_at. */
 async function processJobs() {
   const { data: jobs } = await supabase.from("notification_jobs")
-    .select("id, kind, payload")
+    .select("id, kind, payload, attempts")
     .lte("run_at", new Date().toISOString())
     .limit(100);
-  for (const job of jobs ?? []) {
+
+  const calendarJobs = (jobs ?? []).filter((job) =>
+    CALENDAR_KINDS.has(job.kind as string)
+  );
+  const pushJobs = (jobs ?? []).filter((job) =>
+    !CALENDAR_KINDS.has(job.kind as string)
+  );
+
+  for (const job of pushJobs) {
     try {
       const payload = job.payload as Record<string, unknown>;
       switch (job.kind as string) {
@@ -478,6 +639,33 @@ async function processJobs() {
       console.error(`job ${job.kind}/${job.id} failed:`, error);
     }
     await supabase.from("notification_jobs").delete().eq("id", job.id);
+  }
+
+  for (let i = 0; i < calendarJobs.length; i += CALENDAR_CONCURRENCY) {
+    await Promise.all(
+      calendarJobs.slice(i, i + CALENDAR_CONCURRENCY).map(async (job) => {
+        const attempts = (job.attempts as number) ?? 0;
+        let done = true;
+        try {
+          done = await jobCalendarSync(job.payload as Record<string, unknown>);
+        } catch (error) {
+          // Nečekaná chyba (bug) — nezacyklit se na ní, job zahodit.
+          console.error(`job ${job.kind}/${job.id} failed:`, error);
+        }
+        if (!done && attempts < CALENDAR_MAX_ATTEMPTS) {
+          const backoffMinutes = 2 ** attempts; // 1, 2, 4, 8, 16
+          await supabase.from("notification_jobs")
+            .update({
+              attempts: attempts + 1,
+              run_at: new Date(Date.now() + backoffMinutes * 60_000)
+                .toISOString(),
+            })
+            .eq("id", job.id);
+          return;
+        }
+        await supabase.from("notification_jobs").delete().eq("id", job.id);
+      }),
+    );
   }
 }
 

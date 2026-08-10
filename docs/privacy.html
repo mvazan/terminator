@@ -5,7 +5,7 @@
 </head><body>
 <h1>Zásady ochrany osobních údajů — Termínátor</h1>
 
-<p><em>Poslední aktualizace: 10. 7. 2026</em></p>
+<p><em>Poslední aktualizace: 10. 8. 2026</em></p>
 
 <p>Termínátor je soukromá aplikace pro jeden kuželkářský tým, sloužící ke</p>
 <p>koordinaci turnajů. Přístup je pouze na pozvání (kód týmu a schválení</p>
@@ -28,6 +28,7 @@
 <p>  aby aplikace mohla posílat upozornění. Neváže se na žádné reklamní profily.</p>
 <ul>
 <li><strong>Diagnostická data o pádech</strong> — když aplikace narazí na chybu, odešle se technický záznam (typ chyby, model zařízení, verze systému a aplikace), aby šlo chybu najít a opravit. Neobsahuje obsah tvých zpráv ani přihlašovací údaje a neslouží k marketingu.</li>
+<li><strong>Přístup ke Google kalendáři (jen když si ho sám propojíš)</strong> — dobrovolná funkce v Nastavení. Po tvém souhlasu uchováváme na serveru přístupový token (refresh token), identifikátor kalendáře, který ti aplikace v Google účtu vytvoří, a e-mail propojeného účtu (jen pro zobrazení v nastavení).</li>
 </ul>
 
 <h2>K čemu údaje slouží</h2>
@@ -36,18 +37,25 @@
 <p>členům a zasílání upozornění, která si uživatel může kdykoli vypnout v</p>
 <p>nastavení.</p>
 
+<h2>Google kalendář</h2>
+
+<p>Propojení je volitelné a vypnuté, dokud ho sám nezapneš. Aplikace používá oprávnění <code>calendar.app.created</code>, které jí dovoluje pracovat <strong>výhradně s kalendářem „Termínátor", který si sama vytvoří</strong> — na tvé ostatní kalendáře a jejich události nevidí a nijak s nimi nenakládá.</p>
+<p>Do tohoto kalendáře zapisujeme jen tvoje starty z aplikace (název turnaje, kuželna a její adresa, datum a čas) a mažeme je, když se objednávka zruší nebo tě někdo ze sestavy odebere. Data z kalendáře nikam dál nepředáváme a nepoužíváme je k žádnému jinému účelu.</p>
+<p>Propojení můžeš kdykoli zrušit v Nastavení („Odpojit"), případně i v nastavení svého Google účtu. Odpojením odvoláme token a smažeme ho ze serveru; samotný kalendář a jeho události ti v Google účtu zůstanou, dokud si je nesmažeš sám.</p>
+
 <h2>Kde jsou údaje uloženy</h2>
 
 <p>Data jsou uložena v službě <strong>Supabase</strong> (PostgreSQL, region EU — Frankfurt).</p>
 <p>Přenos je šifrovaný (HTTPS). Push notifikace odesílá **Firebase Cloud</p>
 <p>Messaging** (Google). E-maily s přihlašovacím odkazem odesílá poskytovatel</p>
 <p>SMTP (Gmail). Diagnostická data o pádech aplikace zpracovává služba <strong>Sentry</strong> (Functional Software, Inc.) výhradně pro hlášení a opravu chyb.</p>
+<p>Pokud sis propojil Google kalendář, komunikuje server také s <strong>Google Calendar API</strong> (Google) — jen kvůli zápisu a mazání tvých startů ve vytvořeném kalendáři.</p>
 
 <h2>Sdílení údajů</h2>
 
 <p>Údaje <strong>nesdílíme ani neprodáváme</strong> třetím stranám. Jsou přístupné pouze</p>
 <p>schváleným členům téhož týmu v rámci aplikace a výše uvedeným technickým</p>
-<p>poskytovatelům (Supabase, Google/Firebase, Sentry) nezbytným pro provoz a pro hlášení chyb.</p>
+<p>poskytovatelům (Supabase, Google/Firebase, Google Calendar, Sentry) nezbytným pro provoz a pro hlášení chyb.</p>
 
 <h2>Uchování a smazání</h2>
 

@@ -30,6 +30,20 @@ class AppConfig {
   /// AndroidManifest and in the Supabase dashboard's redirect URLs).
   static const authRedirectUrl = 'cz.kuzelky.terminator://login-callback';
 
+  /// Google OAuth client ID (web client) for the calendar integration. Public
+  /// by design — the client SECRET lives only in the edge function's secrets,
+  /// and no token ever reaches the app. Empty in builds without it, which
+  /// simply hides the calendar tile (see [hasGoogleCalendar]).
+  static const googleClientId = String.fromEnvironment('GOOGLE_CLIENT_ID');
+
+  static bool get hasGoogleCalendar =>
+      googleClientId.isNotEmpty && supabaseUrl.isNotEmpty;
+
+  /// Where Google sends the user back after consent: the callback edge
+  /// function. Must match Console's authorized redirect URI byte for byte.
+  static String get calendarRedirectUri =>
+      '$supabaseUrl/functions/v1/calendar-oauth-callback';
+
   /// Demo account for the Google Play review team. The app has no password
   /// login (e-mail magic link only), so a reviewer can't receive a code. When
   /// this exact e-mail is entered on the login screen, the app asks for the

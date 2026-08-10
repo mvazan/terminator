@@ -500,6 +500,21 @@ final myNotificationPrefsProvider =
       });
 });
 
+/// The caller's Google Calendar link. No row = [CalendarLink.none]. Written
+/// only by the backend (the OAuth callback and the sync jobs), so the tile in
+/// settings flips on its own the moment linking finishes in the browser —
+/// no deep link back into the app needed.
+final myCalendarLinkProvider = StreamProvider<CalendarLink>((ref) {
+  final uid = ref.watch(_userIdProvider);
+  if (uid == null) return Stream.value(CalendarLink.none);
+  return _db
+      .from('google_calendar_links')
+      .stream(primaryKey: ['user_id'])
+      .eq('user_id', uid)
+      .map((rows) =>
+          rows.isEmpty ? CalendarLink.none : CalendarLink.fromJson(rows.first));
+});
+
 // ---------------------------------------------------------------------------
 // Actions (writes)
 // ---------------------------------------------------------------------------
@@ -964,6 +979,31 @@ class Api {
       await _db.from('team_chat_mutes').delete().eq('user_id', uid);
     }
   }
+
+  /// Starts the Google Calendar link: mints a one-time nonce bound to this
+  /// user and returns the consent URL to open in the browser. The nonce comes
+  /// back as OAuth's `state`, which is how the callback function knows whose
+  /// calendar it is — the app itself never sees a Google token.
+  static Future<Uri> calendarConsentUrl() async {
+    final nonce = await _db.rpc('start_calendar_link') as String;
+    return Uri.https('accounts.google.com', '/o/oauth2/v2/auth', {
+      'client_id': AppConfig.googleClientId,
+      'redirect_uri': AppConfig.calendarRedirectUri,
+      'response_type': 'code',
+      'scope': 'openid email '
+          'https://www.googleapis.com/auth/calendar.app.created',
+      // offline + consent: without both, Google skips the refresh token on a
+      // repeat consent and the backend would have nothing to sync with later.
+      'access_type': 'offline',
+      'prompt': 'consent',
+      'state': nonce,
+    });
+  }
+
+  /// Revokes the token at Google and forgets the link. The calendar itself
+  /// stays in the user's account — disconnecting an app shouldn't delete
+  /// their data.
+  static Future<void> disconnectCalendar() => _db.rpc('disconnect_calendar');
 
   /// enabled=true + mutedUntil=null  -> back to normal (row upserted anyway,
   /// which is fine — it equals the default).
