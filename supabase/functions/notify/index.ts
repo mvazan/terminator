@@ -28,7 +28,6 @@ import {
   localDateTime,
   refreshAccessToken,
   revokeToken,
-  setDefaultReminders,
   upsertEvent,
 } from "../_shared/google_calendar.ts";
 
@@ -526,6 +525,13 @@ async function markCalendarBroken(userId: string, reason: string) {
   );
 }
 
+/** Kolik minut předem chce tenhle člověk připomenout start. */
+async function reminderMinutesOf(userId: string): Promise<number[]> {
+  const { data } = await supabase.from("google_calendar_links")
+    .select("reminder_minutes").eq("user_id", userId).maybeSingle();
+  return (data?.reminder_minutes as number[] | null) ?? [];
+}
+
 /** Co má v kalendáři stát za tenhle start — nebo null, pokud start (už)
  * neplatí. Revalidace: pravda je DB v okamžiku běhu, ne v payloadu. */
 async function startEvent(userId: string, slotId: string) {
@@ -575,6 +581,7 @@ async function startEvent(userId: string, slotId: string) {
     ].filter(Boolean).join("\n\n"),
     start,
     end,
+    reminderMinutes: await reminderMinutesOf(userId),
   };
 }
 
@@ -624,9 +631,13 @@ async function jobCalendarSync(
   }
 }
 
-/** Propíše uživatelovu preferenci připomínek (0029) jako defaultReminders
- * jeho kalendáře. Revalidace: hodnota se čte z DB až teď, takže rychlé
- * přepínání v UI (debounce na jednom klíči) skončí u té poslední. */
+/** Změna preference připomínek (0029/0030) se musí propsat do KAŽDÉ už
+ * založené budoucí události — defaultReminders kalendáře by byly jedno
+ * volání, jenže celá větev calendarList je pod tímhle scope zakázaná
+ * (401, ověřeno 2026-08-10). Přeposíláme to na běžný reconcile: každý
+ * budoucí start dostane calendar_sync job, který událost přepíše i s
+ * novými připomínkami. Debounce na klíči `calendar:<user>:<slot>` se
+ * postará, aby se to při rychlém přepínání nehromadilo. */
 async function jobCalendarReminders(
   payload: Record<string, unknown>,
 ): Promise<boolean> {
@@ -636,34 +647,10 @@ async function jobCalendarReminders(
   const link = await calendarLink(userId);
   if (!link) return true; // nepropojeno/broken — po re-linku se nastaví znovu
 
-  const { data: row } = await supabase.from("google_calendar_links")
-    .select("reminder_minutes").eq("user_id", userId).maybeSingle();
-  const minutes = (row?.reminder_minutes as number[] | null) ?? [];
-
-  let accessToken: string;
-  try {
-    accessToken = await refreshAccessToken(link.refreshToken);
-  } catch (error) {
-    if (error instanceof GoogleAuthError && error.code === "invalid_grant") {
-      await markCalendarBroken(userId, "Google odvolal přístup.");
-      return true;
-    }
-    console.error(`token refresh failed for ${userId}:`, error);
-    return false;
-  }
-
-  switch (await setDefaultReminders(accessToken, link.calendarId, minutes)) {
-    case "ok":
-      return true;
-    case "auth":
-      await markCalendarBroken(userId, "Chybí oprávnění ke kalendáři.");
-      return true;
-    case "gone":
-      await markCalendarBroken(userId, "Kalendář Termínátor už v Googlu není.");
-      return true;
-    case "retry":
-      return false;
-  }
+  const { data: count } = await supabase
+    .rpc("backfill_calendar_jobs", { p_user_id: userId });
+  console.log(`reminders changed for ${userId}: ${count} starts to rewrite`);
+  return true;
 }
 
 /** Odpojení (0031): smazat kalendář v Googlu (poslední chvíle, kdy na něj

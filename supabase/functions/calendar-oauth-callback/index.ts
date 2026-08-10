@@ -16,7 +16,6 @@ import {
   createSecondaryCalendar,
   emailFromIdToken,
   exchangeCode,
-  setDefaultReminders,
 } from "../_shared/google_calendar.ts";
 
 const supabase = createClient(
@@ -85,16 +84,12 @@ Deno.serve(async (request) => {
     return page("google");
   }
 
-  // Co o tomhle člověku víme z minula, PŘED přepsáním tokenů: id kalendáře
-  // (kandidát na znovupoužití) a preference připomínek (odpojení řádek
-  // nemaže, jen zbavuje tokenů — ať se připomínky po propojení samy vrátí).
+  // Id kalendáře z minula, PŘED přepsáním tokenů: kandidát na znovupoužití.
+  // (Preference připomínek řádek taky přežívá — odpojení ho jen zbavuje
+  // tokenů — a doveze si ji každá událost, kterou backfill níž založí.)
   const { data: previous } = await supabase.from("google_calendar_tokens")
     .select("google_calendar_id").eq("user_id", userId).maybeSingle();
   const previousCalendarId = previous?.google_calendar_id as string | null;
-  const { data: prefs } = await supabase.from("google_calendar_links")
-    .select("reminder_minutes").eq("user_id", userId).maybeSingle();
-  const reminderMinutes = (prefs?.reminder_minutes as number[] | null) ?? [];
-
   const now = new Date().toISOString();
   const { error: tokenError } = await supabase.from("google_calendar_tokens")
     .upsert({
@@ -137,24 +132,8 @@ Deno.serve(async (request) => {
       .update({ status: "linked", updated_at: now })
       .eq("user_id", userId);
 
-    // Připomínky z minula obnovit hned; když Google zrovna zlobí, doveze je
-    // job (stejná cesta, jakou používá set_calendar_reminders).
-    if (reminderMinutes.length > 0) {
-      const applied = await setDefaultReminders(
-        tokens.accessToken,
-        calendarId,
-        reminderMinutes,
-      );
-      if (applied !== "ok") {
-        await supabase.rpc("enqueue_notification", {
-          p_kind: "calendar_reminders",
-          p_key: `calendar_reminders:${userId}`,
-          p_payload: { user_id: userId },
-          p_delay: "0 seconds",
-        });
-      }
-    }
-
+    // Připomínky nastavovat zvlášť netřeba: nesou si je samy události, které
+    // backfill hned založí (calendarList je pod tímhle scope zakázaný).
     const { data: enqueued } = await supabase
       .rpc("backfill_calendar_jobs", { p_user_id: userId });
     console.log(

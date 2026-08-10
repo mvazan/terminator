@@ -174,31 +174,17 @@ export async function createSecondaryCalendar(
   return (await response.json()).id as string;
 }
 
-/** Propíše preferenci jako defaultReminders kalendáře (calendarList —
- * per-uživatelské nastavení; události je dědí, i ty už založené). */
-export async function setDefaultReminders(
-  accessToken: string,
-  calendarId: string,
-  minutes: number[],
-): Promise<WriteResult> {
-  const response = await fetch(
-    `${CALENDAR_API}/users/me/calendarList/${encodeURIComponent(calendarId)}`,
-    {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        defaultReminders: minutes.map((m) => ({ method: "popup", minutes: m })),
-      }),
-    },
-  );
-  if (response.ok) return "ok";
-  console.error(
-    `defaultReminders PATCH ${response.status}: ${await response.text()}`,
-  );
-  return classify(response.status);
+/** Připomínky píšeme do KAŽDÉ události zvlášť (`reminders.overrides`), ne
+ * jako defaultReminders kalendáře: celá větev `calendarList` je pod scope
+ * calendar.app.created zakázaná — vrací 401 „Invalid Credentials" i pro
+ * kalendář, který si appka sama založila a do jehož událostí normálně píše
+ * (ověřeno proti produkčnímu API 2026-08-10). Události jsou jediné místo,
+ * kam tenhle scope připomínky pustí. */
+function remindersFor(minutes: number[]) {
+  return {
+    useDefault: false,
+    overrides: minutes.map((m) => ({ method: "popup", minutes: m })),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -288,6 +274,8 @@ export type CalendarEvent = {
   /** „YYYY-MM-DDTHH:MM:SS" v Europe/Prague. */
   start: string;
   end: string;
+  /** Kolik minut předem upozornit; prázdné = žádná připomínka. */
+  reminderMinutes: number[];
 };
 
 export type WriteResult = "ok" | "auth" | "gone" | "retry";
@@ -316,6 +304,7 @@ export async function upsertEvent(
     description: event.description || undefined,
     start: { dateTime: event.start, timeZone: CALENDAR_TIMEZONE },
     end: { dateTime: event.end, timeZone: CALENDAR_TIMEZONE },
+    reminders: remindersFor(event.reminderMinutes),
   });
   const headers = {
     Authorization: `Bearer ${accessToken}`,
