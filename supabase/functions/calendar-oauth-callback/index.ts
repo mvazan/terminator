@@ -27,33 +27,20 @@ const supabase = createClient(
 const REDIRECT_URI =
   `${Deno.env.get("SUPABASE_URL")}/functions/v1/calendar-oauth-callback`;
 
-/** Appka nemá deep-link router (login-callback si bere supabase_flutter sama),
- * takže se nikam nevracíme — jen řekneme, že je hotovo. Dlaždice v nastavení
- * se překlopí sama přes Realtime, jakmile se sem dopíše výsledek. */
-function page(ok: boolean, message: string, status = 200): Response {
-  return new Response(
-    `<!DOCTYPE html>
-<html lang="cs"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Termínátor</title>
-<style>
-  body { font-family: system-ui, sans-serif; max-width: 26rem;
-         margin: 3rem auto; padding: 0 1.25rem; text-align: center;
-         line-height: 1.5; color: #1b1b1b; background: #fafafa; }
-  h1 { font-size: 1.35rem; margin-bottom: .5rem; }
-  p.hint { color: #666; font-size: .95rem; }
-  @media (prefers-color-scheme: dark) {
-    body { color: #f2f2f2; background: #161616; }
-    p.hint { color: #a0a0a0; }
-  }
-</style></head>
-<body>
-<h1>${ok ? "Kalendář propojen ✅" : "Propojení se nepovedlo"}</h1>
-<p>${message}</p>
-<p class="hint">Tuhle záložku můžeš zavřít a vrátit se do appky.</p>
-</body></html>`,
-    { status, headers: { "Content-Type": "text/html; charset=utf-8" } },
-  );
+/** Výsledek ukazujeme na statické stránce na GitHub Pages, ne přímo odsud:
+ * edge runtime přepisuje Content-Type na text/plain (a posílá nosniff), takže
+ * HTML vrácené touhle funkcí se prohlížeči zobrazí jako zdroják včetně
+ * rozsypané diakritiky. Přesměrování projde beze změny.
+ *
+ * Do appky se nevracíme deep linkem (žádný router v ní není, login-callback
+ * si bere supabase_flutter sám) — dlaždice v nastavení se překlopí sama přes
+ * Realtime, jakmile se sem dopíše výsledek. */
+const RESULT_PAGE = "https://mvazan.github.io/terminator/calendar-linked";
+
+type Stav = "ok" | "zruseno" | "odkaz" | "google" | "kalendar" | "chyba";
+
+function page(stav: Stav): Response {
+  return Response.redirect(`${RESULT_PAGE}?stav=${stav}`, 302);
 }
 
 Deno.serve(async (request) => {
@@ -62,10 +49,10 @@ Deno.serve(async (request) => {
   const state = url.searchParams.get("state");
 
   if (url.searchParams.get("error")) {
-    return page(false, "Souhlas v Googlu jsi zrušil(a).");
+    return page("zruseno");
   }
   if (!code || !state) {
-    return page(false, "Odkaz je neúplný.", 400);
+    return page("odkaz");
   }
 
   // 1. Nonce -> uživatel, na kterého byl vázán (a spotřebování na jedno použití).
@@ -75,14 +62,10 @@ Deno.serve(async (request) => {
     // Chyba volání (třeba chybějící grant) není totéž co propadlý odkaz —
     // říct člověku „zkus to znovu" by ho poslalo do nekonečné smyčky.
     console.error("consume_calendar_nonce failed:", nonceError);
-    return page(false, "Interní chyba při ověření odkazu.", 500);
+    return page("chyba");
   }
   if (!userId) {
-    return page(
-      false,
-      "Odkaz vypršel nebo už byl použitý. Zkus propojení znovu z appky.",
-      400,
-    );
+    return page("odkaz");
   }
 
   // 2. Výměna kódu za tokeny.
@@ -91,17 +74,13 @@ Deno.serve(async (request) => {
     tokens = await exchangeCode(code, REDIRECT_URI);
   } catch (error) {
     console.error("code exchange failed:", error);
-    return page(false, "Nepovedlo se domluvit s Googlem. Zkus to znovu.", 502);
+    return page("google");
   }
   if (!tokens.refreshToken) {
     // Appka posílá access_type=offline&prompt=consent, takže refresh token
     // přijít má. Když nepřijde, radši hlasitě selhat než tiše uložit půlku.
     console.error("no refresh_token in token response");
-    return page(
-      false,
-      "Google nevrátil potřebné oprávnění. Zkus propojení znovu.",
-      502,
-    );
+    return page("google");
   }
 
   const now = new Date().toISOString();
@@ -122,7 +101,7 @@ Deno.serve(async (request) => {
     });
   if (tokenError || linkError) {
     console.error("link save failed:", tokenError ?? linkError);
-    return page(false, "Interní chyba při ukládání.", 500);
+    return page("chyba");
   }
 
   // 3. Kalendář zakládáme hned, ne přes job: člověk se dívá a čekat pár minut
@@ -139,20 +118,12 @@ Deno.serve(async (request) => {
     const { data: enqueued } = await supabase
       .rpc("backfill_calendar_jobs", { p_user_id: userId });
     console.log(`calendar linked for ${userId}, backfilled ${enqueued} jobs`);
-    return page(
-      true,
-      "Tvoje budoucí starty se do pár minut objeví v kalendáři Termínátor.",
-    );
+    return page("ok");
   } catch (error) {
     console.error("calendar creation failed:", error);
     await supabase.from("google_calendar_links")
       .update({ last_error: "Kalendář se nepodařilo založit.", updated_at: now })
       .eq("user_id", userId);
-    return page(
-      false,
-      "Účet je propojený, ale kalendář se nepodařilo založit. " +
-        "Zkus to prosím za chvíli znovu z nastavení.",
-      500,
-    );
+    return page("kalendar");
   }
 });
