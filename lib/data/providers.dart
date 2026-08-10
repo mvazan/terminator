@@ -1019,11 +1019,15 @@ class Api {
   }
 
   /// Stores the reminder offsets (minutes before a start, max 5, max 4 weeks)
-  /// and schedules the server to apply them as the calendar's
-  /// defaultReminders (reaches Google within ~a minute; the tile shows the
-  /// new value immediately from the stream).
+  /// and rewrites every upcoming start with them right away — reminders live
+  /// on the events themselves, so "change the reminder" means "rewrite the
+  /// events". Waits for it: routing this through jobs took two cron ticks and
+  /// looked broken. Whatever fails is caught by the job path instead.
   static Future<void> setCalendarReminders(List<int> minutes) =>
-      _db.rpc('set_calendar_reminders', params: {'p_minutes': minutes});
+      _db.functions.invoke(
+        'calendar-manage',
+        body: {'action': 'reminders', 'minutes': minutes},
+      );
 
   /// enabled=true + mutedUntil=null  -> back to normal (row upserted anyway,
   /// which is fine — it equals the default).

@@ -1,7 +1,7 @@
 // calendar-manage — akce nad propojeným kalendářem, které si vyžádal
 // uživatel a musí doběhnout, než mu appka ukáže výsledek.
 //
-// Zatím jediná: `disconnect`. Nasazuje se BEZ --no-verify-jwt (na rozdíl od
+// `disconnect` a `reminders`. Nasazuje se BEZ --no-verify-jwt (na rozdíl od
 // notify a calendar-oauth-callback): volá ji přihlášený člověk z appky přes
 // functions.invoke, který přikládá jeho JWT, a platforma ho ověří ještě před
 // spuštěním. Uvnitř se stejně ptáme auth.getUser() — bez session totiž klient
@@ -20,9 +20,13 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
   deleteCalendar,
+  durationMinutes,
+  eventIdFor,
   GoogleAuthError,
+  localDateTime,
   refreshAccessToken,
   revokeToken,
+  upsertEvent,
 } from "../_shared/google_calendar.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -100,6 +104,101 @@ async function disconnect(userId: string): Promise<Response> {
   return json({ orphaned: false });
 }
 
+/** Uloží preferenci připomínek a HNED ji propíše do všech budoucích startů.
+ * Připomínky nesou samotné události (calendarList je pod tímhle scope
+ * zakázaný), takže „změnit připomínku" = přepsat události. Přes joby to
+ * trvalo dvě otočky minutového cronu (~2 min) a působilo to, jako by se nic
+ * nedělo; člověk se dívá, tak to uděláme rovnou. Co by selhalo, dožene
+ * job — vrací se počet přepsaných a případný zbytek. */
+async function setReminders(
+  userId: string,
+  minutes: number[],
+): Promise<Response> {
+  // Normalizaci a validaci dělá RPC (0030) — ta je zdrojem pravdy i pro
+  // staré buildy; tady jen zavoláme totéž jménem uživatele.
+  const { error } = await admin.rpc("set_calendar_reminders_for", {
+    p_user_id: userId,
+    p_minutes: minutes,
+  });
+  if (error) {
+    console.error(`set reminders failed for ${userId}:`, error);
+    return json({ error: "bad_reminders" }, 400);
+  }
+
+  const { data: link } = await admin.from("google_calendar_links")
+    .select("status, reminder_minutes").eq("user_id", userId).maybeSingle();
+  const saved = (link?.reminder_minutes as number[] | null) ?? [];
+  if (link?.status !== "linked") return json({ rewritten: 0, saved });
+
+  const { data: token } = await admin.from("google_calendar_tokens")
+    .select("refresh_token, google_calendar_id")
+    .eq("user_id", userId).maybeSingle();
+  if (!token?.refresh_token || !token.google_calendar_id) {
+    return json({ rewritten: 0, saved });
+  }
+
+  let accessToken: string;
+  try {
+    accessToken = await refreshAccessToken(token.refresh_token as string);
+  } catch (_) {
+    // Preference je uložená; události dožene job, až se Google umoudří.
+    await admin.rpc("backfill_calendar_jobs", { p_user_id: userId });
+    return json({ rewritten: 0, saved, deferred: true });
+  }
+
+  // Budoucí starty téhle osoby — stejná definice jako backfill_calendar_jobs.
+  const { data: starts } = await admin.rpc("my_future_starts", {
+    p_user_id: userId,
+  });
+  const rows = (starts ?? []) as {
+    slot_id: string;
+    start_date: string;
+    start_time: string;
+    tournament_name: string;
+    kind: string;
+    discipline: string | null;
+    notes: string | null;
+    venue_name: string | null;
+    venue_address: string | null;
+  }[];
+
+  let rewritten = 0;
+  let failed = false;
+  const CHUNK = 5;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    await Promise.all(rows.slice(i, i + CHUNK).map(async (row) => {
+      const parts = [row.kind];
+      if (row.discipline && row.discipline !== "jiné") parts.push(row.discipline);
+      const where = row.venue_name ?? row.tournament_name;
+      const result = await upsertEvent(
+        accessToken,
+        token.google_calendar_id as string,
+        await eventIdFor(userId, row.slot_id),
+        {
+          summary: `${where} (${parts.join(" · ")})`,
+          location: row.venue_address ?? undefined,
+          description: [
+            row.tournament_name,
+            row.notes,
+            "— spravuje appka Termínátor, ruční úpravy se přepíšou —",
+          ].filter(Boolean).join("\n\n"),
+          start: localDateTime(row.start_date, row.start_time),
+          end: localDateTime(
+            row.start_date,
+            row.start_time,
+            durationMinutes(row.discipline),
+          ),
+          reminderMinutes: saved,
+        },
+      );
+      if (result === "ok") rewritten++;
+      else failed = true;
+    }));
+  }
+  if (failed) await admin.rpc("backfill_calendar_jobs", { p_user_id: userId });
+  return json({ rewritten, saved, deferred: failed });
+}
+
 Deno.serve(async (request) => {
   try {
     const authorization = request.headers.get("Authorization");
@@ -116,10 +215,14 @@ Deno.serve(async (request) => {
     if (!user) return json({ error: "unauthorized" }, 401);
 
     const body = await request.json().catch(() => ({}));
-    if (body?.action !== "disconnect") {
-      return json({ error: "unknown_action" }, 400);
+    if (body?.action === "disconnect") return await disconnect(user.id);
+    if (body?.action === "reminders") {
+      const minutes = Array.isArray(body.minutes)
+        ? body.minutes.map((m: unknown) => Number(m)).filter(Number.isFinite)
+        : [];
+      return await setReminders(user.id, minutes);
     }
-    return await disconnect(user.id);
+    return json({ error: "unknown_action" }, 400);
   } catch (error) {
     console.error("calendar-manage failed:", error);
     return json({ error: "internal" }, 500);
