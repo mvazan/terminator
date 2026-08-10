@@ -154,20 +154,63 @@ class _CalendarLinkTileState extends ConsumerState<_CalendarLinkTile> {
     }
   }
 
+  /// Reminder picker: a bottom sheet of the four choices. The chosen value
+  /// lands in the DB immediately (the tile updates from the stream) and the
+  /// server props it to Google within a minute.
+  Future<void> _pickReminders(CalendarReminders current) async {
+    final picked = await showModalBottomSheet<CalendarReminders>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: Text('Připomínky startů v kalendáři'),
+            ),
+            for (final r in CalendarReminders.values)
+              ListTile(
+                leading: Icon(r == current
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_off),
+                title: Text(r.label),
+                onTap: () => Navigator.pop(sheetContext, r),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null || picked == current || !mounted) return;
+    await tryAction(context, () => Api.setCalendarReminders(picked));
+  }
+
   @override
   Widget build(BuildContext context) {
     final link = ref.watch(myCalendarLinkProvider).value ?? CalendarLink.none;
 
     return switch (link.status) {
-      CalendarLinkStatus.linked => ListTile(
-          leading: const Icon(Icons.event_available_outlined),
-          title: const Text('Google kalendář'),
-          subtitle: Text(link.googleEmail == null
-              ? 'Propojeno — starty se přidávají samy.'
-              : 'Propojeno jako ${link.googleEmail}.'),
-          trailing: _busy
-              ? const _TileSpinner()
-              : TextButton(onPressed: _disconnect, child: const Text('Odpojit')),
+      CalendarLinkStatus.linked => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.event_available_outlined),
+              title: const Text('Google kalendář'),
+              subtitle: Text(link.googleEmail == null
+                  ? 'Propojeno — starty se přidávají samy.'
+                  : 'Propojeno jako ${link.googleEmail}.'),
+              trailing: _busy
+                  ? const _TileSpinner()
+                  : TextButton(
+                      onPressed: _disconnect, child: const Text('Odpojit')),
+            ),
+            ListTile(
+              leading: const Icon(Icons.notifications_none_outlined),
+              title: const Text('Připomínky startů'),
+              subtitle: Text(link.reminders.label),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => _pickReminders(link.reminders),
+            ),
+          ],
         ),
       CalendarLinkStatus.pending => ListTile(
           leading: const Icon(Icons.event_outlined),

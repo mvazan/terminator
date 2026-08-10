@@ -26,6 +26,8 @@ import {
   GoogleAuthError,
   localDateTime,
   refreshAccessToken,
+  REMINDER_MINUTES,
+  setDefaultReminders,
   upsertEvent,
 } from "../_shared/google_calendar.ts";
 
@@ -617,7 +619,49 @@ async function jobCalendarSync(
   }
 }
 
-const CALENDAR_KINDS = new Set(["calendar_sync"]);
+/** Propíše uživatelovu preferenci připomínek (0029) jako defaultReminders
+ * jeho kalendáře. Revalidace: hodnota se čte z DB až teď, takže rychlé
+ * přepínání v UI (debounce na jednom klíči) skončí u té poslední. */
+async function jobCalendarReminders(
+  payload: Record<string, unknown>,
+): Promise<boolean> {
+  const userId = payload.user_id as string;
+  if (!userId) return true;
+
+  const link = await calendarLink(userId);
+  if (!link) return true; // nepropojeno/broken — po re-linku se nastaví znovu
+
+  const { data: row } = await supabase.from("google_calendar_links")
+    .select("reminders").eq("user_id", userId).maybeSingle();
+  const minutes = REMINDER_MINUTES[row?.reminders as string] ?? [];
+
+  let accessToken: string;
+  try {
+    accessToken = await refreshAccessToken(link.refreshToken);
+  } catch (error) {
+    if (error instanceof GoogleAuthError && error.code === "invalid_grant") {
+      await markCalendarBroken(userId, "Google odvolal přístup.");
+      return true;
+    }
+    console.error(`token refresh failed for ${userId}:`, error);
+    return false;
+  }
+
+  switch (await setDefaultReminders(accessToken, link.calendarId, minutes)) {
+    case "ok":
+      return true;
+    case "auth":
+      await markCalendarBroken(userId, "Chybí oprávnění ke kalendáři.");
+      return true;
+    case "gone":
+      await markCalendarBroken(userId, "Kalendář Termínátor už v Googlu není.");
+      return true;
+    case "retry":
+      return false;
+  }
+}
+
+const CALENDAR_KINDS = new Set(["calendar_sync", "calendar_reminders"]);
 const CALENDAR_MAX_ATTEMPTS = 5;
 /** Kolik kalendářových jobů běží naráz. Každý sahá 2× na Google, takže
  * sériově by 100 jobů snadno přerostlo časový limit funkce. */
@@ -668,7 +712,10 @@ async function processJobs() {
         const attempts = (job.attempts as number) ?? 0;
         let done = true;
         try {
-          done = await jobCalendarSync(job.payload as Record<string, unknown>);
+          const payload = job.payload as Record<string, unknown>;
+          done = job.kind === "calendar_reminders"
+            ? await jobCalendarReminders(payload)
+            : await jobCalendarSync(payload);
         } catch (error) {
           // Nečekaná chyba (bug) — nezacyklit se na ní, job zahodit.
           console.error(`job ${job.kind}/${job.id} failed:`, error);

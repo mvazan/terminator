@@ -93,9 +93,37 @@ export function emailFromIdToken(idToken?: string): string | null {
   }
 }
 
-/** Založí sekundární kalendář a vrátí jeho id. Připomínky nastavujeme na
- * calendarList (per-uživatelské nastavení kalendáře), ne na samotném
- * kalendáři — defaultReminders žije tam. */
+/** Kalendář „Termínátor", který appka v tomhle účtu už dřív založila —
+ * nebo null. Scope calendar.app.created vrací v calendarList jen kalendáře
+ * vytvořené touhle appkou, takže shoda podle názvu je bezpečná. Používá se
+ * při (re-)propojení: založit druhý kalendář vedle starého by uživateli
+ * zdvojilo všechny starty v překryvném zobrazení. */
+export async function findAppCalendar(
+  accessToken: string,
+): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `${CALENDAR_API}/users/me/calendarList?minAccessRole=owner`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (!response.ok) {
+      console.error(`calendarList.list ${response.status}: ` +
+        `${await response.text()}`);
+      return null; // radši založit nový než shodit propojení
+    }
+    const items = (await response.json()).items as
+      | { id: string; summary?: string }[]
+      | undefined;
+    return items?.find((c) => c.summary === CALENDAR_SUMMARY)?.id ?? null;
+  } catch (error) {
+    console.error("calendarList.list failed (ignored):", error);
+    return null;
+  }
+}
+
+/** Založí sekundární kalendář a vrátí jeho id. Bez připomínek — ty si
+ * uživatel řídí sám v Nastavení (job `calendar_reminders`, 0029); čerstvý
+ * kalendář z API žádné defaultReminders nemá, což je i chtěný výchozí stav. */
 export async function createSecondaryCalendar(
   accessToken: string,
 ): Promise<string> {
@@ -114,31 +142,43 @@ export async function createSecondaryCalendar(
   if (!response.ok) {
     throw new Error(`calendar create failed: ${await response.text()}`);
   }
-  const calendarId = (await response.json()).id as string;
+  return (await response.json()).id as string;
+}
 
-  // Připomínky jsou příjemnost, ne jádro věci — selhání nesmí shodit propojení.
-  try {
-    await fetch(
-      `${CALENDAR_API}/users/me/calendarList/${encodeURIComponent(calendarId)}`,
-      {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          defaultReminders: [
-            { method: "popup", minutes: 24 * 60 },
-            { method: "popup", minutes: 120 },
-          ],
-        }),
+/** Preference připomínek (google_calendar_links.reminders) → minuty před
+ * startem. Držet v souladu s CalendarReminders v lib/domain/models.dart. */
+export const REMINDER_MINUTES: Record<string, number[]> = {
+  none: [],
+  "2h": [120],
+  "1d": [24 * 60],
+  "1d2h": [24 * 60, 120],
+};
+
+/** Propíše preferenci jako defaultReminders kalendáře (calendarList —
+ * per-uživatelské nastavení; události je dědí, i ty už založené). */
+export async function setDefaultReminders(
+  accessToken: string,
+  calendarId: string,
+  minutes: number[],
+): Promise<WriteResult> {
+  const response = await fetch(
+    `${CALENDAR_API}/users/me/calendarList/${encodeURIComponent(calendarId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
       },
-    );
-  } catch (error) {
-    console.error("defaultReminders patch failed (ignored):", error);
-  }
-
-  return calendarId;
+      body: JSON.stringify({
+        defaultReminders: minutes.map((m) => ({ method: "popup", minutes: m })),
+      }),
+    },
+  );
+  if (response.ok) return "ok";
+  console.error(
+    `defaultReminders PATCH ${response.status}: ${await response.text()}`,
+  );
+  return classify(response.status);
 }
 
 // ---------------------------------------------------------------------------

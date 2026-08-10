@@ -14,6 +14,13 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.6.0', '10. 8. 2026', [
+    'Připomínky startů v Google kalendáři si řídíš sám: Nastavení → '
+        'Připomínky startů (žádné / 2 h / den / obojí). Nově propojený '
+        'kalendář začíná bez připomínek.',
+    'Opětovné propojení použije tvůj stávající kalendář Termínátor — '
+        'žádné duplicity.',
+  ]),
   Release('2.5.2', '10. 8. 2026', [
     'Moje starty už neukazují duchy ze zrušených objednávek — start bez '
         'živé objednávky není start.',

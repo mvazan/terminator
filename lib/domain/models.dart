@@ -690,12 +690,32 @@ enum CalendarLinkStatus {
       };
 }
 
+/// Reminder preference for calendar events — applied server-side as the
+/// "Termínátor" calendar's defaultReminders, which every event inherits
+/// (existing ones too). Keep sqlNames in sync with the CHECK in 0029 and
+/// REMINDER_MINUTES in supabase/functions/_shared/google_calendar.ts.
+enum CalendarReminders {
+  none('none', 'Žádné'),
+  twoHours('2h', '2 hodiny předem'),
+  dayBefore('1d', 'Den předem'),
+  dayAndTwoHours('1d2h', 'Den předem a 2 hodiny předem');
+
+  const CalendarReminders(this.sqlName, this.label);
+
+  final String sqlName;
+  final String label;
+
+  static CalendarReminders parse(String? value) => values
+      .firstWhere((e) => e.sqlName == value, orElse: () => CalendarReminders.none);
+}
+
 class CalendarLink {
   const CalendarLink({
     required this.status,
     this.googleEmail,
     this.lastError,
     this.updatedAt,
+    this.reminders = CalendarReminders.none,
   });
 
   static const none = CalendarLink(status: CalendarLinkStatus.notLinked);
@@ -706,6 +726,7 @@ class CalendarLink {
   final String? googleEmail;
   final String? lastError;
   final DateTime? updatedAt;
+  final CalendarReminders reminders;
 
   bool get isLinked => status == CalendarLinkStatus.linked;
 
@@ -716,5 +737,6 @@ class CalendarLink {
         updatedAt: json['updated_at'] == null
             ? null
             : DateTime.parse(json['updated_at'] as String),
+        reminders: CalendarReminders.parse(json['reminders'] as String?),
       );
 }

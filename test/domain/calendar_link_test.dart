@@ -31,6 +31,19 @@ void main() {
     expect(link.lastError, 'Google odvolal přístup.');
   });
 
+  test('reminders parse, and their absence means none', () {
+    expect(
+      CalendarLink.fromJson({'status': 'linked', 'reminders': '1d2h'}).reminders,
+      CalendarReminders.dayAndTwoHours,
+    );
+    // Rows born before migration 0029 (or an unknown future value) must not
+    // break the tile — none is the safe reading.
+    expect(CalendarLink.fromJson({'status': 'linked'}).reminders,
+        CalendarReminders.none);
+    expect(CalendarLink.fromJson({'status': 'linked', 'reminders': 'xyz'})
+        .reminders, CalendarReminders.none);
+  });
+
   // The backend may grow states this build has never heard of; anything
   // unknown must read as "not linked" rather than blow up the settings tile.
   test('unknown or missing status falls back to not linked', () {
