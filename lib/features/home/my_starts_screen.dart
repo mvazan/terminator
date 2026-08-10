@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/ui.dart';
 import '../../data/providers.dart';
+import '../../domain/commitments.dart';
 import '../../domain/day_cancel.dart';
 import '../../domain/models.dart';
 import '../tournaments/tournament_detail_screen.dart';
@@ -10,6 +11,10 @@ import '../tournaments/tournament_detail_screen.dart';
 /// Home screen: the signed-in user's upcoming ordered starts — when, where,
 /// with whom. Each start offers "zrušit zájem v tento den": untick my
 /// availability everywhere else that day, since I'm already playing here.
+///
+/// Reads commitments (active-order roster spots), not raw rosters: roster
+/// rows survive a cancelled order, and a start whose order died isn't a
+/// start — showing it here was a bug (Ratíškovice twice after a re-order).
 class MyStartsScreen extends ConsumerWidget {
   const MyStartsScreen({super.key});
 
@@ -27,16 +32,13 @@ class MyStartsScreen extends ConsumerWidget {
     final tournamentById = {for (final t in tournaments) t.id: t};
     final now = today();
 
-    final mine = <({Slot slot, Tournament tournament})>[];
-    for (final r in rosters) {
-      if (r.userId != uid) continue;
-      final slot = slotById[r.slotId];
-      if (slot == null || slot.date.isBefore(now)) continue;
-      final tournament = tournamentById[slot.tournamentId];
-      if (tournament == null) continue;
-      mine.add((slot: slot, tournament: tournament));
-    }
-    mine.sort((a, b) => Slot.compare(a.slot, b.slot));
+    final mine = myUpcomingStarts(
+      ref.watch(commitmentsProvider),
+      userId: uid,
+      today: now,
+      slotById: slotById,
+      tournamentById: tournamentById,
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Moje starty')),

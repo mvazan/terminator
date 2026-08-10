@@ -90,6 +90,31 @@ bool _isCommitted(
   return day != null && days.contains(day);
 }
 
+/// [userId]'s upcoming starts for the "Moje starty" screen, joined to their
+/// slot/tournament rows and sorted by date+time. Built from commitments — the
+/// active-order source of truth — NOT from raw rosters: roster rows outlive a
+/// cancelled order on purpose (the "Zrušeno" push needs them), so reading
+/// rosters directly shows ghosts of starts that no longer exist.
+List<({Slot slot, Tournament tournament})> myUpcomingStarts(
+  List<Commitment> commitments, {
+  required String? userId,
+  required Day today,
+  required Map<String, Slot> slotById,
+  required Map<String, Tournament> tournamentById,
+}) {
+  final mine = <({Slot slot, Tournament tournament})>[];
+  for (final c in commitments) {
+    if (c.userId != userId || c.day.isBefore(today)) continue;
+    final slot = slotById[c.slotId];
+    if (slot == null) continue;
+    final tournament = tournamentById[slot.tournamentId];
+    if (tournament == null) continue;
+    mine.add((slot: slot, tournament: tournament));
+  }
+  mine.sort((a, b) => Slot.compare(a.slot, b.slot));
+  return mine;
+}
+
 /// Commitments that clash with putting [userId] on a start dated [day] —
 /// i.e. the player is already rostered on another active-order slot that day
 /// (excluding [exceptSlotId], the start being added to). Feeds the ⚠️ dialog.

@@ -141,4 +141,67 @@ void main() {
           isEmpty);
     });
   });
+
+  group('myUpcomingStarts (Moje starty)', () {
+    final t1 = makeTournament(startsOn: d, endsOn: other);
+    final tournamentsById = {'t1': t1};
+
+    // The exact bug from the field: Radek cancelled Thursday's order and
+    // re-made it for Wednesday. Roster rows on the Thursday slot survive the
+    // cancellation (by design), so a raw-roster listing showed both days.
+    test('a start whose order was cancelled disappears', () {
+      final commitments = buildCommitments(
+        rosters: [roster('r1', 's18'), roster('r2', 's10')],
+        // Only s18 (Wednesday) is still covered by an active order; the
+        // cancelled Thursday order left s10 uncovered.
+        activeOrderSlotIds: {'s18'},
+        slotsById: slotsById,
+      );
+      final mine = myUpcomingStarts(
+        commitments,
+        userId: 'roman',
+        today: d,
+        slotById: slotsById,
+        tournamentById: tournamentsById,
+      );
+      expect(mine, hasLength(1));
+      expect(mine.single.slot.id, 's18');
+    });
+
+    test('only my own starts, future only, sorted by date then time', () {
+      final commitments = buildCommitments(
+        rosters: [
+          roster('r1', 's10'),               // future (27.8.)
+          roster('r2', 's18'),               // today (26.8.) — stays
+          roster('r3', 's17', user: 'jana'), // someone else's
+        ],
+        activeOrderSlotIds: {'s10', 's18', 's17'},
+        slotsById: slotsById,
+      );
+      final mine = myUpcomingStarts(
+        commitments,
+        userId: 'roman',
+        today: d,
+        slotById: slotsById,
+        tournamentById: tournamentsById,
+      );
+      expect([for (final m in mine) m.slot.id], ['s18', 's10']);
+    });
+
+    test('a start in the past is gone', () {
+      final commitments = buildCommitments(
+        rosters: [roster('r1', 's18')],
+        activeOrderSlotIds: {'s18'},
+        slotsById: slotsById,
+      );
+      final mine = myUpcomingStarts(
+        commitments,
+        userId: 'roman',
+        today: other, // s18 is dated d = the day before
+        slotById: slotsById,
+        tournamentById: tournamentsById,
+      );
+      expect(mine, isEmpty);
+    });
+  });
 }

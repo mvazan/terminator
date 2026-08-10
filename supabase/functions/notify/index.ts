@@ -945,20 +945,31 @@ async function handle(payload: WebhookPayload) {
             : a.date.localeCompare(b.date)
         );
 
-      // "čt 23.4. 17:30 + 19:00 · so 25.4. 10:00"
-      const byDay = new Map<string, string[]>();
-      for (const s of orderable) {
-        byDay.set(s.date, [...(byDay.get(s.date) ?? []), timeLabel(s.time)]);
-      }
-      const summary = [...byDay.entries()]
-        .map(([date, times]) => `${dayLabel(date)} ${times.join(" + ")}`)
-        .join(" · ");
+      // Jediný termín se vyplatí říct přesně (den + čas); u víc termínů
+      // stačí DNY — výčet všech časů dělal z notifikace nečitelný román
+      // (turnaj se 17 termíny = šest řádků). Detail ukáže mřížka v appce.
       const n = orderable.length;
-      const body = n <= 1
-        ? `${summary} už má dost hráčů (min. ${tournament.min_players}). ` +
-          "Navrhni objednávku!"
-        : `${n} ${n < 5 ? "termíny mají" : "termínů má"} dost hráčů: ` +
-          `${summary}. Navrhni objednávku!`;
+      let body: string;
+      if (n <= 1) {
+        const s = orderable[0];
+        const label = s ? `${dayLabel(s.date)} ${timeLabel(s.time)}` : "";
+        body = `${label} už má dost hráčů (min. ${tournament.min_players}). ` +
+          "Navrhni objednávku!";
+      } else {
+        const days = [...new Set(orderable.map((s) => s.date))].map(dayLabel);
+        const MAX_DAYS = 6;
+        const shown = days.slice(0, MAX_DAYS).join(" · ");
+        const rest = days.length - MAX_DAYS;
+        const restLabel = rest <= 0
+          ? ""
+          : rest === 1
+          ? " · a další den"
+          : rest < 5
+          ? ` · a další ${rest} dny`
+          : ` · a dalších ${rest} dnů`;
+        body = `${n} ${n < 5 ? "termíny mají" : "termínů má"} dost hráčů: ` +
+          `${shown}${restLabel}. Navrhni objednávku!`;
+      }
 
       await sendToTokens(
         await teamTokens("threshold", [record.user_id as string],
