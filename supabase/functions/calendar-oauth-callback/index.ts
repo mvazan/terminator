@@ -16,6 +16,7 @@ import {
   createSecondaryCalendar,
   emailFromIdToken,
   exchangeCode,
+  writeFutureStarts,
 } from "../_shared/google_calendar.ts";
 
 const supabase = createClient(
@@ -132,13 +133,22 @@ Deno.serve(async (request) => {
       .update({ status: "linked", updated_at: now })
       .eq("user_id", userId);
 
-    // Připomínky nastavovat zvlášť netřeba: nesou si je samy události, které
-    // backfill hned založí (calendarList je pod tímhle scope zakázaný).
+    // Starty zapisujeme rovnou, ne přes joby: člověk po propojení otevře
+    // kalendář a chce v něm vidět svoje starty, ne prázdno a „ono to za
+    // minutu naskočí". Připomínky si nesou samy události (calendarList je
+    // pod tímhle scope zakázaný), takže tohle je zároveň jejich obnova.
+    // Co by selhalo, dožene job — proto se enqueuje i tak.
     const { data: enqueued } = await supabase
       .rpc("backfill_calendar_jobs", { p_user_id: userId });
+    const written = await writeFutureStarts(
+      supabase,
+      userId,
+      tokens.accessToken,
+      calendarId,
+    );
     console.log(
       `calendar linked for ${userId} (${reusable ? "reused" : "created"}), ` +
-        `backfilled ${enqueued} jobs`,
+        `${written} starts written, ${enqueued} jobs queued as backup`,
     );
     return page("ok");
   } catch (error) {

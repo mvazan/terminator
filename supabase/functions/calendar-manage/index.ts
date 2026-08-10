@@ -20,13 +20,10 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
   deleteCalendar,
-  durationMinutes,
-  eventIdFor,
   GoogleAuthError,
-  localDateTime,
   refreshAccessToken,
   revokeToken,
-  upsertEvent,
+  writeFutureStarts,
 } from "../_shared/google_calendar.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -146,57 +143,19 @@ async function setReminders(
     return json({ rewritten: 0, saved, deferred: true });
   }
 
-  // Budoucí starty téhle osoby — stejná definice jako backfill_calendar_jobs.
-  const { data: starts } = await admin.rpc("my_future_starts", {
+  const written = await writeFutureStarts(
+    admin,
+    userId,
+    accessToken,
+    token.google_calendar_id as string,
+  );
+  const { data: total } = await admin.rpc("my_future_starts", {
     p_user_id: userId,
   });
-  const rows = (starts ?? []) as {
-    slot_id: string;
-    start_date: string;
-    start_time: string;
-    tournament_name: string;
-    kind: string;
-    discipline: string | null;
-    notes: string | null;
-    venue_name: string | null;
-    venue_address: string | null;
-  }[];
-
-  let rewritten = 0;
-  let failed = false;
-  const CHUNK = 5;
-  for (let i = 0; i < rows.length; i += CHUNK) {
-    await Promise.all(rows.slice(i, i + CHUNK).map(async (row) => {
-      const parts = [row.kind];
-      if (row.discipline && row.discipline !== "jiné") parts.push(row.discipline);
-      const where = row.venue_name ?? row.tournament_name;
-      const result = await upsertEvent(
-        accessToken,
-        token.google_calendar_id as string,
-        await eventIdFor(userId, row.slot_id),
-        {
-          summary: `${where} (${parts.join(" · ")})`,
-          location: row.venue_address ?? undefined,
-          description: [
-            row.tournament_name,
-            row.notes,
-            "— spravuje appka Termínátor, ruční úpravy se přepíšou —",
-          ].filter(Boolean).join("\n\n"),
-          start: localDateTime(row.start_date, row.start_time),
-          end: localDateTime(
-            row.start_date,
-            row.start_time,
-            durationMinutes(row.discipline),
-          ),
-          reminderMinutes: saved,
-        },
-      );
-      if (result === "ok") rewritten++;
-      else failed = true;
-    }));
-  }
+  const failed = written < ((total ?? []) as unknown[]).length;
+  // Co neprošlo, dožene job — preference je uložená, takže se neztratí.
   if (failed) await admin.rpc("backfill_calendar_jobs", { p_user_id: userId });
-  return json({ rewritten, saved, deferred: failed });
+  return json({ rewritten: written, saved, deferred: failed });
 }
 
 Deno.serve(async (request) => {

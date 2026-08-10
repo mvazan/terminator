@@ -338,6 +338,76 @@ export async function upsertEvent(
   return classify(post.status);
 }
 
+/** Zapíše do kalendáře VŠECHNY budoucí starty daného člověka i s jeho
+ * připomínkami a vrátí, kolik jich prošlo. Používá to propojení (ať člověk
+ * hned vidí, proč to dělal) i změna připomínek (ty nesou samy události) —
+ * obojí je akce, u které se uživatel dívá, takže se nedělají přes joby.
+ * Volající si joby přesto zařadí jako záchrannou síť pro to, co selže.
+ *
+ * `db` je service-role klient volajícího; RPC `my_future_starts` (0033)
+ * drží stejnou definici „reálného startu" jako backfill_calendar_jobs. */
+// deno-lint-ignore no-explicit-any
+export async function writeFutureStarts(
+  db: any,
+  userId: string,
+  accessToken: string,
+  calendarId: string,
+): Promise<number> {
+  const { data: prefs } = await db.from("google_calendar_links")
+    .select("reminder_minutes").eq("user_id", userId).maybeSingle();
+  const reminderMinutes = (prefs?.reminder_minutes as number[] | null) ?? [];
+
+  const { data: starts } = await db.rpc("my_future_starts", {
+    p_user_id: userId,
+  });
+  const rows = (starts ?? []) as {
+    slot_id: string;
+    start_date: string;
+    start_time: string;
+    tournament_name: string;
+    kind: string;
+    discipline: string | null;
+    notes: string | null;
+    venue_name: string | null;
+    venue_address: string | null;
+  }[];
+
+  let written = 0;
+  const CHUNK = 5; // každý start = 1-2 volání Googlu; po pěticích to netrvá
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    await Promise.all(rows.slice(i, i + CHUNK).map(async (row) => {
+      const parts = [row.kind];
+      if (row.discipline && row.discipline !== "jiné") {
+        parts.push(row.discipline);
+      }
+      const where = row.venue_name ?? row.tournament_name;
+      const result = await upsertEvent(
+        accessToken,
+        calendarId,
+        await eventIdFor(userId, row.slot_id),
+        {
+          summary: `${where} (${parts.join(" · ")})`,
+          location: row.venue_address ?? undefined,
+          description: [
+            row.tournament_name,
+            row.notes,
+            "— spravuje appka Termínátor, ruční úpravy se přepíšou —",
+          ].filter(Boolean).join("\n\n"),
+          start: localDateTime(row.start_date, row.start_time),
+          end: localDateTime(
+            row.start_date,
+            row.start_time,
+            durationMinutes(row.discipline),
+          ),
+          reminderMinutes,
+        },
+      );
+      if (result === "ok") written++;
+    }));
+  }
+  return written;
+}
+
 /** Smaže událost. Když už tam není (404/410), je hotovo — mazání je
  * idempotentní: job mohl vzniknout dřív, než se událost vůbec založila. */
 export async function deleteEvent(
