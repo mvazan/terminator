@@ -71,6 +71,12 @@ třemi věcmi a všechny jsou schválně:
   (1, 2, 4, 8, 16 min, pak se job zahodí). Ostatní kindy se pořád po pokusu
   mažou, jak se to dělalo vždycky.
 
+Když se propojení zlomí (odvolaný souhlas, smazaný kalendář, prošlý token),
+`markCalendarBroken` pošle dotyčnému JEDNOU osobní push „propoj znovu" —
+jen při přechodu do `broken`, a záměrně mimo `notification_prefs`: je to
+servisní zpráva o rozbité funkci, kterou si člověk sám zapnul, ne dění
+v týmu.
+
 ### Kandidáti na přesun (fáze 2)
 
 - **threshold** (zaklikávání termínů) — dnes vlastní cooldown přes

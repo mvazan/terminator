@@ -485,17 +485,38 @@ async function calendarLink(
   };
 }
 
-/** Propojení je mrtvé (odvolaný souhlas, smazaný kalendář) — v nastavení se
- * objeví nabídka propojit znovu. */
+/** Propojení je mrtvé (odvolaný souhlas, smazaný kalendář, prošlý token) —
+ * v nastavení se objeví nabídka propojit znovu a dotyčnému to jednou řekneme
+ * pushem, ať se to nedozví až za měsíc, když mu v kalendáři chyběl start.
+ *
+ * Podmínka `neq status broken` dělá dvě věci najednou: push odejde jen při
+ * PŘECHODU do broken (další selhavší joby téhož člověka už nic nepošlou;
+ * souběh řeší řádkový zámek — druhý UPDATE po čekání uvidí broken a nevrátí
+ * nic) — a jde mimo notification_prefs záměrně: je to servisní zpráva
+ * o rozbité funkci, kterou si člověk sám zapnul, ne dění v týmu. */
 async function markCalendarBroken(userId: string, reason: string) {
   console.error(`calendar link broken for ${userId}: ${reason}`);
-  await supabase.from("google_calendar_links")
+  const { data: flipped } = await supabase.from("google_calendar_links")
     .update({
       status: "broken",
       last_error: reason,
       updated_at: new Date().toISOString(),
     })
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .neq("status", "broken")
+    .select("user_id");
+  if (!flipped?.length) return;
+
+  const { data: profile } = await supabase.from("profiles")
+    .select("fcm_token").eq("id", userId).maybeSingle();
+  const token = profile?.fcm_token as string | null | undefined;
+  if (!token) return;
+  await sendToTokens(
+    [{ userId, token }],
+    "Google kalendář se odpojil",
+    "Starty se přestaly synchronizovat. Propoj kalendář znovu v Nastavení.",
+    { kind: "calendar_broken" },
+  );
 }
 
 /** Co má v kalendáři stát za tenhle start — nebo null, pokud start (už)
