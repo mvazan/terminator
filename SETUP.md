@@ -108,20 +108,42 @@ switcher). Without it the app just hides the calendar tile; nothing else
 changes.
 
 1. **APIs & Services → Library** → enable **Google Calendar API**.
-2. **APIs & Services → OAuth consent screen**:
-   - User type **External** (team members use personal Google accounts).
-   - App name `Termínátor`, support e-mail, developer contact e-mail.
-   - Link the published privacy policy (`docs/privacy.html` on GitHub Pages) —
-     it already describes the calendar access.
-   - **Scopes** → add `.../auth/calendar.app.created` (plus `openid`, `email`).
-     Justification, if asked: *the app creates and manages one secondary
-     calendar it owns, mirroring the user's own tournament starts; it never
-     reads or touches any calendar or event it didn't create.*
-   - **Test users**: while the consent screen is in *Testing*, add every
-     team member's Google e-mail (max 100).
+
+2. **OAuth consent screen** — the "Termínátor wants access to your calendar,
+   allow?" page a player sees after tapping *Propojit Google kalendář*. Here
+   you write what that page says and which permission the app asks for; Google
+   refuses the sign-in flow without it. One-time setup, nothing to pay for.
+
+   Find it under **APIs & Services → OAuth consent screen**. Newer consoles
+   renamed it to **Google Auth Platform** and split it into *Branding*,
+   *Audience* and *Data access* tabs — same settings, different drawers.
+
+   - **User type: External.** *Internal* only exists for Google Workspace
+     organisations where every user is on the company domain; the team signs
+     in with personal Gmail accounts.
+   - **Branding**: app name `Termínátor`; user-support e-mail and developer
+     contact e-mail can both be your own address. These are shown to users and
+     used by Google to reach you.
+   - **Privacy policy link**: the *published* URL of `docs/privacy.html`
+     (GitHub Pages) — a live public address, not a path in the repo. Its
+     Google-calendar section is already written.
+   - **Scopes** (*Data access* tab) → *Add or remove scopes* → tick `openid`
+     and `email`, then paste
+     `https://www.googleapis.com/auth/calendar.app.created` into the
+     **manually add scopes** box, because that one is usually missing from the
+     list. This narrow scope is what keeps the app confined to the calendar it
+     creates itself. Justification, if asked: *the app creates and manages one
+     secondary calendar it owns, mirroring the user's own tournament starts;
+     it never reads or touches any calendar or event it didn't create.*
+   - **Test users**: while the screen is in *Testing*, only the addresses
+     listed here may sign in at all (max 100). Add each member's **Google
+     account** address — not necessarily the e-mail they use to log into
+     Termínátor — and your own, so you can test.
+
 3. **APIs & Services → Credentials → Create credentials → OAuth client ID →
    Web application**. Authorized redirect URI (byte for byte):
    `https://YOURREF.supabase.co/functions/v1/calendar-oauth-callback`
+   Copy the generated **client ID** and **client secret** for the next step.
 4. Feed the client to both sides:
    ```bash
    supabase secrets set GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...
@@ -134,8 +156,9 @@ changes.
 > **Publishing status matters.** While the consent screen sits in *Testing*,
 > Google expires refresh tokens after **7 days** — sync would quietly die every
 > week and everyone would have to re-link. Once the feature is verified in
-> practice, switch the consent screen to **In production** (Cloud Console
-> only — unrelated to the Play track). `calendar.app.created` is a narrow
+> practice, switch the consent screen to **In production** with the *Publish
+> app* button on the same screen (Cloud Console only — unrelated to the Play
+> track, and it doesn't make the app public anywhere). `calendar.app.created` is a narrow
 > scope and is often waived from full verification; if Google does demand a
 > review and it isn't worth it, the fallback is to stay in Testing and live
 > with the weekly re-link.
