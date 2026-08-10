@@ -31,17 +31,33 @@ void main() {
     expect(link.lastError, 'Google odvolal přístup.');
   });
 
-  test('reminders parse, and their absence means none', () {
+  test('reminder minutes parse sorted farthest-first; absence means none', () {
     expect(
-      CalendarLink.fromJson({'status': 'linked', 'reminders': '1d2h'}).reminders,
-      CalendarReminders.dayAndTwoHours,
+      CalendarLink.fromJson({
+        'status': 'linked',
+        'reminder_minutes': [120, 1440],
+      }).reminderMinutes,
+      [1440, 120],
     );
-    // Rows born before migration 0029 (or an unknown future value) must not
-    // break the tile — none is the safe reading.
-    expect(CalendarLink.fromJson({'status': 'linked'}).reminders,
-        CalendarReminders.none);
-    expect(CalendarLink.fromJson({'status': 'linked', 'reminders': 'xyz'})
-        .reminders, CalendarReminders.none);
+    // Rows born before migration 0030 must not break the tile.
+    expect(CalendarLink.fromJson({'status': 'linked'}).reminderMinutes,
+        isEmpty);
+  });
+
+  test('offsets read as humans say them', () {
+    expect(reminderOffsetLabel(0), 'V čase startu');
+    expect(reminderOffsetLabel(45), '45 min předem');
+    expect(reminderOffsetLabel(120), '2 h předem');
+    expect(reminderOffsetLabel(1440), '1 den předem');
+    expect(reminderOffsetLabel(2880), '2 dny předem');
+    expect(reminderOffsetLabel(7 * 1440), '7 dní předem');
+    expect(reminderOffsetLabel(90), '90 min předem'); // no clean hour
+  });
+
+  test('summary joins from the farthest, empty reads as none', () {
+    expect(remindersSummary(const []), 'Žádné');
+    expect(remindersSummary(const [120, 2880]),
+        '2 dny předem · 2 h předem');
   });
 
   // The backend may grow states this build has never heard of; anything

@@ -110,6 +110,9 @@ String? businessError(Object e) {
   if (s.contains('chat_mutes_unique_idx')) {
     return 'Tenhle chat už ztlumený je.';
   }
+  if (s.contains('bad_reminders')) {
+    return 'Připomínek může být nejvýš 5, nejdál 4 týdny předem.';
+  }
   return null;
 }
 

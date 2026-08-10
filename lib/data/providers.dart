@@ -1005,11 +1005,12 @@ class Api {
   /// their data.
   static Future<void> disconnectCalendar() => _db.rpc('disconnect_calendar');
 
-  /// Stores the reminder preference and schedules the server to apply it as
-  /// the calendar's defaultReminders (reaches Google within ~a minute; the
-  /// tile shows the new value immediately from the stream).
-  static Future<void> setCalendarReminders(CalendarReminders pref) =>
-      _db.rpc('set_calendar_reminders', params: {'p_pref': pref.sqlName});
+  /// Stores the reminder offsets (minutes before a start, max 5, max 4 weeks)
+  /// and schedules the server to apply them as the calendar's
+  /// defaultReminders (reaches Google within ~a minute; the tile shows the
+  /// new value immediately from the stream).
+  static Future<void> setCalendarReminders(List<int> minutes) =>
+      _db.rpc('set_calendar_reminders', params: {'p_minutes': minutes});
 
   /// enabled=true + mutedUntil=null  -> back to normal (row upserted anyway,
   /// which is fine — it equals the default).

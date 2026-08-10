@@ -154,34 +154,116 @@ class _CalendarLinkTileState extends ConsumerState<_CalendarLinkTile> {
     }
   }
 
-  /// Reminder picker: a bottom sheet of the four choices. The chosen value
-  /// lands in the DB immediately (the tile updates from the stream) and the
-  /// server props it to Google within a minute.
-  Future<void> _pickReminders(CalendarReminders current) async {
-    final picked = await showModalBottomSheet<CalendarReminders>(
+  /// Reminder editor: a live list of "N minut/hodin/dní předem" entries with
+  /// add/remove, mirroring Google Calendar's own model (max 5, max 4 weeks).
+  /// Every change is saved immediately — the sheet watches the same stream
+  /// as the tile, so it redraws itself when the row lands.
+  Future<void> _editReminders() {
+    return showModalBottomSheet<void>(
       context: context,
-      builder: (sheetContext) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(12),
-              child: Text('Připomínky startů v kalendáři'),
+      builder: (sheetContext) => Consumer(
+        builder: (context, ref, _) {
+          final link =
+              ref.watch(myCalendarLinkProvider).value ?? CalendarLink.none;
+          final minutes = link.reminderMinutes;
+          return SafeArea(
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Text('Připomínky startů v kalendáři'),
+                ),
+                if (minutes.isEmpty)
+                  const ListTile(
+                    leading: Icon(Icons.notifications_off_outlined),
+                    title: Text('Žádné připomínky'),
+                    subtitle: Text('Starty se přidávají tiše, bez upozornění.'),
+                  ),
+                for (final m in minutes)
+                  ListTile(
+                    leading: const Icon(Icons.notifications_none_outlined),
+                    title: Text(reminderOffsetLabel(m)),
+                    trailing: IconButton(
+                      tooltip: 'Odebrat',
+                      icon: const Icon(Icons.close),
+                      onPressed: () => tryAction(
+                          context,
+                          () => Api.setCalendarReminders(
+                              [for (final x in minutes) if (x != m) x])),
+                    ),
+                  ),
+                if (minutes.length < maxCalendarReminders)
+                  ListTile(
+                    leading: const Icon(Icons.add),
+                    title: const Text('Přidat připomínku'),
+                    onTap: () => _addReminder(context, minutes),
+                  ),
+                const SizedBox(height: 8),
+              ],
             ),
-            for (final r in CalendarReminders.values)
-              ListTile(
-                leading: Icon(r == current
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_off),
-                title: Text(r.label),
-                onTap: () => Navigator.pop(sheetContext, r),
-              ),
-          ],
-        ),
+          );
+        },
       ),
     );
-    if (picked == null || picked == current || !mounted) return;
-    await tryAction(context, () => Api.setCalendarReminders(picked));
+  }
+
+  /// "Number + unit" dialog; converts to minutes and saves.
+  Future<void> _addReminder(BuildContext context, List<int> current) async {
+    final controller = TextEditingController();
+    var unit = _ReminderUnit.hours;
+    try {
+      final minutes = await showDialog<int>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setState) => AlertDialog(
+            title: const Text('Připomínka předem'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Kolik'),
+                ),
+                const SizedBox(height: 12),
+                SegmentedButton<_ReminderUnit>(
+                  segments: [
+                    for (final u in _ReminderUnit.values)
+                      ButtonSegment(value: u, label: Text(u.label)),
+                  ],
+                  selected: {unit},
+                  onSelectionChanged: (s) => setState(() => unit = s.first),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Zrušit')),
+              FilledButton(
+                onPressed: () {
+                  final n = int.tryParse(controller.text.trim());
+                  if (n == null || n <= 0) return;
+                  Navigator.pop(dialogContext, n * unit.inMinutes);
+                },
+                child: const Text('Přidat'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (minutes == null || !context.mounted) return;
+      if (minutes > maxReminderMinutes) {
+        snack(context, 'Nejdál to jde 4 týdny (28 dní) předem.');
+        return;
+      }
+      await tryAction(
+          context, () => Api.setCalendarReminders([...current, minutes]));
+    } finally {
+      controller.dispose();
+    }
   }
 
   @override
@@ -206,9 +288,9 @@ class _CalendarLinkTileState extends ConsumerState<_CalendarLinkTile> {
             ListTile(
               leading: const Icon(Icons.notifications_none_outlined),
               title: const Text('Připomínky startů'),
-              subtitle: Text(link.reminders.label),
+              subtitle: Text(remindersSummary(link.reminderMinutes)),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () => _pickReminders(link.reminders),
+              onTap: _editReminders,
             ),
           ],
         ),
@@ -244,6 +326,18 @@ class _CalendarLinkTileState extends ConsumerState<_CalendarLinkTile> {
         ),
     };
   }
+}
+
+/// Units for the "reminder ahead" dialog, converted to minutes on save.
+enum _ReminderUnit {
+  minutes('minuty', 1),
+  hours('hodiny', 60),
+  days('dny', 1440);
+
+  const _ReminderUnit(this.label, this.inMinutes);
+
+  final String label;
+  final int inMinutes;
 }
 
 class _TileSpinner extends StatelessWidget {

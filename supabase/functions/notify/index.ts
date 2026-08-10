@@ -26,7 +26,6 @@ import {
   GoogleAuthError,
   localDateTime,
   refreshAccessToken,
-  REMINDER_MINUTES,
   setDefaultReminders,
   upsertEvent,
 } from "../_shared/google_calendar.ts";
@@ -632,8 +631,8 @@ async function jobCalendarReminders(
   if (!link) return true; // nepropojeno/broken — po re-linku se nastaví znovu
 
   const { data: row } = await supabase.from("google_calendar_links")
-    .select("reminders").eq("user_id", userId).maybeSingle();
-  const minutes = REMINDER_MINUTES[row?.reminders as string] ?? [];
+    .select("reminder_minutes").eq("user_id", userId).maybeSingle();
+  const minutes = (row?.reminder_minutes as number[] | null) ?? [];
 
   let accessToken: string;
   try {

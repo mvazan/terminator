@@ -690,23 +690,30 @@ enum CalendarLinkStatus {
       };
 }
 
-/// Reminder preference for calendar events — applied server-side as the
-/// "Termínátor" calendar's defaultReminders, which every event inherits
-/// (existing ones too). Keep sqlNames in sync with the CHECK in 0029 and
-/// REMINDER_MINUTES in supabase/functions/_shared/google_calendar.ts.
-enum CalendarReminders {
-  none('none', 'Žádné'),
-  twoHours('2h', '2 hodiny předem'),
-  dayBefore('1d', 'Den předem'),
-  dayAndTwoHours('1d2h', 'Den předem a 2 hodiny předem');
+/// Google caps calendar reminders at 5 per calendar, each at most 4 weeks
+/// (40320 minutes) before the event. The UI and the RPC both enforce this.
+const maxCalendarReminders = 5;
+const maxReminderMinutes = 40320;
 
-  const CalendarReminders(this.sqlName, this.label);
+/// "za kolik předem" → human text: prefers the largest clean unit
+/// (3 dny / 5 h / 45 min), zero means "at start time".
+String reminderOffsetLabel(int minutes) {
+  if (minutes <= 0) return 'V čase startu';
+  if (minutes % 1440 == 0) {
+    final d = minutes ~/ 1440;
+    final unit = d == 1 ? 'den' : (d <= 4 ? 'dny' : 'dní');
+    return '$d $unit předem';
+  }
+  if (minutes % 60 == 0) return '${minutes ~/ 60} h předem';
+  return '$minutes min předem';
+}
 
-  final String sqlName;
-  final String label;
-
-  static CalendarReminders parse(String? value) => values
-      .firstWhere((e) => e.sqlName == value, orElse: () => CalendarReminders.none);
+/// Settings-tile summary of a reminder set: "Žádné" or the offsets from the
+/// farthest ("1 den předem · 2 h předem").
+String remindersSummary(List<int> minutes) {
+  if (minutes.isEmpty) return 'Žádné';
+  final sorted = [...minutes]..sort((a, b) => b.compareTo(a));
+  return sorted.map(reminderOffsetLabel).join(' · ');
 }
 
 class CalendarLink {
@@ -715,7 +722,7 @@ class CalendarLink {
     this.googleEmail,
     this.lastError,
     this.updatedAt,
-    this.reminders = CalendarReminders.none,
+    this.reminderMinutes = const [],
   });
 
   static const none = CalendarLink(status: CalendarLinkStatus.notLinked);
@@ -726,7 +733,11 @@ class CalendarLink {
   final String? googleEmail;
   final String? lastError;
   final DateTime? updatedAt;
-  final CalendarReminders reminders;
+
+  /// Reminder offsets in minutes before a start, farthest first. Applied
+  /// server-side as the calendar's defaultReminders — events inherit them,
+  /// existing ones included.
+  final List<int> reminderMinutes;
 
   bool get isLinked => status == CalendarLinkStatus.linked;
 
@@ -737,6 +748,9 @@ class CalendarLink {
         updatedAt: json['updated_at'] == null
             ? null
             : DateTime.parse(json['updated_at'] as String),
-        reminders: CalendarReminders.parse(json['reminders'] as String?),
+        reminderMinutes: [
+          for (final m in json['reminder_minutes'] as List? ?? const [])
+            (m as num).toInt(),
+        ]..sort((a, b) => b.compareTo(a)),
       );
 }

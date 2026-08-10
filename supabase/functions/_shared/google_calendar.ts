@@ -145,15 +145,6 @@ export async function createSecondaryCalendar(
   return (await response.json()).id as string;
 }
 
-/** Preference připomínek (google_calendar_links.reminders) → minuty před
- * startem. Držet v souladu s CalendarReminders v lib/domain/models.dart. */
-export const REMINDER_MINUTES: Record<string, number[]> = {
-  none: [],
-  "2h": [120],
-  "1d": [24 * 60],
-  "1d2h": [24 * 60, 120],
-};
-
 /** Propíše preferenci jako defaultReminders kalendáře (calendarList —
  * per-uživatelské nastavení; události je dědí, i ty už založené). */
 export async function setDefaultReminders(
