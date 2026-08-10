@@ -93,31 +93,39 @@ export function emailFromIdToken(idToken?: string): string | null {
   }
 }
 
-/** Kalendář „Termínátor", který appka v tomhle účtu už dřív založila —
- * nebo null. Scope calendar.app.created vrací v calendarList jen kalendáře
- * vytvořené touhle appkou, takže shoda podle názvu je bezpečná. Používá se
- * při (re-)propojení: založit druhý kalendář vedle starého by uživateli
- * zdvojilo všechny starty v překryvném zobrazení. */
-export async function findAppCalendar(
+/** Smaže kalendář appky (při odpojení — jinak se v účtu hromadí, protože
+ * po odvolání souhlasu už na něj appka nikdy nedosáhne: calendarList.list
+ * je pod tímhle scope 403 a calendars.get přes hranici grantu 404, ověřeno
+ * 2026-08-10). 404/410 = už je pryč = hotovo. */
+export async function deleteCalendar(
   accessToken: string,
-): Promise<string | null> {
+  calendarId: string,
+): Promise<WriteResult> {
+  const response = await fetch(
+    `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}`,
+    { method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (response.ok || response.status === 404 || response.status === 410) {
+    return "ok";
+  }
+  console.error(
+    `calendar DELETE ${response.status}: ${await response.text()}`,
+  );
+  return classify(response.status);
+}
+
+/** Odvolá refresh token u Googlu (best effort — když selže, token stejně
+ * zapomínáme a přístup jde odebrat i v nastavení Google účtu). */
+export async function revokeToken(refreshToken: string): Promise<void> {
   try {
-    const response = await fetch(
-      `${CALENDAR_API}/users/me/calendarList?minAccessRole=owner`,
-      { headers: { Authorization: `Bearer ${accessToken}` } },
+    await fetch(
+      `https://oauth2.googleapis.com/revoke?token=${
+        encodeURIComponent(refreshToken)
+      }`,
+      { method: "POST" },
     );
-    if (!response.ok) {
-      console.error(`calendarList.list ${response.status}: ` +
-        `${await response.text()}`);
-      return null; // radši založit nový než shodit propojení
-    }
-    const items = (await response.json()).items as
-      | { id: string; summary?: string }[]
-      | undefined;
-    return items?.find((c) => c.summary === CALENDAR_SUMMARY)?.id ?? null;
   } catch (error) {
-    console.error("calendarList.list failed (ignored):", error);
-    return null;
+    console.error("token revoke failed (ignored):", error);
   }
 }
 

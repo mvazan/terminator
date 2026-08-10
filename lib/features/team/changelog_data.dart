@@ -14,12 +14,15 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.7.0', '10. 8. 2026', [
+    'Připomínky startů po svém: vlastní počet hodin nebo dní předem, '
+        'až 5 připomínek. Předvolby jsou pryč.',
+    'Odpojení kalendáře ho v Googlu rovnou smaže — žádné hromadící se '
+        'kopie „Termínátor". Nové propojení nahraje starty do čistého.',
+  ]),
   Release('2.6.0', '10. 8. 2026', [
     'Připomínky startů v Google kalendáři si řídíš sám: Nastavení → '
-        'Připomínky startů (žádné / 2 h / den / obojí). Nově propojený '
-        'kalendář začíná bez připomínek.',
-    'Opětovné propojení použije tvůj stávající kalendář Termínátor — '
-        'žádné duplicity.',
+        'Připomínky startů. Nově propojený kalendář začíná bez připomínek.',
   ]),
   Release('2.5.2', '10. 8. 2026', [
     'Moje starty už neukazují duchy ze zrušených objednávek — start bez '

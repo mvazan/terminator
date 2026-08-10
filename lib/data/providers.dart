@@ -1000,9 +1000,10 @@ class Api {
     });
   }
 
-  /// Revokes the token at Google and forgets the link. The calendar itself
-  /// stays in the user's account — disconnecting an app shouldn't delete
-  /// their data.
+  /// Disconnects: the server deletes the "Termínátor" calendar in Google
+  /// (the app can never reach it again after the revoke — narrow-scope
+  /// reality, see 0031), revokes the token and forgets the link. Starts are
+  /// derived data; re-linking backfills them into a fresh calendar.
   static Future<void> disconnectCalendar() => _db.rpc('disconnect_calendar');
 
   /// Stores the reminder offsets (minutes before a start, max 5, max 4 weeks)

@@ -137,10 +137,11 @@ class _CalendarLinkTileState extends ConsumerState<_CalendarLinkTile> {
     final ok = await confirmDialog(
       context,
       title: 'Odpojit kalendář?',
-      message: 'Nové starty se přestanou přidávat. Kalendář „Termínátor" '
-          'ti v Googlu zůstane i s tím, co v něm je — smazat si ho můžeš '
-          'sám(a).',
-      confirmLabel: 'Odpojit',
+      message: 'Kalendář „Termínátor" se z Googlu smaže i se starty — po '
+          'odpojení už na něj appka nedosáhne, nechat ho by znamenalo '
+          'hromadit mrtvé kopie. Propojit se můžeš kdykoli znovu, starty '
+          'se nahrají čerstvé.',
+      confirmLabel: 'Odpojit a smazat',
     );
     if (!ok || !mounted) return;
     setState(() => _busy = true);
@@ -329,8 +330,9 @@ class _CalendarLinkTileState extends ConsumerState<_CalendarLinkTile> {
 }
 
 /// Units for the "reminder ahead" dialog, converted to minutes on save.
+/// Deliberately no minutes — for a bowling start nobody sets "37 minut
+/// předem", and two units keep the dialog one glance wide.
 enum _ReminderUnit {
-  minutes('minuty', 1),
   hours('hodiny', 60),
   days('dny', 1440);
 

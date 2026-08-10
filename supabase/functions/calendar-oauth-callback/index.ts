@@ -15,7 +15,6 @@ import {
   createSecondaryCalendar,
   emailFromIdToken,
   exchangeCode,
-  findAppCalendar,
 } from "../_shared/google_calendar.ts";
 
 const supabase = createClient(
@@ -108,13 +107,11 @@ Deno.serve(async (request) => {
   // 3. Kalendář zakládáme hned, ne přes job: člověk se dívá a čekat pár minut
   // na „propojeno" by bylo divné. Když to spadne, token zůstane uložený
   // (status pending) a stačí zkusit propojení znovu bez nového souhlasu.
-  // Při RE-propojení (odpojit+propojit, nebo po `broken`) se nejdřív hledá
-  // kalendář, který tu appka založila minule — nový vedle něj by uživateli
-  // zdvojil starty; deterministická id událostí pak backfill promění v
-  // idempotentní přepis těch stávajících.
+  // Vždy vzniká ČERSTVÝ kalendář: ke staršímu se přes hranici odvolaného
+  // souhlasu nejde dostat (list 403, get 404 — viz 0031), duplicitám brání
+  // to, že odpojení svůj kalendář maže.
   try {
-    const calendarId = await findAppCalendar(tokens.accessToken) ??
-      await createSecondaryCalendar(tokens.accessToken);
+    const calendarId = await createSecondaryCalendar(tokens.accessToken);
     await supabase.from("google_calendar_tokens")
       .update({ google_calendar_id: calendarId, updated_at: now })
       .eq("user_id", userId);

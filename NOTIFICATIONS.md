@@ -52,7 +52,8 @@ minutový pg_cron `notification-jobs` → EF `processJobs()`.
 | `assigned`         | roster insert cizí rukou          | po 3 min: „Hraješ …" dotyčnému; smazán roster deletem (undo) |
 | `removed`          | roster delete cizí rukou          | po 3 min: „Už nehraješ …"; smazán roster insertem (undo) |
 | `calendar_sync`    | roster insert/delete, zrušení objednávky, navázání slotu na objednávku | po 3 min sesouhlasí jeden start s Google kalendářem (0027/0028) — viz níž |
-| `calendar_reminders` | RPC `set_calendar_reminders` (Nastavení) | propíše preferenci připomínek jako defaultReminders kalendáře (0029); debounce = rychlé přepínání skončí u poslední hodnoty |
+| `calendar_reminders` | RPC `set_calendar_reminders` (Nastavení) | propíše preferenci připomínek jako defaultReminders kalendáře (0029/0030); debounce = rychlé přepínání skončí u poslední hodnoty |
+| `calendar_disconnect` | RPC `disconnect_calendar` (Nastavení) | smaže kalendář v Googlu (poslední šance — po revoke na něj appka nikdy nedosáhne), odvolá token, zapomene řádky (0031); guard na status `disconnecting` kryje závod s novým propojením |
 
 ### Výjimka: `calendar_sync` (0027)
 

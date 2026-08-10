@@ -20,12 +20,14 @@
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
+  deleteCalendar,
   deleteEvent,
   durationMinutes,
   eventIdFor,
   GoogleAuthError,
   localDateTime,
   refreshAccessToken,
+  revokeToken,
   setDefaultReminders,
   upsertEvent,
 } from "../_shared/google_calendar.ts";
@@ -660,7 +662,60 @@ async function jobCalendarReminders(
   }
 }
 
-const CALENDAR_KINDS = new Set(["calendar_sync", "calendar_reminders"]);
+/** Odpojení (0031): smazat kalendář v Googlu (poslední chvíle, kdy na něj
+ * appka dosáhne — po revoke už nikdy), odvolat token a zapomenout obě řádky.
+ * Guard na status 'disconnecting': když mezitím proběhlo nové propojení
+ * (callback přepsal status), job nesmí sahat na nový stav. */
+async function jobCalendarDisconnect(
+  payload: Record<string, unknown>,
+): Promise<boolean> {
+  const userId = payload.user_id as string;
+  if (!userId) return true;
+
+  const { data: link } = await supabase.from("google_calendar_links")
+    .select("status").eq("user_id", userId).maybeSingle();
+  if (link?.status !== "disconnecting") return true; // relink race — nech být
+
+  const { data: token } = await supabase.from("google_calendar_tokens")
+    .select("refresh_token, google_calendar_id")
+    .eq("user_id", userId).maybeSingle();
+
+  if (token?.refresh_token) {
+    try {
+      const accessToken = await refreshAccessToken(
+        token.refresh_token as string,
+      );
+      if (token.google_calendar_id) {
+        const result = await deleteCalendar(
+          accessToken,
+          token.google_calendar_id as string,
+        );
+        if (result === "retry") return false; // Google 5xx — zkusit znovu
+      }
+    } catch (error) {
+      if (
+        !(error instanceof GoogleAuthError && error.code === "invalid_grant")
+      ) {
+        console.error(`disconnect refresh failed for ${userId}:`, error);
+        return false; // transientní — kalendář se ještě dá smazat, zkusit
+      }
+      // invalid_grant: token je mrtvý, kalendář už nesmažeme — jen uklidit.
+    }
+    await revokeToken(token.refresh_token as string);
+  }
+
+  await supabase.from("google_calendar_tokens").delete()
+    .eq("user_id", userId);
+  await supabase.from("google_calendar_links").delete()
+    .eq("user_id", userId).eq("status", "disconnecting");
+  return true;
+}
+
+const CALENDAR_KINDS = new Set([
+  "calendar_sync",
+  "calendar_reminders",
+  "calendar_disconnect",
+]);
 const CALENDAR_MAX_ATTEMPTS = 5;
 /** Kolik kalendářových jobů běží naráz. Každý sahá 2× na Google, takže
  * sériově by 100 jobů snadno přerostlo časový limit funkce. */
@@ -712,9 +767,16 @@ async function processJobs() {
         let done = true;
         try {
           const payload = job.payload as Record<string, unknown>;
-          done = job.kind === "calendar_reminders"
-            ? await jobCalendarReminders(payload)
-            : await jobCalendarSync(payload);
+          switch (job.kind as string) {
+            case "calendar_reminders":
+              done = await jobCalendarReminders(payload);
+              break;
+            case "calendar_disconnect":
+              done = await jobCalendarDisconnect(payload);
+              break;
+            default:
+              done = await jobCalendarSync(payload);
+          }
         } catch (error) {
           // Nečekaná chyba (bug) — nezacyklit se na ní, job zahodit.
           console.error(`job ${job.kind}/${job.id} failed:`, error);
