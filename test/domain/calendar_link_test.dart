@@ -60,6 +60,19 @@ void main() {
         '2 dny předem · 2 h předem');
   });
 
+  // A cleanly disconnected row stays behind as 'unlinked' (it keeps the
+  // reminder preference); the tile must read that as "offer Propojit".
+  test('unlinked reads as not linked', () {
+    final link = CalendarLink.fromJson({
+      'status': 'unlinked',
+      'reminder_minutes': [1440],
+    });
+    expect(link.status, CalendarLinkStatus.notLinked);
+    expect(link.isLinked, isFalse);
+    // The preference survives for the next link.
+    expect(link.reminderMinutes, [1440]);
+  });
+
   // The backend may grow states this build has never heard of; anything
   // unknown must read as "not linked" rather than blow up the settings tile.
   test('unknown or missing status falls back to not linked', () {

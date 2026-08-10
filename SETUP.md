@@ -148,6 +148,7 @@ changes.
    ```bash
    supabase secrets set GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...
    supabase functions deploy calendar-oauth-callback --no-verify-jwt
+   supabase functions deploy calendar-manage   # JWT verified: called by the app
    ```
    and pass `--dart-define=GOOGLE_CLIENT_ID=...` when building the app (CI
    reads it from the `GOOGLE_CLIENT_ID` GitHub secret). The **client ID is

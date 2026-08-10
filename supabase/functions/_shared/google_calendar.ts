@@ -93,6 +93,27 @@ export function emailFromIdToken(idToken?: string): string | null {
   }
 }
 
+/** Žije ten kalendář ještě a dosáhne na něj tenhle grant? Uložené id je
+ * jediný způsob, jak se ke „svému" kalendáři dostat — calendarList.list je
+ * pod tímhle scope 403, hledat podle názvu nelze (ověřeno 2026-08-10).
+ * false = smazaný uživatelem NEBO za hranicí odvolaného souhlasu (404);
+ * v obou případech je správná reakce založit čerstvý. */
+export async function calendarExists(
+  accessToken: string,
+  calendarId: string,
+): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    return response.ok;
+  } catch (error) {
+    console.error("calendars.get probe failed (treated as gone):", error);
+    return false;
+  }
+}
+
 /** Smaže kalendář appky (při odpojení — jinak se v účtu hromadí, protože
  * po odvolání souhlasu už na něj appka nikdy nedosáhne: calendarList.list
  * je pod tímhle scope 403 a calendars.get přes hranici grantu 404, ověřeno

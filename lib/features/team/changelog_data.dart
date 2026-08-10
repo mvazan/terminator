@@ -16,9 +16,10 @@ class Release {
 const appChangelog = <Release>[
   Release('2.7.0', '10. 8. 2026', [
     'Připomínky startů po svém: vlastní počet hodin nebo dní předem, '
-        'až 5 připomínek. Předvolby jsou pryč.',
-    'Odpojení kalendáře ho v Googlu rovnou smaže — žádné hromadící se '
-        'kopie „Termínátor". Nové propojení nahraje starty do čistého.',
+        'až 5 připomínek.',
+    'Odpojení počká, až se kalendář v Googlu opravdu smaže — konec '
+        'hromadících se kopií „Termínátor".',
+    'Připomínky přežijí odpojení: po novém propojení se samy vrátí.',
   ]),
   Release('2.6.0', '10. 8. 2026', [
     'Připomínky startů v Google kalendáři si řídíš sám: Nastavení → '

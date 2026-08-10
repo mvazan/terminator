@@ -140,16 +140,29 @@ class _CalendarLinkTileState extends ConsumerState<_CalendarLinkTile> {
       message: 'Kalendář „Termínátor" se z Googlu smaže i se starty — po '
           'odpojení už na něj appka nedosáhne, nechat ho by znamenalo '
           'hromadit mrtvé kopie. Propojit se můžeš kdykoli znovu, starty '
-          'se nahrají čerstvé.',
+          'i připomínky se vrátí.',
       confirmLabel: 'Odpojit a smazat',
     );
     if (!ok || !mounted) return;
     setState(() => _busy = true);
     try {
-      await Api.disconnectCalendar();
-      if (mounted) snack(context, 'Kalendář odpojen.');
+      // Čeká se schválně: dokud odpojení nedoběhne, tile nesmí nabídnout
+      // nové propojení — jinak by po sobě zůstal osiřelý kalendář.
+      final orphaned = await Api.disconnectCalendar();
+      if (mounted) {
+        snack(
+          context,
+          orphaned
+              ? 'Odpojeno. Přístup byl odvolaný už dřív, takže kalendář '
+                  '„Termínátor" v Googlu zůstal — smaž si ho tam sám(a).'
+              : 'Kalendář odpojen a smazán.',
+        );
+      }
     } catch (e) {
-      if (mounted) snack(context, 'Odpojení se nepovedlo: $e');
+      if (mounted) {
+        snack(context, 'Odpojení se nepovedlo, nic se nezměnilo. '
+            'Zkus to prosím znovu.');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

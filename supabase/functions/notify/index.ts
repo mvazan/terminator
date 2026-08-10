@@ -506,7 +506,11 @@ async function markCalendarBroken(userId: string, reason: string) {
       updated_at: new Date().toISOString(),
     })
     .eq("user_id", userId)
-    .neq("status", "broken")
+    // Jen z 'linked'. Job si stav přečte na začátku, pak jde 1-2× do Googlu
+    // a teprve pak sem — mezitím mohlo doběhnout odpojení a dobíhající job
+    // by čerstvé 'unlinked' přepsal zpátky na 'broken'. Zároveň to plní
+    // původní roli (push jen při PŘECHODU, ne při každém dalším selhání).
+    .eq("status", "linked")
     .select("user_id");
   if (!flipped?.length) return;
 

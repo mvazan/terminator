@@ -1000,11 +1000,23 @@ class Api {
     });
   }
 
-  /// Disconnects: the server deletes the "Termínátor" calendar in Google
-  /// (the app can never reach it again after the revoke — narrow-scope
-  /// reality, see 0031), revokes the token and forgets the link. Starts are
-  /// derived data; re-linking backfills them into a fresh calendar.
-  static Future<void> disconnectCalendar() => _db.rpc('disconnect_calendar');
+  /// Disconnects, and waits for it: the server deletes the "Termínátor"
+  /// calendar in Google (the last moment it can — after the revoke the app
+  /// never reaches it again), revokes the token and forgets the link. Runs
+  /// synchronously on purpose, so the tile can't offer "Propojit" while the
+  /// old calendar is still being cleaned up (that race left orphans).
+  ///
+  /// Returns true when the calendar had to be left behind — access was
+  /// already revoked outside the app, so only the user can delete it now.
+  /// Throws on a retryable failure, having changed nothing.
+  static Future<bool> disconnectCalendar() async {
+    final response = await _db.functions.invoke(
+      'calendar-manage',
+      body: {'action': 'disconnect'},
+    );
+    final data = response.data;
+    return data is Map && data['orphaned'] == true;
+  }
 
   /// Stores the reminder offsets (minutes before a start, max 5, max 4 weeks)
   /// and schedules the server to apply them as the calendar's

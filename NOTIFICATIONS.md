@@ -53,7 +53,7 @@ minutový pg_cron `notification-jobs` → EF `processJobs()`.
 | `removed`          | roster delete cizí rukou          | po 3 min: „Už nehraješ …"; smazán roster insertem (undo) |
 | `calendar_sync`    | roster insert/delete, zrušení objednávky, navázání slotu na objednávku | po 3 min sesouhlasí jeden start s Google kalendářem (0027/0028) — viz níž |
 | `calendar_reminders` | RPC `set_calendar_reminders` (Nastavení) | propíše preferenci připomínek jako defaultReminders kalendáře (0029/0030); debounce = rychlé přepínání skončí u poslední hodnoty |
-| `calendar_disconnect` | RPC `disconnect_calendar` (Nastavení) | smaže kalendář v Googlu (poslední šance — po revoke na něj appka nikdy nedosáhne), odvolá token, zapomene řádky (0031); guard na status `disconnecting` kryje závod s novým propojením |
+| `calendar_disconnect` | RPC `disconnect_calendar` — už jen buildy ≤ 54 | totéž co EF `calendar-manage`, jen odloženě (0031); nové buildy tudy nechodí, viz níž |
 
 ### Výjimka: `calendar_sync` (0027)
 
@@ -75,9 +75,26 @@ třemi věcmi a všechny jsou schválně:
 
 Když se propojení zlomí (odvolaný souhlas, smazaný kalendář, prošlý token),
 `markCalendarBroken` pošle dotyčnému JEDNOU osobní push „propoj znovu" —
-jen při přechodu do `broken`, a záměrně mimo `notification_prefs`: je to
-servisní zpráva o rozbité funkci, kterou si člověk sám zapnul, ne dění
-v týmu.
+jen při přechodu **z `linked`** do `broken`, a záměrně mimo
+`notification_prefs`: je to servisní zpráva o rozbité funkci, kterou si
+člověk sám zapnul, ne dění v týmu. Ta podmínka na `linked` je zároveň
+pojistka: job si stav přečte na začátku, pak jde do Googlu, a mezitím mohlo
+doběhnout odpojení — bez ní by dobíhající job přepsal čerstvé `unlinked`
+zpátky na `broken`.
+
+### Co NEjde přes joby: odpojení kalendáře
+
+Odpojení musí nejdřív smazat kalendář v Googlu a teprve pak odvolat token —
+po revoke už na něj appka nikdy nedosáhne (`calendarList.list` je pod scope
+`calendar.app.created` 403, `calendars.get` přes hranici grantu 404).
+Odložený job na to nestačil: minutu trvající okno stačilo, aby dlaždice
+nabídla „Propojit", člověk propojil znovu a starý kalendář osiřel.
+
+Proto to dělá **EF `calendar-manage` synchronně** (nasazená s ověřováním
+JWT, volá ji appka přes `functions.invoke`): smazat → odvolat → zapomenout,
+a teprve pak odpoví. Selhání, které jde zopakovat, nezmění vůbec nic.
+Řádek v `google_calendar_links` přežívá jako `unlinked` i s
+`reminder_minutes`, takže po novém propojení se připomínky samy obnoví.
 
 ### Kandidáti na přesun (fáze 2)
 

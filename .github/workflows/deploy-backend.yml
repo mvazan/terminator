@@ -33,3 +33,8 @@ jobs:
         # can't carry a JWT; the function trusts the one-time `state` nonce
         # from start_calendar_link() instead (0027).
         run: supabase functions deploy calendar-oauth-callback --no-verify-jwt
+      - name: Deploy calendar-manage function
+        # Deliberately WITHOUT --no-verify-jwt: this one is called from the
+        # app by a signed-in user (functions.invoke attaches their JWT), so
+        # the platform verifies it before the function even runs.
+        run: supabase functions deploy calendar-manage

@@ -12,9 +12,11 @@
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
+  calendarExists,
   createSecondaryCalendar,
   emailFromIdToken,
   exchangeCode,
+  setDefaultReminders,
 } from "../_shared/google_calendar.ts";
 
 const supabase = createClient(
@@ -83,14 +85,26 @@ Deno.serve(async (request) => {
     return page("google");
   }
 
+  // Co o tomhle člověku víme z minula, PŘED přepsáním tokenů: id kalendáře
+  // (kandidát na znovupoužití) a preference připomínek (odpojení řádek
+  // nemaže, jen zbavuje tokenů — ať se připomínky po propojení samy vrátí).
+  const { data: previous } = await supabase.from("google_calendar_tokens")
+    .select("google_calendar_id").eq("user_id", userId).maybeSingle();
+  const previousCalendarId = previous?.google_calendar_id as string | null;
+  const { data: prefs } = await supabase.from("google_calendar_links")
+    .select("reminder_minutes").eq("user_id", userId).maybeSingle();
+  const reminderMinutes = (prefs?.reminder_minutes as number[] | null) ?? [];
+
   const now = new Date().toISOString();
   const { error: tokenError } = await supabase.from("google_calendar_tokens")
     .upsert({
       user_id: userId,
       refresh_token: tokens.refreshToken,
-      google_calendar_id: null,
+      google_calendar_id: previousCalendarId,
       updated_at: now,
     });
+  // reminder_minutes se schválně NEPOSÍLÁ: on-conflict přepisuje jen poslané
+  // sloupce, takže preference přežije i tenhle upsert.
   const { error: linkError } = await supabase.from("google_calendar_links")
     .upsert({
       user_id: userId,
@@ -104,23 +118,49 @@ Deno.serve(async (request) => {
     return page("chyba");
   }
 
-  // 3. Kalendář zakládáme hned, ne přes job: člověk se dívá a čekat pár minut
+  // 3. Kalendář řešíme hned, ne přes job: člověk se dívá a čekat pár minut
   // na „propojeno" by bylo divné. Když to spadne, token zůstane uložený
   // (status pending) a stačí zkusit propojení znovu bez nového souhlasu.
-  // Vždy vzniká ČERSTVÝ kalendář: ke staršímu se přes hranici odvolaného
-  // souhlasu nejde dostat (list 403, get 404 — viz 0031), duplicitám brání
-  // to, že odpojení svůj kalendář maže.
+  // Uvnitř ŽIVÉHO grantu se dřívější kalendář znovupoužije (opakované
+  // „Zkusit znovu" tak nedělá duplicity); přes hranici odvolaného souhlasu
+  // na něj appka nedosáhne (get 404) a vzniká čerstvý.
   try {
-    const calendarId = await createSecondaryCalendar(tokens.accessToken);
+    const reusable = previousCalendarId &&
+      await calendarExists(tokens.accessToken, previousCalendarId);
+    const calendarId = reusable
+      ? previousCalendarId
+      : await createSecondaryCalendar(tokens.accessToken);
     await supabase.from("google_calendar_tokens")
       .update({ google_calendar_id: calendarId, updated_at: now })
       .eq("user_id", userId);
     await supabase.from("google_calendar_links")
       .update({ status: "linked", updated_at: now })
       .eq("user_id", userId);
+
+    // Připomínky z minula obnovit hned; když Google zrovna zlobí, doveze je
+    // job (stejná cesta, jakou používá set_calendar_reminders).
+    if (reminderMinutes.length > 0) {
+      const applied = await setDefaultReminders(
+        tokens.accessToken,
+        calendarId,
+        reminderMinutes,
+      );
+      if (applied !== "ok") {
+        await supabase.rpc("enqueue_notification", {
+          p_kind: "calendar_reminders",
+          p_key: `calendar_reminders:${userId}`,
+          p_payload: { user_id: userId },
+          p_delay: "0 seconds",
+        });
+      }
+    }
+
     const { data: enqueued } = await supabase
       .rpc("backfill_calendar_jobs", { p_user_id: userId });
-    console.log(`calendar linked for ${userId}, backfilled ${enqueued} jobs`);
+    console.log(
+      `calendar linked for ${userId} (${reusable ? "reused" : "created"}), ` +
+        `backfilled ${enqueued} jobs`,
+    );
     return page("ok");
   } catch (error) {
     console.error("calendar creation failed:", error);
