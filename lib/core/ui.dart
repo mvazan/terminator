@@ -101,6 +101,15 @@ String? businessError(Object e) {
   if (s.contains('validation_failed') && s.contains('email')) {
     return 'Tenhle e-mail nevypadá platně — zkontroluj překlepy.';
   }
+  // Unique violations mean someone else got there first (or the realtime
+  // stream dropped and this device is showing a stale list) — the DB doing
+  // its job, not a defect. Say it plainly instead of leaking SQL.
+  if (s.contains('rosters_slot_user_idx')) {
+    return 'Tenhle člověk už na startu je — seznam se mezitím změnil.';
+  }
+  if (s.contains('chat_mutes_unique_idx')) {
+    return 'Tenhle chat už ztlumený je.';
+  }
   return null;
 }
 

@@ -14,14 +14,13 @@ class Release {
 }
 
 const appChangelog = <Release>[
-  Release('2.5.0', '10. 8. 2026', [
+  Release('2.5.1', '10. 8. 2026', [
     'Nastavení → Kalendář: propoj Google účet a tvoje starty se samy '
-        'objeví v novém kalendáři „Termínátor" — s adresou kuželny a '
+        'objeví v kalendáři „Termínátor" — s adresou kuželny a '
         'připomínkou den a dvě hodiny předem.',
-    'Když se objednávka zruší nebo tě z ní někdo odebere, událost z '
-        'kalendáře sama zmizí.',
-    'Appka vidí jen svůj vlastní kalendář, do ostatních ti nevidí. '
-        'Odpojit jde kdykoli tamtéž.',
+    'Zrušená objednávka nebo odebrání ze sestavy událost zase smaže.',
+    'Appka vidí jen svůj kalendář, do ostatních ne. Odpojit jde kdykoli.',
+    'Přidání někoho, kdo na startu mezitím přibyl, řekne appka po lidsku.',
   ]),
   Release('2.4.0', '23. 7. 2026', [
     'Když už někde v daný den hraješ, tvůj zájem o ostatní termíny toho '
