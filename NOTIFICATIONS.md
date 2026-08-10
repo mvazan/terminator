@@ -52,8 +52,6 @@ minutový pg_cron `notification-jobs` → EF `processJobs()`.
 | `assigned`         | roster insert cizí rukou          | po 3 min: „Hraješ …" dotyčnému; smazán roster deletem (undo) |
 | `removed`          | roster delete cizí rukou          | po 3 min: „Už nehraješ …"; smazán roster insertem (undo) |
 | `calendar_sync`    | roster insert/delete, zrušení objednávky, navázání slotu na objednávku | po 3 min sesouhlasí jeden start s Google kalendářem (0027/0028) — viz níž |
-| `calendar_reminders` | RPC `set_calendar_reminders` (Nastavení) | změna preference připomínek: naplánuje přepsání všech budoucích startů (0029/0030), připomínky nesou samy události — viz níž |
-| `calendar_disconnect` | RPC `disconnect_calendar` — už jen buildy ≤ 54 | totéž co EF `calendar-manage`, jen odloženě (0031); nové buildy tudy nechodí, viz níž |
 
 ### Výjimka: `calendar_sync` (0027)
 
@@ -102,25 +100,32 @@ tak. Ušetřilo by to pár řádků kódu, které fungují.
 
 Důsledky, na kterých stojí návrh:
 - **Připomínky patří do událostí** (`reminders.overrides`), ne na kalendář.
-  Změna preference proto přepisuje všechny budoucí starty (job výš).
+  Změna preference proto přepisuje všechny budoucí starty — synchronně,
+  viz níž.
 - **Kalendář nelze najít podle názvu**, jediný zdroj pravdy je uložené id.
 - Po odvolání souhlasu je i `calendars.get` na starý kalendář 404 — appka
   se k němu už nikdy nedostane, proto ho odpojení maže dřív, než odvolá
   token.
 
-### Co NEjde přes joby: odpojení kalendáře
+### Co NEjde přes joby: co si vyžádal uživatel
 
-Odpojení musí nejdřív smazat kalendář v Googlu a teprve pak odvolat token —
-po revoke už na něj appka nikdy nedosáhne (`calendarList.list` je pod scope
-`calendar.app.created` 403, `calendars.get` přes hranici grantu 404).
-Odložený job na to nestačil: minutu trvající okno stačilo, aby dlaždice
-nabídla „Propojit", člověk propojil znovu a starý kalendář osiřel.
+Job je správná odpověď na změnu, kterou vyvolal NĚKDO JINÝ — přidal tě do
+sestavy, zrušil objednávku. Tam žádný „tvůj" request není a je co opakovat,
+když Google zlobí. Přesně to dělá `calendar_sync`.
 
-Proto to dělá **EF `calendar-manage` synchronně** (nasazená s ověřováním
-JWT, volá ji appka přes `functions.invoke`): smazat → odvolat → zapomenout,
-a teprve pak odpoví. Selhání, které jde zopakovat, nezmění vůbec nic.
-Řádek v `google_calendar_links` přežívá jako `unlinked` i s
+Na věci, u kterých člověk stojí nad obrazovkou a čeká, jsou joby špatně:
+minutový cron znamená minutu ticha, která vypadá jako rozbitá appka — a u
+odpojení navíc otevírala okno, ve kterém dlaždice nabídla „Propojit" dřív,
+než se stihl smazat starý kalendář (odtud osiřelé kopie). Proto **propojení,
+odpojení i změna připomínek běží synchronně** (`calendar-oauth-callback`,
+resp. EF `calendar-manage` volaná z appky přes `functions.invoke`
+s ověřeným JWT): server to udělá a teprve pak odpoví, měřeno ~1 s.
+
+Odpojení přitom musí smazat kalendář DŘÍV, než odvolá token — po revoke už
+na něj appka nikdy nedosáhne. Selhání, které jde zopakovat, nezmění vůbec
+nic. Řádek v `google_calendar_links` přežívá jako `unlinked` i s
 `reminder_minutes`, takže po novém propojení se připomínky samy obnoví.
+Joby se u těchhle akcí zařadí jen jako záchranná síť pro to, co selhalo.
 
 ### Kandidáti na přesun (fáze 2)
 
