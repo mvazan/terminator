@@ -52,7 +52,7 @@ minutový pg_cron `notification-jobs` → EF `processJobs()`.
 | `assigned`         | roster insert cizí rukou          | po 3 min: „Hraješ …" dotyčnému; smazán roster deletem (undo) |
 | `removed`          | roster delete cizí rukou          | po 3 min: „Už nehraješ …"; smazán roster insertem (undo) |
 | `calendar_sync`    | roster insert/delete, zrušení objednávky, navázání slotu na objednávku | po 3 min sesouhlasí jeden start s Google kalendářem (0027/0028) — viz níž |
-| `calendar_reminders` | RPC `set_calendar_reminders` (Nastavení) | propíše preferenci připomínek jako defaultReminders kalendáře (0029/0030); debounce = rychlé přepínání skončí u poslední hodnoty |
+| `calendar_reminders` | RPC `set_calendar_reminders` (Nastavení) | změna preference připomínek: naplánuje přepsání všech budoucích startů (0029/0030), připomínky nesou samy události — viz níž |
 | `calendar_disconnect` | RPC `disconnect_calendar` — už jen buildy ≤ 54 | totéž co EF `calendar-manage`, jen odloženě (0031); nové buildy tudy nechodí, viz níž |
 
 ### Výjimka: `calendar_sync` (0027)
@@ -81,6 +81,32 @@ jen při přechodu **z `linked`** do `broken`, a záměrně mimo
 pojistka: job si stav přečte na začátku, pak jde do Googlu, a mezitím mohlo
 doběhnout odpojení — bez ní by dobíhající job přepsal čerstvé `unlinked`
 zpátky na `broken`.
+
+### Co scope calendar.app.created NEdovolí (ověřeno proti ostrému API)
+
+`calendars.get`, zakládání/mazání kalendáře i zápis událostí fungují. Ale
+**celá větev `calendarList` vrací 401 „Invalid Credentials"** — i pro
+kalendář, který si appka sama založila. Takže `calendarList.list` (hledání
+podle názvu) ani `calendarList.patch` (defaultReminders) nejsou k dispozici
+a nikdy nebudou; fake Google v testech je klidně přijme, pravdu řekne jen
+ostré API.
+
+Je to hranice scope, ne chyba: `calendarList` je seznam kalendářů, které
+odebírá UŽIVATEL (jeho barvy, jeho výchozí připomínky) — appka „vlastní"
+jen kalendář, který sama založila, ne cizí seznam. Rozšiřovat kvůli tomu
+oprávnění nemá smysl: `calendar.calendarlist` znamená přístup ke VŠEM
+kalendářům, vyžádá si nový souhlas celého týmu a přepis zásad — a stejně
+by nic nevyřešil, protože přes hranici odvolaného souhlasu je i
+`calendars.get` 404, takže do starého kalendáře by se psát nedalo tak jako
+tak. Ušetřilo by to pár řádků kódu, které fungují.
+
+Důsledky, na kterých stojí návrh:
+- **Připomínky patří do událostí** (`reminders.overrides`), ne na kalendář.
+  Změna preference proto přepisuje všechny budoucí starty (job výš).
+- **Kalendář nelze najít podle názvu**, jediný zdroj pravdy je uložené id.
+- Po odvolání souhlasu je i `calendars.get` na starý kalendář 404 — appka
+  se k němu už nikdy nedostane, proto ho odpojení maže dřív, než odvolá
+  token.
 
 ### Co NEjde přes joby: odpojení kalendáře
 
