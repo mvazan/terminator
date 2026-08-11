@@ -1,7 +1,10 @@
 name: Supabase keep-alive
 
-# The Supabase free tier pauses projects after ~7 days without API activity.
-# Two pings a week keep Termínátor awake.
+# The Supabase free tier pauses projects after ~7 days without activity.
+# Two pings a week keep Termínátor awake. The ping is the anon-callable
+# ping() function (0029) — tables are authenticated-only on purpose, so a
+# table select would (and did) 401. No Authorization header: the new
+# sb_publishable_* key is not a JWT and belongs in `apikey` alone.
 on:
   schedule:
     - cron: '0 6 * * 1,4' # Monday and Thursday 06:00 UTC
@@ -14,8 +17,7 @@ jobs:
       - name: Ping database
         run: |
           curl --fail --silent --show-error \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/tournaments?select=id&limit=1" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
-            > /dev/null
+            --retry 3 --retry-delay 60 --retry-all-errors \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/rpc/ping" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}"
           echo "Supabase pinged."
