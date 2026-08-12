@@ -4,6 +4,7 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -261,6 +262,72 @@ void launchMap(String address) => _launchExternal(
 
 void _launchExternal(Uri uri) =>
     launchUrl(uri, mode: LaunchMode.externalApplication);
+
+/// Text whose URLs open in the browser on tap; the whole body is selectable,
+/// so a long press copies (organizer notes carry links to propozice etc.).
+/// The chat bubble keeps its own inline variant — it colors links per bubble.
+class LinkifiedText extends StatefulWidget {
+  const LinkifiedText(this.text, {super.key, this.style});
+
+  final String text;
+  final TextStyle? style;
+
+  @override
+  State<LinkifiedText> createState() => _LinkifiedTextState();
+}
+
+class _LinkifiedTextState extends State<LinkifiedText> {
+  final _recognizers = <TapGestureRecognizer>[];
+
+  static final _urlPattern = RegExp(r'https?://[^\s]+');
+
+  @override
+  void dispose() {
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    _recognizers.clear();
+    final spans = <InlineSpan>[];
+    final text = widget.text;
+    var index = 0;
+    for (final match in _urlPattern.allMatches(text)) {
+      if (match.start > index) {
+        spans.add(TextSpan(text: text.substring(index, match.start)));
+      }
+      // Trailing punctuation belongs to the sentence, not the URL.
+      var url = match.group(0)!;
+      var end = match.end;
+      while (url.isNotEmpty && '.,;:)]}'.contains(url[url.length - 1])) {
+        url = url.substring(0, url.length - 1);
+        end--;
+      }
+      final recognizer = TapGestureRecognizer()..onTap = () => launchWeb(url);
+      _recognizers.add(recognizer);
+      spans.add(TextSpan(
+        text: url,
+        recognizer: recognizer,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.primary,
+          decoration: TextDecoration.underline,
+        ),
+      ));
+      index = end;
+    }
+    if (index < text.length) {
+      spans.add(TextSpan(text: text.substring(index)));
+    }
+    return SelectableText.rich(
+        TextSpan(style: widget.style, children: spans));
+  }
+}
 
 String memberName(List<Profile> members, String userId) {
   for (final m in members) {

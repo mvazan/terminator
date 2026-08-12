@@ -599,7 +599,8 @@ class _InfoCard extends StatelessWidget {
             if (t.notes.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Text(t.notes,
+                // Links in notes are tappable; long-press selects & copies.
+                child: LinkifiedText(t.notes,
                     style: Theme.of(context).textTheme.bodySmall),
               ),
           ],

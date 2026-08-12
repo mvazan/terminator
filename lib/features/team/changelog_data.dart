@@ -14,6 +14,10 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.8.1', '12. 8. 2026', [
+    'Odkazy v poznámkách u turnaje i objednávky jsou klepnutelné a text '
+        'jde označit a zkopírovat — konec opisování adres z propozic.',
+  ]),
   Release('2.8.0', '12. 8. 2026', [
     'Termíny se dají importovat i z rezervačních appek na Google Apps '
         'Script (zatím Hanácká 240) — a nová disciplína 240HS.',

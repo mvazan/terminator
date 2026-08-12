@@ -74,7 +74,9 @@ class OrderCard extends ConsumerWidget {
             ),
             Text(daysLabel),
             if (order.note.isNotEmpty)
-              Text(order.note, style: Theme.of(context).textTheme.bodySmall),
+              // Notes carry links (propozice, platba) — tappable + selectable.
+              LinkifiedText(order.note,
+                  style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 8),
             if (order.isProposal)
               _ProposalVoting(
