@@ -129,21 +129,36 @@ class _TournamentDetailScreenState
         .toList()
       ..sort(Slot.compare);
     // The grid collects interest, so it shows only starts with free lanes —
-    // full ones (foreign or ours) are hidden. Ordered starts live in the
-    // green chips + the Objednávky section instead. History keeps everything.
+    // full ones (foreign or ours) are hidden, and so are venue-cancelled
+    // starts. Ordered starts live in the green chips + the Objednávky
+    // section instead. History keeps everything (except cancelled — those
+    // were never played).
     final slots = [
       for (final s in allSlots)
-        if (ended || !s.venueFull) s,
+        if (!s.cancelled && (ended || !s.venueFull)) s,
     ];
     // Ordered starts per day (from ALL slots — a fully booked ordered start
-    // isn't in the grid anymore): the day's green chips.
+    // isn't in the grid anymore): the day's green chips. A venue-cancelled
+    // ordered start stays visible here, marked — cancelling or re-ordering
+    // is the humans' call.
     final orderedChipsByDay =
-        <Day, List<({HourMinute time, int lanes, int players})>>{};
+        <Day,
+            List<
+                ({
+                  HourMinute time,
+                  int lanes,
+                  int players,
+                  bool cancelled
+                })>>{};
     for (final s in allSlots) {
       final lanes = orderedLanesBySlot[s.id] ?? 0;
       if (lanes == 0) continue;
-      orderedChipsByDay.putIfAbsent(s.date, () => []).add(
-          (time: s.time, lanes: lanes, players: assignedBySlot[s.id] ?? 0));
+      orderedChipsByDay.putIfAbsent(s.date, () => []).add((
+        time: s.time,
+        lanes: lanes,
+        players: assignedBySlot[s.id] ?? 0,
+        cancelled: s.cancelled,
+      ));
     }
     for (final chips in orderedChipsByDay.values) {
       chips.sort((a, b) => a.time.compareTo(b.time));
@@ -625,7 +640,8 @@ class _DayRow extends ConsumerStatefulWidget {
 
   /// This day's ordered starts — rendered as green chips above the cells;
   /// tapping one jumps to the Objednávky section.
-  final List<({HourMinute time, int lanes, int players})> orderedChips;
+  final List<({HourMinute time, int lanes, int players, bool cancelled})>
+      orderedChips;
   final VoidCallback? onOrderedTap;
 
   /// Non-null when I'm already committed to play this day: the venue name(s)
@@ -735,17 +751,26 @@ class _DayRowState extends ConsumerState<_DayRow> {
                 runSpacing: 4,
                 children: [
                   for (final chip in widget.orderedChips)
+                    // Red variant: the venue cancelled this ordered start —
+                    // the order itself stays until the team cancels or
+                    // re-orders it.
                     ActionChip(
-                      avatar: const Icon(Icons.check_circle,
-                          size: 16, color: Colors.green),
+                      avatar: Icon(
+                          chip.cancelled
+                              ? Icons.event_busy
+                              : Icons.check_circle,
+                          size: 16,
+                          color: chip.cancelled ? Colors.red : Colors.green),
                       label: Text(
                           '${chip.time.display()} · '
                           '${lanesLabel(chip.lanes)} · '
-                          '${peopleLabel(chip.players)}'),
-                      side: const BorderSide(color: Colors.green),
+                          '${peopleLabel(chip.players)}'
+                          '${chip.cancelled ? ' · zrušeno kuželnou' : ''}'),
+                      side: BorderSide(
+                          color: chip.cancelled ? Colors.red : Colors.green),
                       backgroundColor: Color.lerp(
                           Theme.of(context).colorScheme.surface,
-                          Colors.green,
+                          chip.cancelled ? Colors.red : Colors.green,
                           0.12),
                       onPressed: widget.onOrderedTap,
                     ),

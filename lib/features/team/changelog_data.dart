@@ -14,6 +14,17 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.8.0', '12. 8. 2026', [
+    'Termíny se dají importovat i z rezervačních appek na Google Apps '
+        'Script (zatím Hanácká 240) — a nová disciplína 240HS.',
+    'Zrušil kuželna termín? Appka to pozná při dalším otevření turnaje: '
+        'termín zmizí z nabídky i sezónního kalendáře, lidem se zájmem '
+        'přijde upozornění a dotčená objednávka je červeně označená.',
+    'Sezónní kalendář defaultně skrývá skončené turnaje — oko v horní '
+        'liště je vrátí zpět i se skrytými.',
+    'Moje starty: nová sekce „Volná místa" — objednávky s volným místem '
+        'ze všech turnajů na jednom místě, klepnutím rovnou k přihlášení.',
+  ]),
   Release('2.7.0', '10. 8. 2026', [
     'Připomínky startů po svém: vlastní počet hodin nebo dní předem, '
         'až 5 připomínek.',

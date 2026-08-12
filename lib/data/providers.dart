@@ -156,7 +156,12 @@ final tournamentInterestProvider =
     Provider<Map<String, TournamentInterest>>((ref) {
   final now = Day.fromDateTime(DateTime.now());
   return interestByTournament(
-    slots: ref.watch(slotsProvider).value ?? const [],
+    // Venue-cancelled starts don't exist anymore — ticks on them must not
+    // inflate the list's interest counts.
+    slots: [
+      for (final s in ref.watch(slotsProvider).value ?? const <Slot>[])
+        if (!s.cancelled) s,
+    ],
     // Effective (not raw): players already committed elsewhere that day
     // don't inflate the list's interest counts.
     availability: ref.watch(effectiveAvailabilityProvider),
@@ -732,6 +737,35 @@ class Api {
     final venueSlots = result.slots;
     if (venueSlots.isEmpty) {
       throw Exception('stránka neobsahuje rezervační tabulku');
+    }
+
+    // Venue-cancelled starts: scraped slots that vanished from the page get
+    // cancelled_at (soft — availability and order_slots survive; the DB
+    // trigger enqueues the slots_cancelled notification), reappearing ones
+    // revive. Runs only after a successful scrape with a non-empty grid, so
+    // an unreachable page can never cancel anything.
+    final existingRows = await _db
+        .from('slots')
+        .select('id, date, time, venue_capacity, cancelled_at')
+        .eq('tournament_id', tournamentId);
+    final diff = diffCancelledSlots(
+      existing: [
+        for (final r in existingRows)
+          Slot.fromJson({...r, 'tournament_id': tournamentId}),
+      ],
+      fresh: venueSlots,
+    );
+    if (diff.cancel.isNotEmpty) {
+      await _db
+          .from('slots')
+          .update({'cancelled_at': DateTime.now().toUtc().toIso8601String()})
+          .inFilter('id', diff.cancel);
+    }
+    if (diff.revive.isNotEmpty) {
+      await _db
+          .from('slots')
+          .update({'cancelled_at': null})
+          .inFilter('id', diff.revive);
     }
 
     await _db.from('slots').upsert(

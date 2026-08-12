@@ -463,6 +463,43 @@ async function jobFreeSpots(payload: Record<string, unknown>) {
   );
 }
 
+/** Kuželna zrušila starty (0037): scrape zjistil, že termíny zmizely ze
+ * stránky pořadatele. Jeden push na turnaj+den (dedupe key), příjemci jsou
+ * lidé se zájmem (availability) na zrušených startech toho dne. Revalidace:
+ * čte se stav v okamžiku odeslání — když mezitím starty ožily, mlčí. */
+async function jobSlotsCancelled(payload: Record<string, unknown>) {
+  const tournamentId = payload.tournament_id as string;
+  const date = payload.date as string;
+  const { data: cancelled } = await supabase.from("slots")
+    .select("id, time")
+    .eq("tournament_id", tournamentId)
+    .eq("date", date)
+    .not("cancelled_at", "is", null);
+  if (!cancelled?.length) return; // vše zase platí → ticho
+  const { data: tournament } = await supabase.from("tournaments")
+    .select("id, name, team_id")
+    .eq("id", tournamentId)
+    .maybeSingle();
+  if (!tournament) return;
+  const { data: ticks } = await supabase.from("availability")
+    .select("user_id")
+    .in("slot_id", cancelled.map((s) => s.id));
+  const interested = new Set((ticks ?? []).map((t) => t.user_id as string));
+  if (!interested.size) return; // nikdo neměl zájem → není koho varovat
+  const times = cancelled
+    .map((s) => s.time as string)
+    .sort()
+    .map(timeLabel)
+    .join(", ");
+  await sendToTokens(
+    await teamTokens("order", [], tournament.team_id, interested),
+    `Kuželna zrušila termíny: ${tournament.name}`,
+    `${dayLabel(date)} — zrušené starty: ${times}. Tvůj zájem u těchto ` +
+      `časů už neplatí.`,
+    { kind: "order", tournament_id: tournamentId },
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Google Calendar sync (0027)
 // ---------------------------------------------------------------------------
@@ -664,6 +701,9 @@ async function processJobs() {
           break;
         case "order_free_spots":
           await jobFreeSpots(payload);
+          break;
+        case "slots_cancelled":
+          await jobSlotsCancelled(payload);
           break;
         default:
           console.error(`unknown job kind: ${job.kind}`);
@@ -937,10 +977,13 @@ async function handle(payload: WebhookPayload) {
       if (!cooldown || cooldown.length === 0) return;
 
       // Summarize every upcoming slot that currently has enough players.
+      // Venue-cancelled starts (0037) don't exist anymore — old ticks on
+      // them must not advertise an unorderable time.
       const today = new Date().toISOString().slice(0, 10);
       const { data: slots } = await supabase.from("slots")
         .select("id, date, time")
         .eq("tournament_id", slot.tournament_id)
+        .is("cancelled_at", null)
         .gte("date", today);
       const { data: ticks } = await supabase.from("availability")
         .select("slot_id")

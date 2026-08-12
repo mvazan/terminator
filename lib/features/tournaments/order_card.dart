@@ -358,8 +358,15 @@ class _SlotRoster extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('${dayLabel(slot.date)} ${slot.time.display()} · '
-              '${slotPlaces.filled}/${slotPlaces.capacity} hráčů'),
+          // A venue-cancelled start stays in the order, marked — cancelling
+          // or re-ordering the order is the humans' call.
+          Text(
+              '${dayLabel(slot.date)} ${slot.time.display()} · '
+              '${slotPlaces.filled}/${slotPlaces.capacity} hráčů'
+              '${slot.cancelled ? ' · ZRUŠENO KUŽELNOU' : ''}',
+              style: slot.cancelled
+                  ? const TextStyle(color: Colors.red)
+                  : null),
           Wrap(
             spacing: 6,
             runSpacing: 4,

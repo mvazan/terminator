@@ -208,6 +208,7 @@ enum Discipline {
   hs100('100HS'),
   hs120('120HS'),
   hs180('180HS'),
+  hs240('240HS'),
   other('jiné');
 
   const Discipline(this.label);
@@ -319,12 +320,21 @@ class Slot {
     this.venueCapacity,
     this.venueOccupied,
     this.venueOccupiedOurs,
+    this.cancelledAt,
   });
 
   final String id;
   final String tournamentId;
   final Day date;
   final HourMinute time;
+
+  /// Set when the start vanished from the organizer's reservation page
+  /// (venue cancelled it). Cancelled slots are hidden from pickers and the
+  /// season calendar but kept in DB — availability and order_slots survive,
+  /// and the slot revives if the page lists it again.
+  final DateTime? cancelledAt;
+
+  bool get cancelled => cancelledAt != null;
 
   /// Lanes at the venue for this start / already booked there — known only
   /// for scraped tournaments (null = manual slot, no occupancy info).
@@ -350,6 +360,9 @@ class Slot {
         venueCapacity: json['venue_capacity'] as int?,
         venueOccupied: json['venue_occupied'] as int?,
         venueOccupiedOurs: json['venue_occupied_ours'] as int?,
+        cancelledAt: json['cancelled_at'] == null
+            ? null
+            : DateTime.parse(json['cancelled_at'] as String),
       );
 
   static int compare(Slot a, Slot b) =>

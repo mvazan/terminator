@@ -237,6 +237,10 @@ export function durationMinutes(discipline: string | null): number {
       return 135;
     case "180HS":
       return 180;
+    case "240HS":
+      // Maratonský formát (Hanácká 240): hraje se průběžně ve dvouhodinovém
+      // bloku — rezervační rozvrh pořadatele má starty po 2 hodinách.
+      return 120;
     default:
       return 120;
   }

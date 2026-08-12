@@ -22,6 +22,7 @@ void main() {
     List<Order> orders = const [],
     Map<String, Map<String, int>> orderSlots = const {},
     List<RosterEntry> rosters = const [],
+    Day? today,
   }) =>
       ProviderScope(
         overrides: [
@@ -38,7 +39,10 @@ void main() {
           venueNamesProvider.overrideWithValue({'v1': 'Vracov'}),
           currentUserIdProvider.overrideWithValue('me'),
         ],
-        child: const MaterialApp(home: TimelineScreen()),
+        // Fixed "today" before the fixture tournament, so the
+        // ended-tournament filter never hides it as the real date moves on.
+        child: MaterialApp(
+            home: TimelineScreen(today: today ?? Day(2026, 4, 20))),
       );
 
   Finder opaqueBoxes() =>
@@ -53,6 +57,17 @@ void main() {
     expect(size.height, greaterThan(20)); // fills the cell vertically
     // 3/7 of the 84 px cell.
     expect(size.width, closeTo(84 * 3 / 7, 2.0));
+  });
+
+  testWidgets('ended tournament is hidden by default, shown via the toggle',
+      (tester) async {
+    // Fixture ends 26. 4. — a "today" after that makes it ended.
+    await tester.pumpWidget(wrap(today: Day(2026, 5, 1)));
+    expect(opaqueBoxes(), findsNothing);
+
+    await tester.tap(find.byIcon(Icons.visibility_off_outlined));
+    await tester.pumpAndSettle();
+    expect(opaqueBoxes(), findsOneWidget);
   });
 
   testWidgets('my-hidden tournament is only shown via the toggle, in gray',

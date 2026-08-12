@@ -146,4 +146,43 @@ void main() {
       expect(Timeline.build([t]).rows.single.markers, isEmpty);
     });
   });
+
+  group('timelineShows', () {
+    final today = Day(2026, 8, 12);
+    final ended = makeTournament(
+        id: 'ended', startsOn: Day(2026, 7, 1), endsOn: Day(2026, 7, 5));
+    final running = makeTournament(
+        id: 'run', startsOn: Day(2026, 8, 10), endsOn: Day(2026, 8, 16));
+    final endsToday = makeTournament(
+        id: 'today', startsOn: Day(2026, 8, 1), endsOn: Day(2026, 8, 12));
+
+    test('ended tournaments are hidden by default, shown with showAll', () {
+      expect(
+          timelineShows(ended,
+              showAll: false, myHidden: const {}, today: today),
+          isFalse);
+      expect(
+          timelineShows(ended, showAll: true, myHidden: const {}, today: today),
+          isTrue);
+    });
+
+    test('running and ending-today tournaments always show', () {
+      for (final t in [running, endsToday]) {
+        expect(
+            timelineShows(t, showAll: false, myHidden: const {}, today: today),
+            isTrue);
+      }
+    });
+
+    test('my-hidden tournaments follow the same toggle', () {
+      expect(
+          timelineShows(running,
+              showAll: false, myHidden: const {'run'}, today: today),
+          isFalse);
+      expect(
+          timelineShows(running,
+              showAll: true, myHidden: const {'run'}, today: today),
+          isTrue);
+    });
+  });
 }

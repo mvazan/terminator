@@ -7,6 +7,7 @@ library;
 
 import '../domain/models.dart';
 import 'galanta.dart';
+import 'gscript.dart';
 import 'mkware.dart';
 import 'turnajekuzelky.dart';
 
@@ -87,6 +88,30 @@ List<VenueSlot> aggregateTerms(List<VenueTerm> terms,
   return slots;
 }
 
+/// Which stored slots to cancel / revive after a successful scrape.
+///
+/// [cancel]: scraped slots (`venueCapacity != null`) that vanished from the
+/// organizer's page — the venue cancelled them. Manual slots are never
+/// touched, and already-cancelled slots don't re-trigger. [revive]: cancelled
+/// slots the page lists again (the organizer restored them).
+({List<String> cancel, List<String> revive}) diffCancelledSlots({
+  required List<Slot> existing,
+  required List<VenueSlot> fresh,
+}) {
+  final freshKeys = {for (final v in fresh) '${v.date}|${v.time}'};
+  final cancel = <String>[];
+  final revive = <String>[];
+  for (final s in existing) {
+    final onPage = freshKeys.contains('${s.date}|${s.time}');
+    if (s.cancelled) {
+      if (onPage) revive.add(s.id);
+    } else if (s.venueCapacity != null && !onPage) {
+      cancel.add(s.id);
+    }
+  }
+  return (cancel: cancel, revive: revive);
+}
+
 /// The parsed page: the occupancy grid plus whatever tournament details the
 /// page exposes (name, kind, discipline). Detail fields are null when the
 /// page/scraper doesn't provide them — the form then leaves them for the user.
@@ -128,6 +153,9 @@ class ScraperRegistry {
     }
     if (uri.host.endsWith('kolky-galanta.sk')) {
       return GalantaScraper();
+    }
+    if (uri.host == 'script.google.com' && uri.path.contains('/macros/s/')) {
+      return GScriptScraper();
     }
     return null;
   }

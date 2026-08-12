@@ -9,6 +9,7 @@ Tournament makeTournament({
   required Day startsOn,
   required Day endsOn,
   int minPlayers = 2,
+  DateTime? archivedAt,
 }) =>
     Tournament(
       id: id,
@@ -25,10 +26,17 @@ Tournament makeTournament({
       notes: '',
       createdBy: 'u1',
       createdAt: DateTime.utc(2026, 1, 1),
+      archivedAt: archivedAt,
     );
 
-Slot makeSlot(String id, Day date, HourMinute time, {String tournamentId = 't1'}) =>
-    Slot(id: id, tournamentId: tournamentId, date: date, time: time);
+Slot makeSlot(String id, Day date, HourMinute time,
+        {String tournamentId = 't1', DateTime? cancelledAt}) =>
+    Slot(
+        id: id,
+        tournamentId: tournamentId,
+        date: date,
+        time: time,
+        cancelledAt: cancelledAt);
 
 Order makeOrder({
   String id = 'o1',

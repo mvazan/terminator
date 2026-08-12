@@ -25,25 +25,29 @@ const _orderedMarkerColor = Color(0xFFD32F2F);
 /// assigned on an ordered start (red) — my season, not the team's orders.
 /// Display only by design (no trip suggestions).
 class TimelineScreen extends ConsumerStatefulWidget {
-  const TimelineScreen({super.key});
+  const TimelineScreen({super.key, this.today});
+
+  /// Injectable "today" for the ended-tournament filter — tests pass a fixed
+  /// day so fixtures don't age out; the app leaves it null (= now).
+  final Day? today;
 
   @override
   ConsumerState<TimelineScreen> createState() => _TimelineScreenState();
 }
 
 class _TimelineScreenState extends ConsumerState<TimelineScreen> {
-  /// Also show my-hidden tournaments (in gray). Off by default.
-  bool _showHidden = false;
+  /// Also show my-hidden (in gray) and already-ended tournaments. Off by
+  /// default — the calendar is for planning ahead.
+  bool _showAll = false;
 
   @override
   Widget build(BuildContext context) {
     final myHidden =
         ref.watch(myHiddenTournamentsProvider).value ?? const <String>{};
+    final today = widget.today ?? Day.fromDateTime(DateTime.now());
     final tournaments = (ref.watch(allTournamentsProvider).value ?? const [])
-        .where((t) =>
-            !t.isHidden &&
-            !t.isArchived &&
-            (_showHidden || !myHidden.contains(t.id)))
+        .where((t) => timelineShows(t,
+            showAll: _showAll, myHidden: myHidden, today: today))
         .toList(); // stream is already sorted by startsOn
     final venueNames = ref.watch(venueNamesProvider);
 
@@ -58,7 +62,10 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
         const <Availability>[]) {
       if (a.userId != uid) continue;
       final slot = slotById[a.slotId];
-      if (slot != null) {
+      // Venue-cancelled starts drop out of the season calendar even when
+      // the tick row still exists (it survives for the notification and a
+      // possible revive).
+      if (slot != null && !slot.cancelled) {
         tickedDays.putIfAbsent(slot.tournamentId, () => {}).add(slot.date);
       }
     }
@@ -93,13 +100,13 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
         title: const Text('Sezónní kalendář'),
         actions: [
           IconButton(
-            tooltip: _showHidden
-                ? 'Nezobrazovat skryté turnaje'
-                : 'Zobrazit i skryté turnaje (šedě)',
-            icon: Icon(_showHidden
+            tooltip: _showAll
+                ? 'Nezobrazovat skryté a skončené turnaje'
+                : 'Zobrazit i skryté (šedě) a skončené turnaje',
+            icon: Icon(_showAll
                 ? Icons.visibility
                 : Icons.visibility_off_outlined),
-            onPressed: () => setState(() => _showHidden = !_showHidden),
+            onPressed: () => setState(() => _showAll = !_showAll),
           ),
         ],
       ),

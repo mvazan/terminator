@@ -7,6 +7,20 @@ import 'models.dart';
 /// Monday of the week containing [day].
 Day weekStart(Day day) => day.addDays(1 - day.weekday);
 
+/// Whether the season calendar lists [t]. Globally hidden/archived
+/// tournaments never show; ended ones (ends_on < today) and my-hidden ones
+/// are clutter by default and come back together via the eye toggle
+/// ([showAll]).
+bool timelineShows(
+  Tournament t, {
+  required bool showAll,
+  required Set<String> myHidden,
+  required Day today,
+}) =>
+    !t.isHidden &&
+    !t.isArchived &&
+    (showAll || (!myHidden.contains(t.id) && !t.endsOn.isBefore(today)));
+
 /// One column of the timeline: the week starting [monday] (inclusive) through
 /// the following Sunday.
 class WeekColumn {

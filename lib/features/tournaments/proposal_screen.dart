@@ -89,9 +89,10 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     final venue = ref.watch(venueByIdProvider(widget.tournament.venueId));
     // Every start shows, including web-full ones: the occupancy may be OUR
     // booking under a different name (the "sebevražedný oddíl" case), and
-    // recording it must never be blocked.
+    // recording it must never be blocked. Venue-cancelled starts are the
+    // exception — they no longer exist, so there's nothing to order.
     final slots = (ref.watch(slotsProvider).value ?? const [])
-        .where((s) => s.tournamentId == widget.tournament.id)
+        .where((s) => s.tournamentId == widget.tournament.id && !s.cancelled)
         .toList()
       ..sort(Slot.compare);
     final slotIds = {for (final s in slots) s.id};

@@ -44,6 +44,15 @@ String peopleLabel(int n) {
   final word = n == 1 ? 'člověk' : (n >= 2 && n <= 4 ? 'lidé' : 'lidí');
   return '$n $word';
 }
+
+/// Czech-declined free places: "1 volné místo", "2 volná místa",
+/// "5 volných míst".
+String freePlacesLabel(int n) {
+  final phrase = n == 1
+      ? 'volné místo'
+      : (n >= 2 && n <= 4 ? 'volná místa' : 'volných míst');
+  return '$n $phrase';
+}
 const _weekdaysFull = [
   'pondělí', 'úterý', 'středa', 'čtvrtek', 'pátek', 'sobota', 'neděle',
 ];
