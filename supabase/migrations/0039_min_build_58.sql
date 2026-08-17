@@ -1,0 +1,11 @@
+-- Force-update na 2.9.0 (build 58) — deň-chaty podle zájmu.
+--
+-- Nutné, protože klient si počítá členství chatu sám (dayChatMembershipByChat)
+-- a starý build o zájmu neví: zájemci by chodila notifikace (tu posílá server
+-- podle day_member_ids, takže funguje hned), ale chat by neviděl v seznamu
+-- a composer by mu appka zamkla jako "nejsi člen". Notifikace samotné bump
+-- nepotřebují, rozchází se právě jen klientský pohled.
+--
+-- Pouštět až ~45 minut po nahrání na Play, ať je aktualizace opravdu ke
+-- stažení, když se lidem objeví zámek.
+update app_config set min_build = 58;
