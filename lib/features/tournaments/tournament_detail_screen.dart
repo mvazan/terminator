@@ -683,6 +683,15 @@ class _DayRowState extends ConsumerState<_DayRow> {
 
   bool get _locked => widget.lockedVenues != null;
 
+  /// I can open this day's chat as soon as I'm one of its members — ticking a
+  /// start is enough, the order doesn't have to exist yet.
+  bool get _canChat {
+    final u = uid;
+    if (u == null || slots.isEmpty) return false;
+    final key = muteKey(slots.first.tournamentId, day);
+    return ref.watch(dayChatMembershipProvider)[key]?.contains(u) ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final dayStats = heatmap.byDay[day];
@@ -705,6 +714,22 @@ class _DayRowState extends ConsumerState<_DayRow> {
                 Text('${peopleLabel(dayStats.distinctPlayers)} může',
                     style: Theme.of(context).textTheme.bodySmall),
               const Spacer(),
+              // Write to exactly the people who want to play this day —
+              // available before anything is ordered.
+              if (_canChat)
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Chat ke dni',
+                  icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ChatScreen(
+                        tournamentId: slots.first.tournamentId,
+                        day: day,
+                      ),
+                    ),
+                  ),
+                ),
               // Committed this day -> the day is settled for me, no bulk tick.
               if (!readOnly && !_locked && slots.isNotEmpty)
                 _busy

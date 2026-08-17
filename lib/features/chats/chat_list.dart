@@ -9,6 +9,7 @@ import '../../core/ui.dart';
 import '../../data/local_prefs.dart';
 import '../../data/providers.dart';
 import '../../domain/chat_policy.dart';
+import '../../domain/day_chat.dart';
 import '../../domain/models.dart';
 
 class ChatTileModel {
@@ -114,17 +115,35 @@ final chatListProvider = Provider<ChatListModel>((ref) {
   // Day chats are closed groups — only the ones I'm a member of.
   final membership = ref.watch(dayChatMembershipProvider);
 
+  // Days that get a tile: ordered days (deliberate, shown even empty) plus
+  // pre-order days that are already live — one with messages, or one I was
+  // invited to as a fan. Merely ticking a day does NOT create a tile, or the
+  // list would fill up with every day anyone might play.
+  final listedDays = <String, Set<Day>>{
+    for (final e in orderedDays.entries) e.key: {...e.value},
+  };
+  for (final msg in messages) {
+    final day = msg.day;
+    if (day != null) {
+      listedDays.putIfAbsent(msg.tournamentId, () => {}).add(day);
+    }
+  }
+  for (final f in ref.watch(dayChatFansProvider).value ?? const <DayChatFan>[]) {
+    if (f.userId == uid) {
+      listedDays.putIfAbsent(f.tournamentId, () => {}).add(f.day);
+    }
+  }
+
   final open = <ChatTileModel>[];
   final archived = <ChatTileModel>[];
   for (final t in tournaments) {
     // The tournament-wide chat exists for every tournament, so most are
     // empty — show it only once it has messages (start it from the
-    // tournament detail). Day chats are deliberate (an ordered day) and few,
-    // so they show even empty.
+    // tournament detail).
     final candidates = <({Day? day, int? memberCount})>[
       if (lastMsg.containsKey(muteKey(t.id, null)))
         (day: null, memberCount: null),
-      for (final day in (orderedDays[t.id] ?? const <Day>{}).toList()..sort())
+      for (final day in (listedDays[t.id] ?? const <Day>{}).toList()..sort())
         if (uid != null &&
             (membership[muteKey(t.id, day)]?.contains(uid) ?? false))
           (

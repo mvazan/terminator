@@ -14,6 +14,15 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.9.0', '17. 8. 2026', [
+    'Chat ke dni funguje už před objednávkou. Kdo si na ten den odklikl '
+        'termín, je v chatu — napíšeš tak rovnou lidem, co chtějí hrát '
+        '("platí vám sobota?"), a nikoho dalšího to neruší.',
+    'Chat otevřeš klepnutím na bublinu u dne v detailu turnaje. Když pak '
+        'objednávku zadáš, pokračuje ten samý chat i s historií.',
+    'Zrušíš-li si zájem o den, z chatu vypadneš; kdo si ho odklikne, '
+        'přibude. Kdo hraje, zůstává vždycky.',
+  ]),
   Release('2.8.1', '12. 8. 2026', [
     'Odkazy v poznámkách u turnaje i objednávky jsou klepnutelné a text '
         'jde označit a zkopírovat — konec opisování adres z propozic.',

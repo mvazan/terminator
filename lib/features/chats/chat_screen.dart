@@ -262,12 +262,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         final m = ref2.watch(dayChatMembershipProvider)[key];
         final memberIds = m?.members.toList() ?? const <String>[];
         final iCanLeave = uid != null && (m?.canLeave(uid) ?? false);
-        String roleLabel(String u) {
-          if (m == null) return '';
-          if (m.players.contains(u)) return 'hráč';
-          if (m.creators.contains(u)) return 'organizátor';
-          return 'fanoušek';
-        }
+        String roleLabel(String u) => m == null ? '' : m.roleOf(u).label;
 
         final candidates =
             members.where((p) => !memberIds.contains(p.id)).toList();
@@ -717,7 +712,20 @@ class _DayContextBar extends ConsumerWidget {
         }
       }
     }
-    if (lanesBySlot.isEmpty) return const SizedBox.shrink();
+    // Nothing ordered yet — this is a pre-order chat, so say what it is
+    // instead of leaving the reader guessing why they're here.
+    if (lanesBySlot.isEmpty) {
+      final interested = ref
+              .watch(dayChatMembershipProvider)[muteKey(tournament.id, day)]
+              ?.interested
+              .length ??
+          0;
+      return _ContextBar(
+        icon: Icons.event_available,
+        text: 'Zatím bez objednávky · hlásí se ${peopleLabel(interested)}',
+        tournamentId: tournament.id,
+      );
+    }
 
     final times = lanesBySlot.keys.map((id) => slotById[id]!).toList()
       ..sort(Slot.compare);
@@ -726,12 +734,35 @@ class _DayContextBar extends ConsumerWidget {
         .where((r) => lanesBySlot.containsKey(r.slotId))
         .length;
 
+    return _ContextBar(
+      icon: Icons.receipt_long,
+      text: 'Start ${times.map((s) => s.time.display()).join(' + ')} · '
+          '${lanesLabel(lanes)} · ${peopleLabel(players)}',
+      tournamentId: tournament.id,
+    );
+  }
+}
+
+/// The day-chat context bar's chrome — tapping it opens the tournament.
+class _ContextBar extends StatelessWidget {
+  const _ContextBar({
+    required this.icon,
+    required this.text,
+    required this.tournamentId,
+  });
+
+  final IconData icon;
+  final String text;
+  final String tournamentId;
+
+  @override
+  Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => TournamentDetailScreen(
-              tournamentId: tournament.id, scrollToOrders: true),
+              tournamentId: tournamentId, scrollToOrders: true),
         ),
       ),
       child: Container(
@@ -740,12 +771,11 @@ class _DayContextBar extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: Row(
           children: [
-            Icon(Icons.receipt_long, size: 16, color: scheme.primary),
+            Icon(icon, size: 16, color: scheme.primary),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
-                'Start ${times.map((s) => s.time.display()).join(' + ')} · '
-                '${lanesLabel(lanes)} · ${peopleLabel(players)}',
+                text,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall,
