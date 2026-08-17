@@ -357,12 +357,16 @@ final dayChatLeaversProvider = StreamProvider<List<DayChatLeaver>>((ref) {
 });
 
 /// Membership per day chat, keyed like muteKey(tournamentId, day).
+/// Interest uses the RAW availability — is_day_member does too, and a rostered
+/// player is a member through the roster anyway, so the effective filter would
+/// only cost the app/server agreement.
 final dayChatMembershipProvider =
     Provider<Map<String, DayChatMembership>>((ref) => dayChatMembershipByChat(
           orders: ref.watch(ordersProvider).value ?? const [],
           orderSlots: ref.watch(orderSlotsProvider).value ?? const {},
           slots: ref.watch(slotsProvider).value ?? const [],
           rosters: ref.watch(rostersProvider).value ?? const [],
+          availability: ref.watch(availabilityProvider).value ?? const [],
           fans: ref.watch(dayChatFansProvider).value ?? const [],
           leavers: ref.watch(dayChatLeaversProvider).value ?? const [],
         ));

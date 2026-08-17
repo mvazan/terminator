@@ -1,6 +1,10 @@
 /// Day-chat membership: who is in a closed day chat. Members = rostered
-/// players that day ∪ the order creator ∪ invited fans, minus those who left.
+/// players that day ∪ (people who ticked interest in that day ∪ the order
+/// creator ∪ invited fans), minus those who left.
 /// Pure so it can be unit-tested without the backend.
+///
+/// Mirrors is_day_member/day_member_ids in SQL (0038_day_chat_interest.sql) —
+/// keep both in sync or the app and the push notifications disagree.
 library;
 
 import 'models.dart';
@@ -48,42 +52,70 @@ class DayChatLeaver {
 class DayChatMembership {
   final Set<String> players = {}; // rostered that day
   final Set<String> creators = {}; // creators of that day's active orders
+  final Set<String> interested = {}; // ticked availability that day
   final Set<String> fans = {}; // invited fans
   final Set<String> leavers = {}; // opted out
 
-  /// Rostered players are always in; only the creator/fans can leave.
-  Set<String> get members =>
-      {...players, ...{...creators, ...fans}.difference(leavers)};
+  /// Rostered players are always in; the others can leave.
+  Set<String> get members => {
+        ...players,
+        ...{...creators, ...interested, ...fans}.difference(leavers),
+      };
 
   bool contains(String uid) =>
       players.contains(uid) ||
-      ((creators.contains(uid) || fans.contains(uid)) &&
+      ((creators.contains(uid) ||
+              interested.contains(uid) ||
+              fans.contains(uid)) &&
           !leavers.contains(uid));
 
-  /// A member who is only a fan (not rostered / not the creator) — for the UI
-  /// to label "fanoušek" vs "hráč". Can leave.
+  /// The label for a member in the "kdo je tu" sheet, most-committed first:
+  /// rostered → organizer → interested → fan.
+  DayChatRole roleOf(String uid) {
+    if (players.contains(uid)) return DayChatRole.player;
+    if (creators.contains(uid)) return DayChatRole.organizer;
+    if (interested.contains(uid)) return DayChatRole.interested;
+    return DayChatRole.fan;
+  }
+
+  /// A member who is only a fan (not rostered / not the creator / not
+  /// interested) — for the UI to label "fanoušek" vs "hráč". Can leave.
   bool isFanOnly(String uid) =>
       fans.contains(uid) &&
       !players.contains(uid) &&
       !creators.contains(uid) &&
+      !interested.contains(uid) &&
       !leavers.contains(uid);
 
   /// Can this member leave? Rostered players stay (they mute instead).
   bool canLeave(String uid) => contains(uid) && !players.contains(uid);
 }
 
+/// Why someone is in a day chat — drives the role label in the members sheet.
+enum DayChatRole {
+  player('hráč'),
+  organizer('organizátor'),
+  interested('hlásí se'),
+  fan('fanoušek');
+
+  const DayChatRole(this.label);
+  final String label;
+}
+
 /// The chat key matching muteKey(tournamentId, day) for a day chat.
 String dayChatKey(String tournamentId, Day day) =>
     '$tournamentId|${day.toSql()}';
 
-/// Membership per day chat, keyed "tournamentId|yyyy-mm-dd". Only day chats
-/// that actually exist (have an active order) get an entry; fans/leavers for a
-/// vanished chat are ignored.
+/// Membership per day chat, keyed "tournamentId|yyyy-mm-dd". A day gets an
+/// entry as soon as anyone belongs to it — an active order, a ticked start or
+/// an invited fan — so day chats exist before the order does. Leavers for a
+/// day nobody belongs to are ignored.
 Map<String, DayChatMembership> dayChatMembershipByChat({
   required List<Order> orders,
   required Map<String, Map<String, int>> orderSlots,
   required List<Slot> slots,
   required List<RosterEntry> rosters,
+  required List<Availability> availability,
   required List<DayChatFan> fans,
   required List<DayChatLeaver> leavers,
 }) {
@@ -110,8 +142,15 @@ Map<String, DayChatMembership> dayChatMembershipByChat({
       }
     }
   }
+  // Interest is a live membership source — a cancelled start doesn't count,
+  // matching is_day_member.
+  for (final a in availability) {
+    final slot = slotById[a.slotId];
+    if (slot == null || slot.cancelledAt != null) continue;
+    at(slot.tournamentId, slot.date).interested.add(a.userId);
+  }
   for (final f in fans) {
-    byKey[dayChatKey(f.tournamentId, f.day)]?.fans.add(f.userId);
+    at(f.tournamentId, f.day).fans.add(f.userId);
   }
   for (final l in leavers) {
     byKey[dayChatKey(l.tournamentId, l.day)]?.leavers.add(l.userId);
