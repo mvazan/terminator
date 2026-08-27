@@ -23,6 +23,7 @@ VenueSlot _fresh(Day date, HourMinute time) =>
 
 void main() {
   final d = Day(2026, 9, 5);
+  final now = Day(2026, 9, 1);
 
   test('scraped slot missing from the fresh page gets cancelled', () {
     final diff = diffCancelledSlots(
@@ -31,8 +32,36 @@ void main() {
         _slot('b', d, const HourMinute(12, 0)),
       ],
       fresh: [_fresh(d, const HourMinute(10, 0))],
+      today: now,
     );
     expect(diff.cancel, ['b']);
+    expect(diff.revive, isEmpty);
+  });
+
+  test('already-played day missing from the page is left alone', () {
+    // Some sources hide days that were already played; the app hides them
+    // too, so their disappearance is routine — not a venue cancellation.
+    final diff = diffCancelledSlots(
+      existing: [
+        _slot('a', d, const HourMinute(16, 0)),
+        _slot('b', d, const HourMinute(17, 0)),
+      ],
+      fresh: const [],
+      today: d.addDays(2),
+    );
+    expect(diff.cancel, isEmpty);
+    expect(diff.revive, isEmpty);
+  });
+
+  test("today's missing slot still counts as cancelled", () {
+    // Today is not "played" yet — the app still shows it, so a vanished
+    // start today must cancel (and notify) as before.
+    final diff = diffCancelledSlots(
+      existing: [_slot('a', d, const HourMinute(16, 0))],
+      fresh: const [],
+      today: d,
+    );
+    expect(diff.cancel, ['a']);
     expect(diff.revive, isEmpty);
   });
 
@@ -40,6 +69,7 @@ void main() {
     final diff = diffCancelledSlots(
       existing: [_slot('m', d, const HourMinute(14, 0), venueCapacity: null)],
       fresh: [_fresh(d, const HourMinute(10, 0))],
+      today: now,
     );
     expect(diff.cancel, isEmpty);
     expect(diff.revive, isEmpty);
@@ -52,6 +82,7 @@ void main() {
             cancelledAt: DateTime.utc(2026, 8, 1)),
       ],
       fresh: [_fresh(d, const HourMinute(10, 0))],
+      today: now,
     );
     expect(diff.cancel, isEmpty);
     expect(diff.revive, ['a']);
@@ -65,6 +96,7 @@ void main() {
             cancelledAt: DateTime.utc(2026, 8, 1)),
       ],
       fresh: [_fresh(d, const HourMinute(12, 0))],
+      today: now,
     );
     expect(diff.cancel, isEmpty);
     expect(diff.revive, isEmpty);

@@ -758,6 +758,7 @@ class Api {
           Slot.fromJson({...r, 'tournament_id': tournamentId}),
       ],
       fresh: venueSlots,
+      today: Day.fromDateTime(DateTime.now()),
     );
     if (diff.cancel.isNotEmpty) {
       await _db

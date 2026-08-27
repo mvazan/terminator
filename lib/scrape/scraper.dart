@@ -92,11 +92,15 @@ List<VenueSlot> aggregateTerms(List<VenueTerm> terms,
 ///
 /// [cancel]: scraped slots (`venueCapacity != null`) that vanished from the
 /// organizer's page — the venue cancelled them. Manual slots are never
-/// touched, and already-cancelled slots don't re-trigger. [revive]: cancelled
+/// touched, and already-cancelled slots don't re-trigger. Days before [today]
+/// don't cancel either: some sources hide already-played days, and the app
+/// hides them too, so their disappearance is routine — cancelling would only
+/// fire a bogus "venue cancelled" push about the past. [revive]: cancelled
 /// slots the page lists again (the organizer restored them).
 ({List<String> cancel, List<String> revive}) diffCancelledSlots({
   required List<Slot> existing,
   required List<VenueSlot> fresh,
+  required Day today,
 }) {
   final freshKeys = {for (final v in fresh) '${v.date}|${v.time}'};
   final cancel = <String>[];
@@ -105,7 +109,7 @@ List<VenueSlot> aggregateTerms(List<VenueTerm> terms,
     final onPage = freshKeys.contains('${s.date}|${s.time}');
     if (s.cancelled) {
       if (onPage) revive.add(s.id);
-    } else if (s.venueCapacity != null && !onPage) {
+    } else if (s.venueCapacity != null && !onPage && !s.date.isBefore(today)) {
       cancel.add(s.id);
     }
   }
