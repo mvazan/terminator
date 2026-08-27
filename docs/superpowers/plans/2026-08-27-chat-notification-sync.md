@@ -31,7 +31,7 @@
   - `bool chatPayloadMatches(String? payloadJson, {required String tournamentId, Day? day, bool team = false})`
   - Sémantika: `team: true` → `kind == 'team_chat'` (tournamentId se ignoruje, volající předává sentinel `teamChatId`); jinak `kind == 'chat'` && `tournament_id == tournamentId` && (`day == null` → payload bez `day`; jinak `payload['day'] == day.toSql()`). Rozbitý/chybějící JSON → `false`.
 
-- [ ] **Step 1: Napiš failing testy**
+- [x] **Step 1: Napiš failing testy**
 
 ```dart
 import 'dart:convert';
@@ -88,12 +88,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Ověř, že failují**
+- [x] **Step 2: Ověř, že failují**
 
 Run: `flutter test test/push/chat_notification_match_test.dart`
 Expected: compile error „chat_notification_match.dart not found" — vytvoř prázdný soubor se signaturami vracejícími `false`, znovu spusť a sleduj assertion faily (ne compile error) u match-true případů.
 
-- [ ] **Step 3: Implementace**
+- [x] **Step 3: Implementace**
 
 ```dart
 /// Matching push payloadů na identitu chatu — podle něj Push maže z lišty
@@ -145,12 +145,12 @@ bool chatPayloadMatches(
 
 Pozn.: `teamChatId` v testu — exportuje ho `domain/models.dart`? Je to `teamChatSentinelId` konstanta re-exportovaná v providers (`const teamChatId = teamChatSentinelId;`). Pokud test import nevidí, importuj v testu tu konstantu odtud, kde reálně žije (najdi `teamChatSentinelId` grepem); matcher sám ji NEPOTŘEBUJE (team větev tournamentId ignoruje).
 
-- [ ] **Step 4: Testy zelené**
+- [x] **Step 4: Testy zelené**
 
 Run: `flutter test test/push/chat_notification_match_test.dart`
 Expected: All tests passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/push/chat_notification_match.dart test/push/chat_notification_match_test.dart
@@ -168,7 +168,7 @@ git commit -m "feat(push): matcher payloadů chat notifikací"
 - Consumes: `chatPayloadMatches` z Task 1; `_local` (FlutterLocalNotificationsPlugin), `cancel({required int id, String? tag})`, `getActiveNotifications()`.
 - Produces: `static Future<void> clearChatNotifications({required String tournamentId, Day? day, bool team = false})` — volá Task 3.
 
-- [ ] **Step 1: Metoda v `Push`** (vedle `_showFromData`)
+- [x] **Step 1: Metoda v `Push`** (vedle `_showFromData`)
 
 ```dart
   /// Smaže z lišty notifikace daného chatu — volá se v momentě přečtení
@@ -199,7 +199,7 @@ git commit -m "feat(push): matcher payloadů chat notifikací"
 
 Import: `import 'chat_notification_match.dart';`
 
-- [ ] **Step 2: Úklid po inline odpovědi** — `sendReplyFromNotification` po každém úspěšném send:
+- [x] **Step 2: Úklid po inline odpovědi** — `sendReplyFromNotification` po každém úspěšném send:
 
 ```dart
   static Future<void> sendReplyFromNotification(
@@ -220,12 +220,12 @@ Import: `import 'chat_notification_match.dart';`
 
 (`teamChatId` import z místa, kde žije — viz Task 1 pozn. V background izolátu je metoda best-effort — try/catch uvnitř `clearChatNotifications` chytí případný neinicializovaný kanál.)
 
-- [ ] **Step 3: Ověření**
+- [x] **Step 3: Ověření**
 
 Run: `flutter analyze && flutter test test/push/`
 Expected: No issues, testy zelené. (Chování s pluginem se ověří manuálně při release — checklist ve specu.)
 
-- [ ] **Step 4: Commit** — až spolu s Task 3 (teprve zavěšení do ChatScreen je viditelná změna).
+- [x] **Step 4: Commit** — až spolu s Task 3 (teprve zavěšení do ChatScreen je viditelná změna).
 
 ---
 
@@ -237,7 +237,7 @@ Expected: No issues, testy zelené. (Chování s pluginem se ověří manuálně
 **Interfaces:**
 - Consumes: `Push.clearChatNotifications` (Task 2). Identita: `widget.isTeam` → `team: true` + `tournamentId: widget.tournamentId` (sentinel); jinak `widget.tournamentId` + `widget.day`.
 
-- [ ] **Step 1: Stavová pojistka proti sweep-u na každý build** — do `_ChatScreenState` přidej pole:
+- [x] **Step 1: Stavová pojistka proti sweep-u na každý build** — do `_ChatScreenState` přidej pole:
 
 ```dart
   /// Poslední zpráva, pro kterou už proběhl úklid lišty — sweep se pouští
@@ -245,7 +245,7 @@ Expected: No issues, testy zelené. (Chování s pluginem se ověří manuálně
   DateTime? _notificationsClearedAt;
 ```
 
-- [ ] **Step 2: Zavěs sweep vedle markRead** — stávající blok nahraď:
+- [x] **Step 2: Zavěs sweep vedle markRead** — stávající blok nahraď:
 
 ```dart
     // Everything rendered counts as read (also as new messages stream in
@@ -271,12 +271,12 @@ Expected: No issues, testy zelené. (Chování s pluginem se ověří manuálně
 
 Importy: `dart:async` (unawaited — zkontroluj, možná už je), `package:terminator/push/push.dart` → relativně `../../push/push.dart` (drž styl okolních importů).
 
-- [ ] **Step 3: Ověření**
+- [x] **Step 3: Ověření**
 
 Run: `flutter analyze && flutter test`
 Expected: No issues, celá suite zelená (v testech plugin chybí → sweep spadne do try/catch, nic nerozbije).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/push/push.dart lib/features/chats/chat_screen.dart
@@ -294,7 +294,7 @@ git commit -m "feat(push): přečtený chat si uklidí notifikace z lišty"
 **Interfaces:**
 - Produces: `Push.setOpenChat({required String tournamentId, Day? day, bool team = false})`, `Push.clearOpenChat({required String tournamentId, Day? day, bool team = false})` (clear jen když je registrovaný právě tento chat — chaty se umí navrstvit navigatorem).
 
-- [ ] **Step 1: Registrace v `Push`**
+- [x] **Step 1: Registrace v `Push`**
 
 ```dart
   /// Chat právě na obrazovce (ChatScreen se hlásí v initState/dispose) —
@@ -315,7 +315,7 @@ git commit -m "feat(push): přečtený chat si uklidí notifikace z lišty"
   }
 ```
 
-- [ ] **Step 2: Guard ve `_showForeground`** — na začátek, před stavbu `data`:
+- [x] **Step 2: Guard ve `_showForeground`** — na začátek, před stavbu `data`:
 
 ```dart
   static Future<void> _showForeground(RemoteMessage message) async {
@@ -331,7 +331,7 @@ git commit -m "feat(push): přečtený chat si uklidí notifikace z lišty"
   }
 ```
 
-- [ ] **Step 3: ChatScreen `initState`/`dispose`**
+- [x] **Step 3: ChatScreen `initState`/`dispose`**
 
 V `initState` (za stávající obsah):
 
@@ -351,7 +351,7 @@ V `dispose` (před `super.dispose()`):
         team: widget.isTeam);
 ```
 
-- [ ] **Step 4: Ověření + commit**
+- [x] **Step 4: Ověření + commit**
 
 Run: `flutter analyze && flutter test`
 Expected: No issues, suite zelená.
@@ -373,7 +373,7 @@ git commit -m "feat(push): otevřený chat nekreslí vlastní notifikace"
 - Consumes: `sendToTokens(tokens, title, body, data, tag?, dataOnly)` — tag je 5. parametr, dnes `undefined`.
 - Produces: tag `chat:<tournamentId>` / `chat:<tournamentId>:<day>` / `team_chat` (formát ze specu).
 
-- [ ] **Step 1: case `messages`** — nahraď `undefined` tagem:
+- [x] **Step 1: case `messages`** — nahraď `undefined` tagem:
 
 ```ts
         {
@@ -388,7 +388,7 @@ git commit -m "feat(push): otevřený chat nekreslí vlastní notifikace"
         true, // data-only → the app draws it with the inline reply
 ```
 
-- [ ] **Step 2: case `team_messages`** — nahraď `undefined`:
+- [x] **Step 2: case `team_messages`** — nahraď `undefined`:
 
 ```ts
         { kind: "team_chat" },
@@ -397,7 +397,7 @@ git commit -m "feat(push): otevřený chat nekreslí vlastní notifikace"
         true, // data-only → the app draws it with the inline reply
 ```
 
-- [ ] **Step 3: NOTIFICATIONS.md** — do sekce „1. Okamžité (webhook)" za odstavec o přidávání doplň:
+- [x] **Step 3: NOTIFICATIONS.md** — do sekce „1. Okamžité (webhook)" za odstavec o přidávání doplň:
 
 ```markdown
 Chatové pushe navíc nesou tag chatu (`chat:<tournament>[:<den>]`,
@@ -407,7 +407,7 @@ v momentě přečtení maže podle payloadu
 day drž v syncu).
 ```
 
-- [ ] **Step 4: Typecheck (je-li deno k dispozici) + commit**
+- [x] **Step 4: Typecheck (je-li deno k dispozici) + commit**
 
 Run: `deno check supabase/functions/notify/index.ts || echo "deno check nedostupný — přeskočeno"`
 Expected: bez chyb (nebo přeskočeno).
@@ -421,7 +421,7 @@ git commit -m "feat(notify): chat pushe s tagem — jedna položka lišty na cha
 
 ### Task 6: Závěrečné ověření
 
-- [ ] **Step 1:** `flutter analyze` → No issues found.
-- [ ] **Step 2:** `flutter test` → All tests passed (celá suite, ~190+).
-- [ ] **Step 3:** Zkontroluj `git status` — čistý strom, žádný zapomenutý soubor.
-- [ ] **Step 4:** Připomeň manuální release checklist ze specu (5 bodů) — provede se při příštím vydání buildu; deploy EF `notify` jen na pokyn.
+- [x] **Step 1:** `flutter analyze` → No issues found.
+- [x] **Step 2:** `flutter test` → All tests passed (celá suite, ~190+).
+- [x] **Step 3:** Zkontroluj `git status` — čistý strom, žádný zapomenutý soubor.
+- [x] **Step 4:** Připomeň manuální release checklist ze specu (5 bodů) — provede se při příštím vydání buildu; deploy EF `notify` jen na pokyn.
