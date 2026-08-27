@@ -14,6 +14,7 @@ import '../data/providers.dart';
 import '../domain/models.dart';
 import '../features/chats/chat_screen.dart';
 import '../features/tournaments/tournament_detail_screen.dart';
+import 'chat_notification_match.dart';
 
 /// Push notifications via FCM.
 ///
@@ -238,18 +239,47 @@ class Push {
   }
 
   /// Inserts the typed reply into the chat the notification came from.
-  /// Runs both in the app and in the background action isolate.
+  /// Runs both in the app and in the background action isolate. Whoever
+  /// replies has read the context, so the chat's remaining notifications
+  /// are cleared too (the tapped one cancels itself via the action).
   static Future<void> sendReplyFromNotification(
       Map<String, dynamic> data, String text) async {
     if (data['kind'] == 'team_chat') {
       await Api.sendTeamMessage(text);
+      await clearChatNotifications(tournamentId: teamChatId, team: true);
       return;
     }
     final tournamentId = data['tournament_id'] as String?;
     if (tournamentId == null) return;
     final day = data['day'] as String?;
-    await Api.sendMessage(
-        tournamentId, day == null ? null : Day.parse(day), text);
+    final parsedDay = day == null ? null : Day.parse(day);
+    await Api.sendMessage(tournamentId, parsedDay, text);
+    await clearChatNotifications(tournamentId: tournamentId, day: parsedDay);
+  }
+
+  /// Removes this chat's notifications from the tray — called the moment
+  /// the chat counts as read (open in ChatScreen, or answered via the
+  /// inline reply). Matches by payload, not tag, so pushes delivered
+  /// before the server started tagging get cleaned up too. Best-effort:
+  /// no Android / no notifications = silence (iOS equivalent: IOS.md).
+  static Future<void> clearChatNotifications({
+    required String tournamentId,
+    Day? day,
+    bool team = false,
+  }) async {
+    try {
+      final active = await _local.getActiveNotifications();
+      for (final n in active) {
+        final id = n.id;
+        if (id == null) continue;
+        if (chatPayloadMatches(n.payload,
+            tournamentId: tournamentId, day: day, team: team)) {
+          await _local.cancel(id: id, tag: n.tag);
+        }
+      }
+    } catch (e) {
+      debugPrint('clearChatNotifications failed: $e');
+    }
   }
 
   /// Paints one notification from a data-only payload ([data] carries title,

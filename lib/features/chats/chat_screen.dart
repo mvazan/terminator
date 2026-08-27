@@ -11,6 +11,7 @@ import '../../data/providers.dart';
 import '../../domain/chat_items.dart';
 import '../../domain/chat_policy.dart';
 import '../../domain/models.dart';
+import '../../push/push.dart';
 import '../tournaments/tournament_detail_screen.dart';
 
 /// Emoji offered in the reaction picker (long-press a message).
@@ -63,6 +64,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// divider so it doesn't jump away as markRead fires.
   DateTime? _dividerReadAt;
   var _dividerCaptured = false;
+
+  /// Last message the tray sweep already ran for — the sweep fires only
+  /// when a newer message renders, not on every build.
+  DateTime? _notificationsClearedAt;
 
   String get _chatKey => muteKey(widget.tournamentId, widget.day);
 
@@ -408,11 +413,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     // Everything rendered counts as read (also as new messages stream in
     // while the chat is open) — feeds the unread badges in the chat list.
+    // The same moment reconciles the Android tray: this chat's
+    // notifications are stale now (see Push.clearChatNotifications).
     if (messages.isNotEmpty) {
       final latest = messages.last.createdAt;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         ref.read(chatReadsProvider.notifier).markRead(_chatKey, latest);
+        if (_notificationsClearedAt != latest) {
+          _notificationsClearedAt = latest;
+          unawaited(Push.clearChatNotifications(
+            tournamentId: widget.tournamentId,
+            day: widget.day,
+            team: widget.isTeam,
+          ));
+        }
       });
     }
 
