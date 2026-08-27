@@ -12,6 +12,12 @@ kde okamžitost dává smysl a spam nehrozí: chat zprávy, nový turnaj, nový
 Přidání: webhook trigger na tabulku (vzor v 0001/0012) + `case` v
 `supabase/functions/notify/index.ts`.
 
+Chatové pushe navíc nesou tag chatu (`chat:<tournament>[:<den>]`,
+`team_chat`): v liště je tak na chat nejvýš jedna položka a klient je
+v momentě přečtení maže podle payloadu
+(`lib/push/chat_notification_match.dart` — kontrakt kind + tournament_id
++ day drž v syncu).
+
 ## 2. Odložené (engine `notification_jobs`, 0025)
 
 Pro všechno, kde hrozí zahlcení, uklik nebo ping-pong: událost NEposílá

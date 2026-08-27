@@ -909,7 +909,10 @@ async function handle(payload: WebhookPayload) {
           tournament_id: tournamentId,
           ...(day === null ? {} : { day }),
         },
-        undefined,
+        // Jedna položka lišty na chat: stejný tag = nová zpráva nahradí
+        // starou (klient pak maže podle payloadu kind/tournament_id/day —
+        // lib/push/chat_notification_match.dart drž v syncu s data výše).
+        day === null ? `chat:${tournamentId}` : `chat:${tournamentId}:${day}`,
         true, // data-only → the app draws it with the inline reply
       );
       return;
@@ -930,7 +933,8 @@ async function handle(payload: WebhookPayload) {
         "Celý tým",
         `${author?.display_name ?? "?"}: ${record.body}`,
         { kind: "team_chat" },
-        undefined,
+        // Jeden tým na člověka → stačí konstantní tag (viz messages výše).
+        "team_chat",
         true, // data-only → the app draws it with the inline reply
       );
       return;
