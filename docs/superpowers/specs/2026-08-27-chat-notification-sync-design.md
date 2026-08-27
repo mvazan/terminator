@@ -39,8 +39,10 @@ s poslední zprávou. `sendToTokens` tag už umí a klient (`_showFromData`)
 ho už čte — funguje hned po deployi EF i pro staré buildy, bez min_build.
 Týmový chat nepotřebuje team_id v tagu: člověk je vždy jen v jednom týmu.
 
-Formát tagu je smluvený mezi EF a klientem — u obou míst komentář
-"keep in sync" (stejný vzor jako channel ids).
+Tag konstruuje jen server (klient ho pouze zrcadlí při kreslení a maže
+podle payloadu, ne tagu) — smluvený je payload kontrakt kind +
+tournament_id + day; komentáře "keep in sync" v EF a v matcheru na sebe
+vzájemně odkazují (stejný vzor jako channel ids).
 
 ### 2. Klient: úklid lišty při přečtení
 
@@ -86,7 +88,6 @@ dostupné).
 
 - Unit: matching funkce — turnajový/denní/týmový chat, cizí chat, jiný
   kind, chybějící/rozbitý payload JSON.
-- Unit: tag formát klienta (konstanty) odpovídá dokumentovanému formátu.
 - Manuální checklist při release:
   1. Dvě zprávy z jednoho chatu → v liště jedna položka (poslední zpráva).
   2. Otevření chatu ikonou appky → položka zmizí.
@@ -100,8 +101,7 @@ dostupné).
   `team_messages`).
 - `lib/push/push.dart` — `clearChatNotifications`, registrace otevřeného
   chatu, potlačení ve `_showForeground`, sweep po reply.
-- `lib/push/chat_notification_match.dart` (nový) — čistá matching funkce
-  + tag konstanty.
+- `lib/push/chat_notification_match.dart` (nový) — čistá matching funkce.
 - `lib/features/chats/chat_screen.dart` — volání sweepu u `markRead`,
   registrace otevřeného chatu.
 - `test/push/chat_notification_match_test.dart` (nový).
