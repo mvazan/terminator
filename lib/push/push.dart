@@ -121,6 +121,23 @@ class Push {
   static void Function(int tab)? _switchTab;
   static const _teamTab = 3;
 
+  /// The chat currently on screen (ChatScreen registers in initState/
+  /// dispose) — its incoming pushes aren't painted: markRead marks them
+  /// read the moment they render, so the notification would only flicker.
+  /// Chats can stack in the navigator; clear only removes own registration.
+  static ({String tournamentId, Day? day, bool team})? _openChat;
+
+  static void setOpenChat(
+          {required String tournamentId, Day? day, bool team = false}) =>
+      _openChat = (tournamentId: tournamentId, day: day, team: team);
+
+  static void clearOpenChat(
+      {required String tournamentId, Day? day, bool team = false}) {
+    if (_openChat == (tournamentId: tournamentId, day: day, team: team)) {
+      _openChat = null;
+    }
+  }
+
   static Future<void> init() async {
     if (!AppConfig.hasFirebase) {
       debugPrint('Push disabled: no FIREBASE_* dart-defines.');
@@ -394,6 +411,14 @@ class Push {
   /// same shape (so chat kinds gain the reply action either way). The
   /// server-set tag is mirrored: same tag = replace in the tray.
   static Future<void> _showForeground(RemoteMessage message) async {
+    // The chat the user is looking at doesn't notify — markRead marks it
+    // read the moment the message renders anyway.
+    if (_openChat case final open?) {
+      if (chatDataMatches(message.data,
+          tournamentId: open.tournamentId, day: open.day, team: open.team)) {
+        return;
+      }
+    }
     final n = message.notification;
     final data = n == null
         ? message.data

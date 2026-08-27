@@ -81,6 +81,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final show = _scroll.hasClients && _scroll.offset > 600;
       if (show != _showJump) setState(() => _showJump = show);
     });
+    Push.setOpenChat(
+        tournamentId: widget.tournamentId,
+        day: widget.day,
+        team: widget.isTeam);
   }
 
   void _saveDraft() {
@@ -94,6 +98,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    Push.clearOpenChat(
+        tournamentId: widget.tournamentId,
+        day: widget.day,
+        team: widget.isTeam);
     _draftTimer?.cancel();
     // Persist whatever is typed right now, without the debounce.
     _drafts.set(_chatKey, _input.text);
