@@ -14,6 +14,15 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.9.1', '27. 8. 2026', [
+    'Notifikace z chatu se v liště nevrší: na každý chat je nejvýš jedna '
+        'a zmizí, jakmile si chat přečteš — ať ho otevřeš z notifikace, '
+        'nebo rovnou v appce.',
+    'Chat, který máš zrovna otevřený, necinká; odpověď poslaná přímo '
+        'z notifikace lištu taky uklidí.',
+    'Když rezervační stránka skryje už odehraný den, nebere to appka jako '
+        'zrušení kuželnou — konec strašení pushem o minulém termínu.',
+  ]),
   Release('2.9.0', '17. 8. 2026', [
     'Chat ke dni funguje už před objednávkou. Kdo si na ten den odklikl '
         'termín, je v chatu — napíšeš tak rovnou lidem, co chtějí hrát '
