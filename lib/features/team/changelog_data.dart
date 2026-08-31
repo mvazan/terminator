@@ -14,6 +14,13 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.9.2', '31. 8. 2026', [
+    'Objednávky v detailu turnaje jdou chronologicky podle prvního startu '
+        '— sekce čte jako program turnaje, ne jako historie zadávání.',
+    'Reakce v chatu naskočí hned po ťuknutí — žádné čekání na server.',
+    'Sezónní kalendář má modrou čáru dneška přes všechny turnaje — hned '
+        'vidíš, kde v sezóně jsi.',
+  ]),
   Release('2.9.1', '27. 8. 2026', [
     'Notifikace z chatu se v liště nevrší: na každý chat je nejvýš jedna '
         'a zmizí, jakmile si chat přečteš — ať ho otevřeš z notifikace, '
