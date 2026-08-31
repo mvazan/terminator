@@ -98,10 +98,17 @@ void main() {
     expect(tester.getSize(todayBand()).width, closeTo(84 / 7, 0.01));
     expect(tester.getTopLeft(todayBand()).dx, closeTo(12 + 140, 0.5));
 
-    // Today before the shown weeks (future tournament) → no band.
+    // The word "dnes" flags the band's top, centered on the day (wider
+    // than the 12 px band on purpose).
+    expect(find.text('dnes'), findsOneWidget);
+    final bandCenterX = tester.getCenter(todayBand()).dx;
+    expect(tester.getCenter(find.text('dnes')).dx, closeTo(bandCenterX, 0.5));
+
+    // Today before the shown weeks (future tournament) → no band, no flag.
     await tester.pumpWidget(wrap(today: Day(2026, 4, 13)));
     await tester.pump();
     expect(todayBand(), findsNothing);
+    expect(find.text('dnes'), findsNothing);
   });
 
   testWidgets('my ticks and ordered days render distinct vertical markers',

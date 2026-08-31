@@ -10,6 +10,11 @@ const _cellWidth = 84.0;
 const _rowHeight = 44.0;
 const _labelWidth = 140.0;
 
+/// Strip above the rows carrying the "dnes" flag on the today band; the
+/// word is wider than the 12 px band, so it hangs over symmetrically.
+const _todayFlagHeight = 14.0;
+const _todayFlagWidth = 40.0;
+
 /// Bar color for tournaments the viewer hid ("nezajímá mě") when the
 /// show-hidden toggle is on.
 const _hiddenBarColor = Color(0xFFBDBDBD);
@@ -143,17 +148,21 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                     ),
                     const SizedBox(height: 4),
                     // The rows with the "today" band on top — one glance
-                    // says where in the season we are. Outside the shown
-                    // weeks there is no band; IgnorePointer keeps row taps
-                    // working underneath.
+                    // says where in the season we are. The band runs from
+                    // under its "dnes" flag down through all rows; outside
+                    // the shown weeks there is neither. IgnorePointer keeps
+                    // row taps working underneath.
                     Stack(
                       children: [
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children:
-                              _buildRows(timeline, myHidden, venueNames),
+                          children: [
+                            if (timeline.dayOffsetOf(today) != null)
+                              const SizedBox(height: _todayFlagHeight),
+                            ..._buildRows(timeline, myHidden, venueNames),
+                          ],
                         ),
-                        if (timeline.dayOffsetOf(today) case final offset?)
+                        if (timeline.dayOffsetOf(today) case final offset?) ...[
                           Positioned(
                             left: _labelWidth + offset * _cellWidth / 7,
                             top: 0,
@@ -163,6 +172,27 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                               child: ColoredBox(color: _todayBandColor),
                             ),
                           ),
+                          Positioned(
+                            left: _labelWidth +
+                                (offset + 0.5) * _cellWidth / 7 -
+                                _todayFlagWidth / 2,
+                            top: 0,
+                            width: _todayFlagWidth,
+                            height: _todayFlagHeight,
+                            child: const IgnorePointer(
+                              child: Center(
+                                child: Text(
+                                  'dnes',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF1565C0),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
