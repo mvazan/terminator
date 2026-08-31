@@ -45,13 +45,12 @@ void main() {
             home: TimelineScreen(today: today ?? Day(2026, 4, 20))),
       );
 
-  // The today line (deep blue, see timeline_screen.dart) is its own
-  // fixture-independent overlay — bar finders must not count it.
-  const todayLineColor = Color(0xFF1565C0);
-  Finder opaqueBoxes() => find.byWidgetPredicate((w) =>
-      w is ColoredBox && w.color.a == 1.0 && w.color != todayLineColor);
-  Finder todayLine() => find
-      .byWidgetPredicate((w) => w is ColoredBox && w.color == todayLineColor);
+  // Bars and markers are opaque; the today band is translucent by design
+  // (data must stay readable through it), so it never matches this finder.
+  Finder opaqueBoxes() =>
+      find.byWidgetPredicate((w) => w is ColoredBox && w.color.a == 1.0);
+  Finder todayBand() => find.byWidgetPredicate((w) =>
+      w is ColoredBox && w.color.toARGB32() == 0x381565C0);
 
   testWidgets('draws a visible, day-proportional bar', (tester) async {
     await tester.pumpWidget(wrap());
@@ -89,20 +88,20 @@ void main() {
     expect(bar.color, const Color(0xFFBDBDBD));
   });
 
-  testWidgets('today line marks the current day, only inside shown weeks',
+  testWidgets('today band covers the current day, only inside shown weeks',
       (tester) async {
     // Default fixture today = Monday 20. 4. = day 0 of the single week
-    // column: line center at label(140) + 0.5 * day-seventh(12), plus the
-    // 12 px scroll padding, minus half the 2 px width.
+    // column: the band fills that whole day-seventh (84 / 7 = 12 px) right
+    // after the label (140), plus the 12 px scroll padding.
     await tester.pumpWidget(wrap());
-    expect(todayLine(), findsOneWidget);
-    expect(tester.getSize(todayLine()).width, 2);
-    expect(tester.getTopLeft(todayLine()).dx, closeTo(12 + 140 + 6 - 1, 0.5));
+    expect(todayBand(), findsOneWidget);
+    expect(tester.getSize(todayBand()).width, closeTo(84 / 7, 0.01));
+    expect(tester.getTopLeft(todayBand()).dx, closeTo(12 + 140, 0.5));
 
-    // Today before the shown weeks (future tournament) → no line.
+    // Today before the shown weeks (future tournament) → no band.
     await tester.pumpWidget(wrap(today: Day(2026, 4, 13)));
     await tester.pump();
-    expect(todayLine(), findsNothing);
+    expect(todayBand(), findsNothing);
   });
 
   testWidgets('my ticks and ordered days render distinct vertical markers',

@@ -19,10 +19,13 @@ const _hiddenBarColor = Color(0xFFBDBDBD);
 const _tickMarkerColor = Colors.black54;
 const _orderedMarkerColor = Color(0xFFD32F2F);
 
-/// The vertical "today" line across all rows. Deep blue on purpose: red
-/// belongs to ordered-day markers, the theme primary is bordeaux (reads as
-/// red too), and the pastel bars stay out of its way.
-const _todayLineColor = Color(0xFF1565C0);
+/// The vertical "today" band across all rows: the current day's full
+/// seventh, translucent ON PURPOSE — it sits on top of the rows, and the
+/// 2px tick/order markers underneath must stay readable through it (an
+/// opaque line at the same x used to swallow exactly today's marker).
+/// Deep blue: red belongs to ordered-day markers, the theme primary is
+/// bordeaux (reads as red too), and the pastel bars stay out of its way.
+const _todayBandColor = Color(0x381565C0);
 
 /// Season calendar — the team's spreadsheet as a screen: rows = tournaments,
 /// columns = weeks, colored bars = duration. Overlaps at a glance.
@@ -139,9 +142,9 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    // The rows with the "today" line on top — one glance
+                    // The rows with the "today" band on top — one glance
                     // says where in the season we are. Outside the shown
-                    // weeks there is no line; IgnorePointer keeps row taps
+                    // weeks there is no band; IgnorePointer keeps row taps
                     // working underneath.
                     Stack(
                       children: [
@@ -152,14 +155,12 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                         ),
                         if (timeline.dayOffsetOf(today) case final offset?)
                           Positioned(
-                            left: _labelWidth +
-                                (offset + 0.5) * _cellWidth / 7 -
-                                1,
+                            left: _labelWidth + offset * _cellWidth / 7,
                             top: 0,
                             bottom: 0,
-                            width: 2,
+                            width: _cellWidth / 7,
                             child: const IgnorePointer(
-                              child: ColoredBox(color: _todayLineColor),
+                              child: ColoredBox(color: _todayBandColor),
                             ),
                           ),
                       ],
