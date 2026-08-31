@@ -10,6 +10,7 @@ import '../../data/local_prefs.dart';
 import '../../data/providers.dart';
 import '../../domain/chat_items.dart';
 import '../../domain/chat_policy.dart';
+import '../../domain/chat_reactions.dart';
 import '../../domain/models.dart';
 import '../../push/push.dart';
 import '../tournaments/tournament_detail_screen.dart';
@@ -68,6 +69,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// Last message the tray sweep already ran for — the sweep fires only
   /// when a newer message renders, not on every build.
   DateTime? _notificationsClearedAt;
+
+  /// Optimistic reactions: rendered immediately, dropped once the stream
+  /// confirms them (or reverted when the write fails).
+  final _pendingReactions = <PendingReaction>[];
 
   String get _chatKey => muteKey(widget.tournamentId, widget.day);
 
@@ -153,7 +158,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// Long-press actions: react, reply, copy, delete (own message only).
   void _messageActions(ChatMessage message, {required bool locked}) {
     final mine = message.userId == currentUserId;
-    final reactions = _reactionsOf(message.id);
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -172,7 +176,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         borderRadius: BorderRadius.circular(24),
                         onTap: () {
                           Navigator.pop(sheetCtx);
-                          _toggleReaction(message, emoji, reactions);
+                          _toggleReaction(message, emoji);
                         },
                         child: Padding(
                           padding: const EdgeInsets.all(10),
@@ -241,22 +245,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
+  /// Reactions of one message with my pending (optimistic) ops applied —
+  /// the tap-time source of truth, so a quick double-tap toggles cleanly.
   List<Reaction> _reactionsOf(String messageId) {
-    final map = widget.isTeam
-        ? ref.read(teamReactionsProvider).value
-        : ref.read(reactionsProvider).value;
-    return map?[messageId] ?? const [];
+    final map = (widget.isTeam
+            ? ref.read(teamReactionsProvider).value
+            : ref.read(reactionsProvider).value) ??
+        const <String, List<Reaction>>{};
+    final uid = currentUserId;
+    if (uid == null) return map[messageId] ?? const [];
+    return applyPendingReactions(map, _pendingReactions, uid)[messageId] ??
+        const [];
   }
 
-  Future<void> _toggleReaction(
-      ChatMessage message, String emoji, List<Reaction> current) async {
-    final mine = current
-        .any((r) => r.userId == currentUserId && r.emoji == emoji);
+  Future<void> _toggleReaction(ChatMessage message, String emoji) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+    final mine = _reactionsOf(message.id)
+        .any((r) => r.userId == uid && r.emoji == emoji);
     HapticFeedback.selectionClick();
-    await tryAction(
+    final op = PendingReaction(message.id, emoji, add: !mine);
+    setState(() => _pendingReactions.add(op));
+    final ok = await tryAction(
         context,
         () => Api.toggleReaction(message.id, emoji,
             team: widget.isTeam, mine: mine));
+    if (!ok) {
+      // Revert — tryAction's snackbar already explained the failure.
+      _pendingReactions.remove(op);
+      if (mounted) setState(() {});
+    }
   }
 
   /// Day-chat membership sheet: who's in (players/organizer/fans), invite a
@@ -390,13 +408,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 const <ChatMessage>[])
             .where((m) => m.day == widget.day)
             .toList();
-    final reactions = (widget.isTeam
+    var reactions = (widget.isTeam
             ? ref.watch(teamReactionsProvider).value
             : ref.watch(reactionsProvider).value) ??
         const <String, List<Reaction>>{};
     final mutes = ref.watch(myMutesProvider).value ?? const <String>{};
     final muted = mutes.contains(_chatKey);
     final uid = currentUserId;
+
+    // Optimistic reactions: ops the stream already reflects are done; the
+    // rest renders as if the server said yes.
+    if (_pendingReactions.isNotEmpty && uid != null) {
+      _pendingReactions
+          .removeWhere((op) => reactionReflected(reactions, op, uid));
+      reactions = applyPendingReactions(reactions, _pendingReactions, uid);
+    }
 
     // A day chat is a closed group. Until membership data has loaded the
     // benefit of the doubt goes to the user (no banner flash) — the backend
@@ -592,8 +618,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               reactions: reactions[message.id] ?? const [],
               uid: uid,
               onLongPress: () => _messageActions(message, locked: locked),
-              onToggleReaction: (emoji) => _toggleReaction(
-                  message, emoji, reactions[message.id] ?? const []),
+              onToggleReaction: (emoji) => _toggleReaction(message, emoji),
             ),
         },
       for (final p in _pending)
