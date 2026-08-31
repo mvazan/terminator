@@ -19,6 +19,11 @@ const _hiddenBarColor = Color(0xFFBDBDBD);
 const _tickMarkerColor = Colors.black54;
 const _orderedMarkerColor = Color(0xFFD32F2F);
 
+/// The vertical "today" line across all rows. Deep blue on purpose: red
+/// belongs to ordered-day markers, the theme primary is bordeaux (reads as
+/// red too), and the pastel bars stay out of its way.
+const _todayLineColor = Color(0xFF1565C0);
+
 /// Season calendar — the team's spreadsheet as a screen: rows = tournaments,
 /// columns = weeks, colored bars = duration. Overlaps at a glance.
 /// Vertical lines inside a bar mark days I ticked (dark) and days where I'M
@@ -134,7 +139,31 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    ..._buildRows(timeline, myHidden, venueNames),
+                    // The rows with the "today" line on top — one glance
+                    // says where in the season we are. Outside the shown
+                    // weeks there is no line; IgnorePointer keeps row taps
+                    // working underneath.
+                    Stack(
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children:
+                              _buildRows(timeline, myHidden, venueNames),
+                        ),
+                        if (timeline.dayOffsetOf(today) case final offset?)
+                          Positioned(
+                            left: _labelWidth +
+                                (offset + 0.5) * _cellWidth / 7 -
+                                1,
+                            top: 0,
+                            bottom: 0,
+                            width: 2,
+                            child: const IgnorePointer(
+                              child: ColoredBox(color: _todayLineColor),
+                            ),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),

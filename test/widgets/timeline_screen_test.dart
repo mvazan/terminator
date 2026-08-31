@@ -45,8 +45,13 @@ void main() {
             home: TimelineScreen(today: today ?? Day(2026, 4, 20))),
       );
 
-  Finder opaqueBoxes() =>
-      find.byWidgetPredicate((w) => w is ColoredBox && w.color.a == 1.0);
+  // The today line (deep blue, see timeline_screen.dart) is its own
+  // fixture-independent overlay — bar finders must not count it.
+  const todayLineColor = Color(0xFF1565C0);
+  Finder opaqueBoxes() => find.byWidgetPredicate((w) =>
+      w is ColoredBox && w.color.a == 1.0 && w.color != todayLineColor);
+  Finder todayLine() => find
+      .byWidgetPredicate((w) => w is ColoredBox && w.color == todayLineColor);
 
   testWidgets('draws a visible, day-proportional bar', (tester) async {
     await tester.pumpWidget(wrap());
@@ -82,6 +87,22 @@ void main() {
 
     final bar = tester.widget<ColoredBox>(opaqueBoxes());
     expect(bar.color, const Color(0xFFBDBDBD));
+  });
+
+  testWidgets('today line marks the current day, only inside shown weeks',
+      (tester) async {
+    // Default fixture today = Monday 20. 4. = day 0 of the single week
+    // column: line center at label(140) + 0.5 * day-seventh(12), plus the
+    // 12 px scroll padding, minus half the 2 px width.
+    await tester.pumpWidget(wrap());
+    expect(todayLine(), findsOneWidget);
+    expect(tester.getSize(todayLine()).width, 2);
+    expect(tester.getTopLeft(todayLine()).dx, closeTo(12 + 140 + 6 - 1, 0.5));
+
+    // Today before the shown weeks (future tournament) → no line.
+    await tester.pumpWidget(wrap(today: Day(2026, 4, 13)));
+    await tester.pump();
+    expect(todayLine(), findsNothing);
   });
 
   testWidgets('my ticks and ordered days render distinct vertical markers',

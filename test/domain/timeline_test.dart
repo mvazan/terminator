@@ -13,6 +13,34 @@ void main() {
     expect(weekStart(Day(2026, 4, 27)), Day(2026, 4, 27)); // next Monday
   });
 
+  group('dayOffsetOf (čára dneška)', () {
+    // Weeks of 27.4.–3.5. and 4.5.–10.5.
+    final timeline = Timeline.build([
+      makeTournament(
+        id: 'a',
+        venueId: 'v',
+        startsOn: Day(2026, 4, 27),
+        endsOn: Day(2026, 5, 10),
+      ),
+    ]);
+
+    test('first Monday is 0, days count across weeks', () {
+      expect(timeline.dayOffsetOf(Day(2026, 4, 27)), 0);
+      expect(timeline.dayOffsetOf(Day(2026, 5, 3)), 6); // first Sunday
+      expect(timeline.dayOffsetOf(Day(2026, 5, 6)), 9); // Wed of week 2
+      expect(timeline.dayOffsetOf(Day(2026, 5, 10)), 13); // last Sunday
+    });
+
+    test('outside the shown weeks (or empty timeline) is null', () {
+      expect(timeline.dayOffsetOf(Day(2026, 4, 26)), isNull);
+      expect(timeline.dayOffsetOf(Day(2026, 5, 11)), isNull);
+      expect(
+          const Timeline(columns: [], rows: [])
+              .dayOffsetOf(Day(2026, 5, 1)),
+          isNull);
+    });
+  });
+
   test('builds columns spanning all tournaments and maps rows to columns', () {
     final vracov = makeTournament(
       id: 'a',

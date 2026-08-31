@@ -106,6 +106,16 @@ class Timeline {
 
   bool get isEmpty => rows.isEmpty;
 
+  /// Offset of [day] in days from the first column's Monday (0 = that
+  /// Monday) — where the "today" line belongs. Null when the timeline is
+  /// empty or [day] falls outside the shown weeks (then no line is drawn).
+  int? dayOffsetOf(Day day) {
+    if (columns.isEmpty) return null;
+    final offset = day.differenceInDays(columns.first.monday);
+    if (offset < 0 || offset >= columns.length * 7) return null;
+    return offset;
+  }
+
   /// Builds the timeline covering every week any tournament touches.
   /// Rows keep the given tournament order (caller sorts, typically by start).
   ///
