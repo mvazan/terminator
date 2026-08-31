@@ -14,6 +14,10 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.9.3', '31. 8. 2026', [
+    'Dnešek v sezónním kalendáři je průsvitný modrý pás se štítkem '
+        '„dnes" — a čárky zájmů i objednávek přes něj zůstávají vidět.',
+  ]),
   Release('2.9.2', '31. 8. 2026', [
     'Objednávky v detailu turnaje jdou chronologicky podle prvního startu '
         '— sekce čte jako program turnaje, ne jako historie zadávání.',
