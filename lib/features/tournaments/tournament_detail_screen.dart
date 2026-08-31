@@ -8,6 +8,7 @@ import '../../data/providers.dart';
 import '../../domain/commitments.dart';
 import '../../domain/heatmap.dart';
 import '../../domain/models.dart';
+import '../../domain/order_sort.dart';
 import '../../domain/who_is_in.dart';
 import '../../scrape/scraper.dart';
 import '../chats/chat_screen.dart';
@@ -382,7 +383,11 @@ class _TournamentDetailScreenState
                 key: _ordersKey,
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            for (final order in orders)
+            // Chronologically — the section reads as the tournament program,
+            // not as an audit log (the provider itself stays newest-first).
+            for (final order in ordersByFirstStart(orders,
+                orderSlots: orderSlots,
+                slotById: {for (final s in allSlots) s.id: s}))
               if (order.status != OrderStatus.cancelled)
                 OrderCard(
                   order: order,
