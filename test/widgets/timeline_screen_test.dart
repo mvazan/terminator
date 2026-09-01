@@ -111,6 +111,49 @@ void main() {
     expect(find.text('dnes'), findsNothing);
   });
 
+  testWidgets('venue-full days lose the interest tick, never the order mark',
+      (tester) async {
+    // My ticked start has no free lanes left — the grey tick is moot
+    // (nothing to order there anymore).
+    final full = makeSlot('s1', Day(2026, 4, 24), const HourMinute(17, 0),
+        tournamentId: tournament.id, venueCapacity: 8, venueOccupied: 8);
+    const myTick = Availability(slotId: 's1', userId: 'me');
+    final grey = find.byWidgetPredicate(
+        (w) => w is ColoredBox && w.color == Colors.black54);
+    await tester.pumpWidget(wrap(slots: [full], availability: [myTick]));
+    expect(grey, findsNothing);
+
+    // Another ticked start the same day still bookable → the day keeps
+    // its tick.
+    final free = makeSlot('s2', Day(2026, 4, 24), const HourMinute(19, 0),
+        tournamentId: tournament.id, venueCapacity: 8, venueOccupied: 2);
+    await tester.pumpWidget(wrap(
+      slots: [full, free],
+      availability: [myTick, const Availability(slotId: 's2', userId: 'me')],
+    ));
+    await tester.pump();
+    expect(grey, findsOneWidget);
+
+    // Orders are OURS — the red mark stays even where we ate the capacity.
+    await tester.pumpWidget(wrap(
+      slots: [full],
+      availability: [myTick],
+      orders: [makeOrder(id: 'o1', tournamentId: tournament.id)],
+      orderSlots: {
+        'o1': {'s1': 1},
+      },
+      rosters: [
+        const RosterEntry(id: 'r1', slotId: 's1', addedBy: 'me', userId: 'me'),
+      ],
+    ));
+    await tester.pump();
+    expect(
+        find.byWidgetPredicate(
+            (w) => w is ColoredBox && w.color == const Color(0xFFD32F2F)),
+        findsOneWidget);
+    expect(grey, findsNothing);
+  });
+
   testWidgets('my ticks and ordered days render distinct vertical markers',
       (tester) async {
     final slot = makeSlot(

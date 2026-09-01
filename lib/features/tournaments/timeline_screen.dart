@@ -77,8 +77,12 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
       final slot = slotById[a.slotId];
       // Venue-cancelled starts drop out of the season calendar even when
       // the tick row still exists (it survives for the notification and a
-      // possible revive).
-      if (slot != null && !slot.cancelled) {
+      // possible revive). Venue-full ones too (cached occupancy from the
+      // last scrape, ours included — the detail grid hides them the same
+      // way): a tick where nothing can be ordered anymore is noise. The
+      // day keeps its tick while ANY of my ticked starts stays bookable;
+      // ordered (red) days are untouched — that capacity is ours.
+      if (slot != null && !slot.cancelled && !slot.venueFull) {
         tickedDays.putIfAbsent(slot.tournamentId, () => {}).add(slot.date);
       }
     }

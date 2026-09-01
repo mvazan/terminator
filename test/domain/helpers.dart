@@ -30,13 +30,18 @@ Tournament makeTournament({
     );
 
 Slot makeSlot(String id, Day date, HourMinute time,
-        {String tournamentId = 't1', DateTime? cancelledAt}) =>
+        {String tournamentId = 't1',
+        DateTime? cancelledAt,
+        int? venueCapacity,
+        int? venueOccupied}) =>
     Slot(
         id: id,
         tournamentId: tournamentId,
         date: date,
         time: time,
-        cancelledAt: cancelledAt);
+        cancelledAt: cancelledAt,
+        venueCapacity: venueCapacity,
+        venueOccupied: venueOccupied);
 
 Order makeOrder({
   String id = 'o1',
