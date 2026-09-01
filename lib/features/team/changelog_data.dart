@@ -14,6 +14,11 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.9.4', '1. 9. 2026', [
+    'Sezónní kalendář: šedá čárka zájmu zmizí, když už je start plný '
+        '(podle poslední známé obsazenosti) — den ji drží, dokud se tam '
+        'ještě dá objednat. Červené čárky tvých startů zůstávají vždy.',
+  ]),
   Release('2.9.3', '31. 8. 2026', [
     'Dnešek v sezónním kalendáři je průsvitný modrý pás se štítkem '
         '„dnes" — a čárky zájmů i objednávek přes něj zůstávají vidět.',
