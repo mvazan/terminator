@@ -7,9 +7,37 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/theme_choice.dart';
+
 const _showWhoIsInKey = 'show_who_is_in';
 const _chatReadsKey = 'chat_reads';
 const _chatDraftsKey = 'chat_drafts';
+const _themeChoiceKey = 'theme_choice';
+
+/// Vzhled zvolený v Nastavení (Termínátor podle systému / Světlý / Tmavý).
+/// Zařízení-lokální jako ostatní UI prefs.
+final themeChoiceProvider =
+    NotifierProvider<ThemeChoiceNotifier, ThemeChoice>(
+        ThemeChoiceNotifier.new);
+
+class ThemeChoiceNotifier extends Notifier<ThemeChoice> {
+  @override
+  ThemeChoice build() {
+    _load();
+    return ThemeChoice.system;
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = parseThemeChoice(prefs.getString(_themeChoiceKey));
+  }
+
+  Future<void> set(ThemeChoice choice) async {
+    state = choice;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_themeChoiceKey, choice.name);
+  }
+}
 
 /// Whether the "who's in" name list is shown under every slot in the
 /// tournament heatmap (vs. just the count). Toggled from the tournament

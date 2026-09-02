@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../config.dart';
+import '../../core/theme_choice.dart';
 import '../../core/ui.dart';
+import '../../data/local_prefs.dart';
 import '../../data/providers.dart';
 import '../../domain/models.dart';
 import '../venues/venues_screen.dart';
@@ -18,6 +20,54 @@ bool get _isDemoAccount =>
 /// enabled / disabled / muted for 1h, 3h, 6h, 12h, or a custom number of
 /// hours. Enforced server-side by the notify Edge Function, so it applies
 /// to background pushes too.
+/// Volba vzhledu (jen toto zařízení): Termínátor = bordó podle systému,
+/// Světlý/Tmavý vynutí jas s maximálním kontrastem kvůli čitelnosti.
+class _ThemeTile extends ConsumerWidget {
+  const _ThemeTile();
+
+  static const _labels = {
+    ThemeChoice.system: 'Termínátor — podle systému',
+    ThemeChoice.light: 'Světlý — vysoký kontrast',
+    ThemeChoice.dark: 'Tmavý — vysoký kontrast',
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final choice = ref.watch(themeChoiceProvider);
+    return ListTile(
+      leading: const Icon(Icons.palette_outlined),
+      title: const Text('Vzhled'),
+      subtitle: Text(_labels[choice]!),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => showDialog<void>(
+        context: context,
+        builder: (dialogCtx) => SimpleDialog(
+          title: const Text('Vzhled'),
+          children: [
+            RadioGroup<ThemeChoice>(
+              groupValue: choice,
+              onChanged: (v) {
+                Navigator.pop(dialogCtx);
+                if (v != null) ref.read(themeChoiceProvider.notifier).set(v);
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final c in ThemeChoice.values)
+                    RadioListTile<ThemeChoice>(
+                      value: c,
+                      title: Text(_labels[c]!),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -68,6 +118,8 @@ class SettingsScreen extends ConsumerWidget {
             ),
             const _CalendarLinkTile(),
           ],
+          const Divider(height: 24),
+          const _ThemeTile(),
           const Divider(height: 24),
           ListTile(
             leading: const Icon(Icons.location_on_outlined),

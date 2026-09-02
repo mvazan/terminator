@@ -8,7 +8,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config.dart';
 import 'core/offline_banner.dart';
+import 'core/theme_choice.dart';
 import 'core/ui.dart';
+import 'data/local_prefs.dart';
 import 'features/auth/auth_gate.dart';
 import 'push/push.dart';
 
@@ -100,11 +102,14 @@ Future<void> _bootstrap() async {
   runApp(const ProviderScope(child: TerminatorApp()));
 }
 
-class TerminatorApp extends StatelessWidget {
+class TerminatorApp extends ConsumerWidget {
   const TerminatorApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Vzhled z Nastavení: Termínátor = podle systému s běžným kontrastem
+    // (dosavadní chování), Světlý/Tmavý vynutí jas s maximálním kontrastem.
+    final plan = themePlanFor(ref.watch(themeChoiceProvider));
     return MaterialApp(
       title: 'Termínátor',
       navigatorKey: Push.navigatorKey,
@@ -117,16 +122,18 @@ class TerminatorApp extends StatelessWidget {
       locale: const Locale('cs'),
       supportedLocales: const [Locale('cs'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      theme: _theme(Brightness.light),
-      darkTheme: _theme(Brightness.dark),
+      theme: _theme(Brightness.light, plan.contrastLevel),
+      darkTheme: _theme(Brightness.dark, plan.contrastLevel),
+      themeMode: plan.mode,
       home: AppConfig.hasSupabase ? const AuthGate() : const _NotConfigured(),
     );
   }
 
-  ThemeData _theme(Brightness brightness) {
+  ThemeData _theme(Brightness brightness, double contrastLevel) {
     final scheme = ColorScheme.fromSeed(
       seedColor: const Color(0xFF8E2430), // kuželky bordeaux
       brightness: brightness,
+      contrastLevel: contrastLevel,
     );
     return ThemeData(
       colorScheme: scheme,
