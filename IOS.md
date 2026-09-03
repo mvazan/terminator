@@ -35,9 +35,10 @@ jednou při případném iOS vydání všechno na jednom místě.
 ## Ostatní
 
 - **Force-update (`app_config.min_build`).** Mechanismus je
-  cross-platform, ale hlášky a odkaz vedou na Google Play; pro iOS by
-  bylo třeba App Store URL a oddělené min_buildy (build čísla obou
-  platforem se nepotkávají).
+  cross-platform (appka řádek streamuje přes Realtime, takže bump zamkne
+  i běžící appky do pár sekund), ale hlášky a odkaz vedou na Google Play;
+  pro iOS by bylo třeba App Store URL a oddělené min_buildy (build čísla
+  obou platforem se nepotkávají).
 - **Demo účet pro review.** Google Play review používá
   playreview@vvrky.cz + DEMO_PASSWORD bypass; Apple review by potřebovala
   totéž (funguje serverově, jen prověřit flow přihlášení na iOS).
