@@ -129,6 +129,14 @@ class SettingsScreen extends ConsumerWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Text('Zobrazení',
+                style: Theme.of(context).textTheme.titleMedium),
+          ),
+          const _ThemeTile(),
+          const _TextSizeTile(),
+          const Divider(height: 24),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
             child: Text('Upozornění',
                 style: Theme.of(context).textTheme.titleMedium),
           ),
@@ -161,9 +169,6 @@ class SettingsScreen extends ConsumerWidget {
             ),
             const _CalendarLinkTile(),
           ],
-          const Divider(height: 24),
-          const _ThemeTile(),
-          const _TextSizeTile(),
           const Divider(height: 24),
           ListTile(
             leading: const Icon(Icons.location_on_outlined),
