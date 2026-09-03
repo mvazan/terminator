@@ -14,6 +14,14 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.9.5', '3. 9. 2026', [
+    'Nastavení → Vzhled: k dosavadnímu vzhledu podle systému přibyl Světlý '
+        'a Tmavý s vysokým kontrastem.',
+    'Nastavení → Velikost písma: normální, větší (115 %) nebo největší '
+        '(130 %) — navíc k tomu, co máš v telefonu.',
+    'Čitelnost: text v bublinách, na kartách i v mřížce zájmu má všude dost '
+        'kontrastu a karty jsou proti pozadí konečně vidět.',
+  ]),
   Release('2.9.4', '1. 9. 2026', [
     'Sezónní kalendář: šedá čárka zájmu zmizí, když už je start plný '
         '(podle poslední známé obsazenosti) — den ji drží, dokud se tam '
