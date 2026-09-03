@@ -8,6 +8,7 @@ library;
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config.dart';
@@ -46,16 +47,52 @@ final _userIdProvider = Provider<String?>((ref) {
 /// in build (and their tests) read this instead of the raw Supabase getter.
 final currentUserIdProvider = Provider<String?>((ref) => ref.watch(_userIdProvider));
 
-/// Minimum build the backend still supports; older builds block on an
-/// update screen. Null while unknown (network error → don't block anyone).
-final minBuildProvider = FutureProvider<int?>((ref) async {
+/// Minimum build the backend still supports (`app_config.min_build`);
+/// older builds block on the update screen. LIVE: a Realtime stream of the
+/// single row (0041), so a bump lands in a running app within seconds
+/// instead of on the next cold start — an old build never keeps firing
+/// half-broken RPCs (and Sentry noise) until someone restarts it. Readable
+/// pre-login (0015), so even a signed-out old build blocks. Re-subscribed
+/// every 5 minutes (a dead socket cannot leave a build running blindly)
+/// and by the auth gate on resume. Null while unknown (offline, older
+/// backend) — never lock anyone out on a doubt; on a later error the last
+/// known value stands.
+final minBuildProvider = StreamProvider<int?>((ref) {
+  final timer = Timer.periodic(
+      const Duration(minutes: 5), (_) => ref.invalidateSelf());
+  ref.onDispose(timer.cancel);
+  return _minBuildStream();
+});
+
+Stream<int?> _minBuildStream() async* {
+  int? last;
   try {
-    final row =
-        await _db.from('app_config').select('min_build').maybeSingle();
-    return row?['min_build'] as int?;
+    await for (final rows in _db.from('app_config').stream(primaryKey: ['id'])) {
+      last = rows.isEmpty ? null : rows.first['min_build'] as int?;
+      yield last;
+    }
   } catch (_) {
-    return null; // unreachable/older backend — never lock users out
+    yield last;
   }
+}
+
+/// This build's number (the part after `+` in pubspec.yaml); null where
+/// package info is unavailable (tests, an unsupported platform).
+final appBuildProvider = FutureProvider<int?>((ref) async {
+  try {
+    return int.tryParse((await PackageInfo.fromPlatform()).buildNumber);
+  } catch (_) {
+    return null;
+  }
+});
+
+/// True when BOTH numbers are known and this build is older than the
+/// backend allows — the auth gate then shows the update screen and the app
+/// stops talking to the server.
+final updateRequiredProvider = Provider<bool>((ref) {
+  final minBuild = ref.watch(minBuildProvider).value;
+  final build = ref.watch(appBuildProvider).value;
+  return minBuild != null && build != null && build < minBuild;
 });
 
 /// The signed-in user's profile row (null while the user has no profile yet,

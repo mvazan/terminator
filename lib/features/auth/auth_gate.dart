@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/ui.dart';
@@ -13,22 +12,36 @@ import 'update_screen.dart';
 import 'waiting_screen.dart';
 
 /// Routes by auth/profile state:
-/// no session -> login, no profile -> invite code, pending -> waiting,
-/// approved -> the app. All transitions are live (streams).
-final _buildNumberProvider = FutureProvider<int?>((_) async =>
-    int.tryParse((await PackageInfo.fromPlatform()).buildNumber));
-
-class AuthGate extends ConsumerWidget {
+/// too-old build -> update, no session -> login, no profile -> invite code,
+/// pending -> waiting, approved -> the app. All transitions are live
+/// (streams).
+class AuthGate extends ConsumerStatefulWidget {
   const AuthGate({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends ConsumerState<AuthGate> {
+  /// Coming back to the foreground re-reads min_build: the Realtime stream
+  /// is the fast path, this is the belt for a socket that died meanwhile.
+  late final AppLifecycleListener _lifecycle = AppLifecycleListener(
+    onResume: () => ref.invalidate(minBuildProvider),
+  );
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // Force-update gate: when the backend says this build is too old,
-    // block everything with the update screen. Unknown (offline, older
-    // backend) never blocks.
-    final minBuild = ref.watch(minBuildProvider).value;
-    final build = ref.watch(_buildNumberProvider).value;
-    if (minBuild != null && build != null && build < minBuild) {
+    // block everything with the update screen — live, so a running app
+    // locks within seconds of a bump. Unknown (offline, older backend)
+    // never blocks.
+    if (ref.watch(updateRequiredProvider)) {
       return const UpdateScreen();
     }
 
