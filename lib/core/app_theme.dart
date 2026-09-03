@@ -4,13 +4,21 @@ library;
 
 import 'package:flutter/material.dart';
 
+import 'contrast.dart';
+
 /// Kuželky bordó — identita appky, ze které se odvozuje celé schéma.
 const seedColor = Color(0xFF8E2430);
 
-/// Barvy jedné chatové bubliny — jediné místo, odkud je bere widget i
-/// test kontrastu (test/core/theme_contrast_test.dart).
-class BubbleColors {
-  const BubbleColors({
+/// Ta z [a]/[b], která je na výplni [fill] čitelnější.
+Color _readableOn(Color fill, Color a, Color b) =>
+    contrastRatio(a, fill) >= contrastRatio(b, fill) ? a : b;
+
+/// Barvy jedné barevné plochy (bublina, zvýrazněná karta, buňka mřížky) —
+/// jediné místo, odkud je bere widget i test kontrastu
+/// (test/core/theme_contrast_test.dart). Výplň bez svojí `on` barvy je
+/// past: v motivech s vysokým kontrastem ztmavne a text na ní zmizí.
+class SurfaceColors {
+  const SurfaceColors({
     required this.fill,
     required this.on,
     required this.border,
@@ -36,19 +44,41 @@ class BubbleColors {
 /// onSurface na cizí) — jinak se v motivech s vysokým kontrastem, kde je
 /// primaryContainer sytě bordó, propadne až k 1.8:1. Obrys z [outline]
 /// dělá tvar viditelný i tam, kde je výplň skoro jako pozadí stránky.
-BubbleColors bubbleColors(ColorScheme s,
+SurfaceColors bubbleColors(ColorScheme s,
     {required bool mine, bool failed = false}) {
   if (failed) {
-    return BubbleColors(
+    return SurfaceColors(
       fill: s.errorContainer,
       on: s.onErrorContainer,
       border: s.error,
     );
   }
-  return BubbleColors(
+  return SurfaceColors(
     fill: mine ? s.primaryContainer : s.surfaceContainerHigh,
     on: mine ? s.onPrimaryContainer : s.onSurface,
     border: s.outline,
+  );
+}
+
+/// Zvýrazněná karta (nejbližší start na Moje starty) — bordó výplň, text
+/// k ní patřící.
+SurfaceColors highlightSurface(ColorScheme s) => SurfaceColors(
+      fill: s.primaryContainer,
+      on: s.onPrimaryContainer,
+      border: s.outline,
+    );
+
+/// Buňka mřížky zájmu: výplň přechází podle [intensity] (0 = nikdo,
+/// 1 = plný zájem) z neutrální plochy do bordó. Barva textu se v půli
+/// přechodu překlápí — pevná volba by na druhém konci spadla až k 1.8:1,
+/// tenhle výběr drží nejhorší případ na 5.6:1.
+SurfaceColors gridCellSurface(ColorScheme s, double intensity) {
+  final fill =
+      Color.lerp(s.surfaceContainerHighest, s.primaryContainer, intensity)!;
+  return SurfaceColors(
+    fill: fill,
+    on: _readableOn(fill, s.onSurface, s.onPrimaryContainer),
+    border: s.outlineVariant,
   );
 }
 
@@ -109,6 +139,22 @@ ThemeData appTheme(Brightness brightness, double contrastLevel) {
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: scheme.surfaceContainerLowest,
       indicatorColor: scheme.primaryContainer,
+      // Ikona vybrané záložky leží na pilulce (primaryContainer), popisek
+      // pod ní na pozadí lišty — každý potřebuje svou `on` barvu.
+      iconTheme: WidgetStateProperty.resolveWith((states) => IconThemeData(
+            color: states.contains(WidgetState.selected)
+                ? scheme.onPrimaryContainer
+                : scheme.onSurfaceVariant,
+          )),
+      labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(
+            fontSize: 12,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w600
+                : FontWeight.w500,
+            color: states.contains(WidgetState.selected)
+                ? scheme.onSurface
+                : scheme.onSurfaceVariant,
+          )),
     ),
     snackBarTheme: const SnackBarThemeData(
       behavior: SnackBarBehavior.floating,

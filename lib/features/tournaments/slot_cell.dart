@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/app_theme.dart';
 import '../../domain/models.dart';
 
 /// One cell of the availability heatmap: start time and, below it, how many
@@ -53,6 +54,9 @@ class SlotCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // Výplň i barva textu podle síly zájmu — v půli přechodu se text
+    // překlápí, jinak by na sytém konci zmizel (viz app_theme).
+    final cell = gridCellSurface(scheme, intensity);
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: onTap,
@@ -64,9 +68,7 @@ class SlotCell extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            color: Color.lerp(
-                scheme.surfaceContainerHighest, scheme.primaryContainer,
-                intensity),
+            color: cell.fill,
             border: Border.all(
               color: _blockedByOthers
                   ? scheme.error
@@ -79,6 +81,7 @@ class SlotCell extends StatelessWidget {
               Text(
                 time.display(),
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: cell.on,
                       decoration:
                           _blockedByOthers ? TextDecoration.lineThrough : null,
                     ),
@@ -91,19 +94,21 @@ class SlotCell extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.only(right: 2),
                       child: Icon(Icons.check_circle,
-                          size: 14, color: scheme.primary),
+                          size: 14, color: cell.on),
                     ),
                   // Home = our booking at the venue.
                   if (venueOurs > 0)
                     Padding(
                       padding: const EdgeInsets.only(right: 2),
-                      child:
-                          Icon(Icons.home, size: 14, color: scheme.primary),
+                      child: Icon(Icons.home, size: 14, color: cell.on),
                     ),
                   // Plain team count, or "team/free lanes" when scraped.
                   Text(
                     _scraped ? '$count/$venueFree' : '$count',
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: cell.on),
                   ),
                 ],
               ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/app_theme.dart';
 import '../../core/ui.dart';
 import '../../data/providers.dart';
 import '../../domain/commitments.dart';
@@ -190,9 +191,12 @@ class MyStartsScreen extends ConsumerWidget {
       required String inDays,
       required VoidCallback onCancelDay}) {
     final scheme = Theme.of(context).colorScheme;
+    // Bordó výplň si nese vlastní barvu textu (viz app_theme) — s výchozím
+    // onSurface měl nadpis v kontrastních motivech jen 1.8:1.
+    final h = highlightSurface(scheme);
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-      color: scheme.primaryContainer,
+      color: h.fill,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () => Navigator.of(context).push(
@@ -215,7 +219,7 @@ class MyStartsScreen extends ConsumerWidget {
                       style: Theme.of(context)
                           .textTheme
                           .labelMedium
-                          ?.copyWith(color: scheme.primary),
+                          ?.copyWith(color: h.subtle),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -224,24 +228,32 @@ class MyStartsScreen extends ConsumerWidget {
                       style: Theme.of(context)
                           .textTheme
                           .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                          ?.copyWith(
+                              fontWeight: FontWeight.w700, color: h.on),
                     ),
                     const SizedBox(height: 2),
-                    Text(start.tournament.timelineLabel(venueName)),
+                    Text(start.tournament.timelineLabel(venueName),
+                        style: TextStyle(color: h.on)),
                     Text(start.tournament.name,
-                        style: Theme.of(context).textTheme.bodySmall),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: h.on)),
                     if (teammates.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text('S: ${teammates.join(', ')}',
-                            style: Theme.of(context).textTheme.bodySmall),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: h.on)),
                       ),
                   ],
                 ),
               ),
               IconButton(
                 tooltip: 'Zrušit zájem v tento den',
-                icon: const Icon(Icons.event_busy),
+                icon: Icon(Icons.event_busy, color: h.on),
                 onPressed: onCancelDay,
               ),
             ],

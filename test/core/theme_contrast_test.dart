@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:terminator/core/app_theme.dart';
 
-import 'contrast.dart';
+import 'package:terminator/core/contrast.dart';
 
 /// WCAG 2.1 AA: běžný text 4.5:1, tvary a prvky UI 3:1.
 const _textAA = 4.5;
@@ -51,6 +51,35 @@ void main() {
         expect(visible, greaterThanOrEqualTo(_shapeAA),
             reason: '$variant: karta splývá s pozadím — výplň i obrys pod '
                 '$_shapeAA:1 (nejlepší ${visible.toStringAsFixed(2)}:1)');
+      });
+
+      test('zvýrazněná karta (nejbližší start) je čitelná', () {
+        final h = highlightSurface(s);
+        expectText(contrastRatio(h.on, h.fill), 'zvýrazněná karta — text',
+            variant);
+        expectText(contrastRatio(composite(h.subtle, h.fill), h.fill),
+            'zvýrazněná karta — nadtitulek', variant);
+      });
+
+      // Mřížka zájmu: výplň jede od neutrální po bordó, text musí držet
+      // na obou koncích i uprostřed přechodu.
+      for (final intensity in [0.0, 0.5, 1.0]) {
+        test('buňka mřížky (zájem $intensity) je čitelná', () {
+          final g = gridCellSurface(s, intensity);
+          expectText(contrastRatio(g.on, g.fill),
+              'buňka mřížky při zájmu $intensity', variant);
+        });
+      }
+
+      test('vybraná položka spodní navigace je čitelná', () {
+        final nav = theme.navigationBarTheme;
+        final icon = nav.iconTheme!.resolve({WidgetState.selected})!.color!;
+        final label =
+            nav.labelTextStyle!.resolve({WidgetState.selected})!.color!;
+        expectText(contrastRatio(icon, nav.indicatorColor!),
+            'ikona vybrané záložky', variant);
+        expectText(contrastRatio(label, theme.scaffoldBackgroundColor),
+            'popisek vybrané záložky', variant);
       });
 
       for (final mine in [true, false]) {

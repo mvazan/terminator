@@ -1,4 +1,5 @@
-/// WCAG kontrastní poměry pro barvy schématu — sdílené testy vzhledu.
+/// WCAG kontrastní poměry — počítá s nimi volba čitelnější barvy textu
+/// v app_theme i test kontrastu.
 library;
 
 import 'dart:math' as math;
