@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/app_theme.dart';
 import '../../core/ui.dart';
 import '../../data/local_prefs.dart';
 import '../../data/providers.dart';
@@ -980,6 +981,8 @@ class _BubbleState extends State<_Bubble> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // Barvy bubliny na jednom místě (a měřené v theme_contrast_test).
+    final b = bubbleColors(scheme, mine: widget.mine);
     final message = widget.message;
     final time = TimeOfDay.fromDateTime(message.createdAt.toLocal());
 
@@ -1005,9 +1008,9 @@ class _BubbleState extends State<_Bubble> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           constraints: const BoxConstraints(maxWidth: 300),
           decoration: BoxDecoration(
-            color:
-                widget.mine ? scheme.primaryContainer : scheme.surfaceContainerHigh,
+            color: b.fill,
             borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: b.border),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1024,10 +1027,11 @@ class _BubbleState extends State<_Bubble> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: scheme.surface.withValues(alpha: 0.45),
+                    color: b.nested,
                     borderRadius: BorderRadius.circular(8),
                     border: Border(
-                        left: BorderSide(color: scheme.primary, width: 3)),
+                        left: BorderSide(
+                            color: b.on.withValues(alpha: 0.6), width: 3)),
                   ),
                   child: Text(
                     widget.quoted == null
@@ -1037,13 +1041,15 @@ class _BubbleState extends State<_Bubble> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
+                        color: b.on,
                         fontStyle: widget.quoted == null
                             ? FontStyle.italic
                             : null),
                   ),
                 ),
-              Text.rich(TextSpan(children: _linkify(message.body, scheme))),
+              Text.rich(TextSpan(
+                  style: TextStyle(color: b.on),
+                  children: _linkify(message.body, scheme))),
               if (grouped.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
@@ -1060,19 +1066,17 @@ class _BubbleState extends State<_Bubble> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: e.value.mine
-                                  ? scheme.primary.withValues(alpha: 0.18)
-                                  : scheme.surface.withValues(alpha: 0.5),
+                              color: b.nested,
                               borderRadius: BorderRadius.circular(10),
                               border: e.value.mine
-                                  ? Border.all(color: scheme.primary)
+                                  ? Border.all(color: b.on)
                                   : null,
                             ),
                             child: Text(
                               e.value.count == 1
                                   ? e.key
                                   : '${e.key} ${e.value.count}',
-                              style: const TextStyle(fontSize: 13),
+                              style: TextStyle(fontSize: 13, color: b.on),
                             ),
                           ),
                         ),
@@ -1082,7 +1086,10 @@ class _BubbleState extends State<_Bubble> {
               if (widget.lastOfGroup)
                 Text(
                   time.format(context),
-                  style: Theme.of(context).textTheme.labelSmall,
+                  style: Theme.of(context)
+                      .textTheme
+                      .labelSmall
+                      ?.copyWith(color: b.subtle),
                 ),
             ],
           ),
@@ -1103,6 +1110,9 @@ class _PendingBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // Neúspěch přebarví celou bublinu (errorContainer), ne jen text — chybová
+    // červená na bordó výplni měla v kontrastních motivech 1.6:1.
+    final b = bubbleColors(scheme, mine: true, failed: pending.failed);
     return Align(
       alignment: Alignment.centerRight,
       child: GestureDetector(
@@ -1114,15 +1124,14 @@ class _PendingBubble extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             constraints: const BoxConstraints(maxWidth: 300),
             decoration: BoxDecoration(
-              color: scheme.primaryContainer,
+              color: b.fill,
               borderRadius: BorderRadius.circular(14),
-              border:
-                  pending.failed ? Border.all(color: scheme.error) : null,
+              border: Border.all(color: b.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(pending.body),
+                Text(pending.body, style: TextStyle(color: b.on)),
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1131,7 +1140,7 @@ class _PendingBubble extends StatelessWidget {
                           ? Icons.error_outline
                           : Icons.schedule,
                       size: 12,
-                      color: pending.failed ? scheme.error : null,
+                      color: b.on,
                     ),
                     const SizedBox(width: 4),
                     Text(
@@ -1141,9 +1150,7 @@ class _PendingBubble extends StatelessWidget {
                       style: Theme.of(context)
                           .textTheme
                           .labelSmall
-                          ?.copyWith(
-                              color:
-                                  pending.failed ? scheme.error : null),
+                          ?.copyWith(color: b.on),
                     ),
                   ],
                 ),

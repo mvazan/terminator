@@ -7,6 +7,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config.dart';
+import 'core/app_theme.dart';
 import 'core/offline_banner.dart';
 import 'core/theme_choice.dart';
 import 'core/ui.dart';
@@ -122,72 +123,10 @@ class TerminatorApp extends ConsumerWidget {
       locale: const Locale('cs'),
       supportedLocales: const [Locale('cs'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      theme: _theme(Brightness.light, plan.contrastLevel),
-      darkTheme: _theme(Brightness.dark, plan.contrastLevel),
+      theme: appTheme(Brightness.light, plan.contrastLevel),
+      darkTheme: appTheme(Brightness.dark, plan.contrastLevel),
       themeMode: plan.mode,
       home: AppConfig.hasSupabase ? const AuthGate() : const _NotConfigured(),
-    );
-  }
-
-  ThemeData _theme(Brightness brightness, double contrastLevel) {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF8E2430), // kuželky bordeaux
-      brightness: brightness,
-      contrastLevel: contrastLevel,
-    );
-    return ThemeData(
-      colorScheme: scheme,
-      useMaterial3: true,
-      scaffoldBackgroundColor: scheme.surfaceContainerLowest,
-      appBarTheme: AppBarTheme(
-        backgroundColor: scheme.surfaceContainerLowest,
-        scrolledUnderElevation: 0,
-        titleTextStyle: TextStyle(
-          color: scheme.onSurface,
-          fontSize: 22,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-      cardTheme: CardThemeData(
-        elevation: 0,
-        color: scheme.surfaceContainer,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        margin: const EdgeInsets.symmetric(vertical: 6),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        filled: true,
-        fillColor: scheme.surfaceContainer,
-      ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12)),
-        ),
-      ),
-      chipTheme: ChipThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        side: BorderSide(color: scheme.outlineVariant),
-      ),
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: scheme.surfaceContainerLowest,
-        indicatorColor: scheme.primaryContainer,
-      ),
-      snackBarTheme: const SnackBarThemeData(
-        behavior: SnackBarBehavior.floating,
-      ),
-      dividerTheme: DividerThemeData(
-        color: scheme.outlineVariant.withValues(alpha: 0.4),
-      ),
     );
   }
 }
