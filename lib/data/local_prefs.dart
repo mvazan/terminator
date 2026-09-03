@@ -7,12 +7,14 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/text_size.dart';
 import '../core/theme_choice.dart';
 
 const _showWhoIsInKey = 'show_who_is_in';
 const _chatReadsKey = 'chat_reads';
 const _chatDraftsKey = 'chat_drafts';
 const _themeChoiceKey = 'theme_choice';
+const _textSizeKey = 'text_size';
 
 /// Vzhled zvolený v Nastavení (Termínátor podle systému / Světlý / Tmavý).
 /// Zařízení-lokální jako ostatní UI prefs.
@@ -36,6 +38,30 @@ class ThemeChoiceNotifier extends Notifier<ThemeChoice> {
     state = choice;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_themeChoiceKey, choice.name);
+  }
+}
+
+/// Velikost písma zvolená v Nastavení — násobek NAD systémovým měřítkem
+/// telefonu (viz core/text_size.dart).
+final textSizeProvider =
+    NotifierProvider<TextSizeNotifier, TextSizeChoice>(TextSizeNotifier.new);
+
+class TextSizeNotifier extends Notifier<TextSizeChoice> {
+  @override
+  TextSizeChoice build() {
+    _load();
+    return TextSizeChoice.normal;
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = parseTextSizeChoice(prefs.getString(_textSizeKey));
+  }
+
+  Future<void> set(TextSizeChoice choice) async {
+    state = choice;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_textSizeKey, choice.name);
   }
 }
 

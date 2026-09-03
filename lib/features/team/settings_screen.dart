@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../config.dart';
+import '../../core/text_size.dart';
 import '../../core/theme_choice.dart';
 import '../../core/ui.dart';
 import '../../data/local_prefs.dart';
@@ -16,47 +17,48 @@ bool get _isDemoAccount =>
     Supabase.instance.client.auth.currentUser?.email?.toLowerCase() ==
     AppConfig.demoEmail.toLowerCase();
 
-/// User settings. First section: per-kind notification control —
-/// enabled / disabled / muted for 1h, 3h, 6h, 12h, or a custom number of
-/// hours. Enforced server-side by the notify Edge Function, so it applies
-/// to background pushes too.
-/// Volba vzhledu (jen toto zařízení): Termínátor = bordó podle systému,
-/// Světlý/Tmavý vynutí jas s maximálním kontrastem kvůli čitelnosti.
-class _ThemeTile extends ConsumerWidget {
-  const _ThemeTile();
+/// Řádek "název · aktuální volba" otevírající dialog s rádii. Používají ho
+/// obě nastavení zobrazení (vzhled, velikost písma) — jen toto zařízení.
+class _ChoiceTile<T> extends StatelessWidget {
+  const _ChoiceTile({
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.labels,
+    required this.onChanged,
+  });
 
-  static const _labels = {
-    ThemeChoice.system: 'Termínátor — podle systému',
-    ThemeChoice.light: 'Světlý — vysoký kontrast',
-    ThemeChoice.dark: 'Tmavý — vysoký kontrast',
-  };
+  final IconData icon;
+  final String title;
+  final T value;
+  final Map<T, String> labels;
+  final ValueChanged<T> onChanged;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final choice = ref.watch(themeChoiceProvider);
+  Widget build(BuildContext context) {
     return ListTile(
-      leading: const Icon(Icons.palette_outlined),
-      title: const Text('Vzhled'),
-      subtitle: Text(_labels[choice]!),
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(labels[value]!),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => showDialog<void>(
         context: context,
         builder: (dialogCtx) => SimpleDialog(
-          title: const Text('Vzhled'),
+          title: Text(title),
           children: [
-            RadioGroup<ThemeChoice>(
-              groupValue: choice,
+            RadioGroup<T>(
+              groupValue: value,
               onChanged: (v) {
                 Navigator.pop(dialogCtx);
-                if (v != null) ref.read(themeChoiceProvider.notifier).set(v);
+                if (v != null) onChanged(v);
               },
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  for (final c in ThemeChoice.values)
-                    RadioListTile<ThemeChoice>(
-                      value: c,
-                      title: Text(_labels[c]!),
+                  for (final entry in labels.entries)
+                    RadioListTile<T>(
+                      value: entry.key,
+                      title: Text(entry.value),
                     ),
                 ],
               ),
@@ -68,6 +70,47 @@ class _ThemeTile extends ConsumerWidget {
   }
 }
 
+/// Volba vzhledu: Termínátor = bordó podle systému, Světlý/Tmavý vynutí
+/// jas s maximálním kontrastem kvůli čitelnosti.
+class _ThemeTile extends ConsumerWidget {
+  const _ThemeTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => _ChoiceTile(
+        icon: Icons.palette_outlined,
+        title: 'Vzhled',
+        value: ref.watch(themeChoiceProvider),
+        labels: const {
+          ThemeChoice.system: 'Termínátor — podle systému',
+          ThemeChoice.light: 'Světlý — vysoký kontrast',
+          ThemeChoice.dark: 'Tmavý — vysoký kontrast',
+        },
+        onChanged: (v) => ref.read(themeChoiceProvider.notifier).set(v),
+      );
+}
+
+/// Velikost písma NAD rámec systémového nastavení telefonu.
+class _TextSizeTile extends ConsumerWidget {
+  const _TextSizeTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => _ChoiceTile(
+        icon: Icons.format_size,
+        title: 'Velikost písma',
+        value: ref.watch(textSizeProvider),
+        labels: const {
+          TextSizeChoice.normal: 'Normální — jako v telefonu',
+          TextSizeChoice.large: 'Větší (115 %)',
+          TextSizeChoice.largest: 'Největší (130 %)',
+        },
+        onChanged: (v) => ref.read(textSizeProvider.notifier).set(v),
+      );
+}
+
+/// User settings. First section: per-kind notification control —
+/// enabled / disabled / muted for 1h, 3h, 6h, 12h, or a custom number of
+/// hours. Enforced server-side by the notify Edge Function, so it applies
+/// to background pushes too.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -120,6 +163,7 @@ class SettingsScreen extends ConsumerWidget {
           ],
           const Divider(height: 24),
           const _ThemeTile(),
+          const _TextSizeTile(),
           const Divider(height: 24),
           ListTile(
             leading: const Icon(Icons.location_on_outlined),

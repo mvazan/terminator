@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config.dart';
 import 'core/app_theme.dart';
 import 'core/offline_banner.dart';
+import 'core/text_size.dart';
 import 'core/theme_choice.dart';
 import 'core/ui.dart';
 import 'data/local_prefs.dart';
@@ -111,15 +112,24 @@ class TerminatorApp extends ConsumerWidget {
     // Vzhled z Nastavení: Termínátor = podle systému s běžným kontrastem
     // (dosavadní chování), Světlý/Tmavý vynutí jas s maximálním kontrastem.
     final plan = themePlanFor(ref.watch(themeChoiceProvider));
+    final textSize = ref.watch(textSizeProvider);
     return MaterialApp(
       title: 'Termínátor',
       navigatorKey: Push.navigatorKey,
       debugShowCheckedModeBanner: false,
-      // Offline banner over EVERY screen (wraps the Navigator). Only when a
-      // backend is configured — the provider touches Supabase.instance.
-      builder: AppConfig.hasSupabase
-          ? (context, child) => OfflineBanner(child: child!)
-          : null,
+      // Wraps the Navigator: the chosen text size on every screen, plus the
+      // offline banner (only with a backend — the provider touches
+      // Supabase.instance).
+      builder: (context, child) {
+        final mq = MediaQuery.of(context);
+        return MediaQuery(
+          data: mq.copyWith(
+              textScaler: AppTextScaler(mq.textScaler, textSize)),
+          child: AppConfig.hasSupabase
+              ? OfflineBanner(child: child!)
+              : child!,
+        );
+      },
       locale: const Locale('cs'),
       supportedLocales: const [Locale('cs'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
