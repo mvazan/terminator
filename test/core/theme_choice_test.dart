@@ -9,6 +9,17 @@ void main() {
     expect(plan.contrastLevel, 0.0);
   });
 
+  test('Termínátor světlý/tmavý = stejné barvy, jen bez ohledu na systém', () {
+    final light = themePlanFor(ThemeChoice.terminatorLight);
+    expect(light.mode, ThemeMode.light);
+    expect(light.contrastLevel,
+        themePlanFor(ThemeChoice.system).contrastLevel);
+
+    final dark = themePlanFor(ThemeChoice.terminatorDark);
+    expect(dark.mode, ThemeMode.dark);
+    expect(dark.contrastLevel, themePlanFor(ThemeChoice.system).contrastLevel);
+  });
+
   test('Světlý a Tmavý vynutí svůj jas s maximálním kontrastem', () {
     final light = themePlanFor(ThemeChoice.light);
     expect(light.mode, ThemeMode.light);
@@ -25,5 +36,12 @@ void main() {
     }
     expect(parseThemeChoice(null), ThemeChoice.system);
     expect(parseThemeChoice('neon'), ThemeChoice.system);
+  });
+
+  test('názvy dosavadních voleb se nemění — uložená volba přežije update',
+      () {
+    expect(parseThemeChoice('system'), ThemeChoice.system);
+    expect(parseThemeChoice('light'), ThemeChoice.light);
+    expect(parseThemeChoice('dark'), ThemeChoice.dark);
   });
 }

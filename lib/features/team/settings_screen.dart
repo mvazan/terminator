@@ -70,8 +70,8 @@ class _ChoiceTile<T> extends StatelessWidget {
   }
 }
 
-/// Volba vzhledu: Termínátor = bordó podle systému, Světlý/Tmavý vynutí
-/// jas s maximálním kontrastem kvůli čitelnosti.
+/// Volba vzhledu: tři podoby původního bordó (podle systému, natvrdo
+/// světlá, natvrdo tmavá) a dvě s maximálním kontrastem kvůli čitelnosti.
 class _ThemeTile extends ConsumerWidget {
   const _ThemeTile();
 
@@ -82,6 +82,8 @@ class _ThemeTile extends ConsumerWidget {
         value: ref.watch(themeChoiceProvider),
         labels: const {
           ThemeChoice.system: 'Termínátor — podle systému',
+          ThemeChoice.terminatorLight: 'Termínátor světlý',
+          ThemeChoice.terminatorDark: 'Termínátor tmavý',
           ThemeChoice.light: 'Světlý — vysoký kontrast',
           ThemeChoice.dark: 'Tmavý — vysoký kontrast',
         },
