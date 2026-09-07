@@ -14,6 +14,13 @@ class Release {
 }
 
 const appChangelog = <Release>[
+  Release('2.9.6', '7. 9. 2026', [
+    'Vzhled: přibyl „Termínátor světlý" a „Termínátor tmavý" — původní '
+        'barvy appky, jen se neřídí přepínáním v telefonu.',
+    'Chat otevřený z notifikace už neukazuje staré zprávy: po probuzení si '
+        'appka data sama přetáhne, i když se spojení vrací pomalu.',
+    'Konec neopodstatněných hlášek „Offline" hned po otevření appky.',
+  ]),
   Release('2.9.5', '3. 9. 2026', [
     'Nastavení → Vzhled: k dosavadnímu vzhledu podle systému přibyl Světlý '
         'a Tmavý s vysokým kontrastem.',
