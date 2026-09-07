@@ -15,6 +15,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'live_refresh.dart';
+
 typedef Rows = List<Map<String, dynamic>>;
 
 Directory? _dirCache;
@@ -51,9 +53,24 @@ Future<void> clearTableCache() async {
 /// Wraps a live table stream with the disk cache: cached rows first (if any),
 /// then live snapshots, each persisted (debounced). Live errors don't reach
 /// the listener — Supabase's .stream() terminates on a failed initial fetch,
-/// so this wrapper owns retrying (5 s → 10 s → 30 s cap).
+/// so this wrapper owns retrying (5 s → 10 s → 30 s cap) and re-subscribes
+/// the moment the app wakes up ([LiveRefresh]).
 Stream<Rows> cachedRows({
   required String key,
+  required Stream<Rows> Function() live,
+}) =>
+    _liveRows(key: key, live: live);
+
+/// The same live stream with retry and wake-up refresh, but WITHOUT the disk
+/// cache — for filtered streams whose whole-table sibling already owns the
+/// cache file (chat messages of one tournament vs. the `messages` table).
+/// Every live stream in the app goes through one of these two: a bare
+/// `.stream()` dies with the socket and never comes back.
+Stream<Rows> liveRows({required Stream<Rows> Function() live}) =>
+    _liveRows(key: null, live: live);
+
+Stream<Rows> _liveRows({
+  required String? key,
   required Stream<Rows> Function() live,
 }) {
   return Stream.multi((controller) {
@@ -67,6 +84,7 @@ Stream<Rows> cachedRows({
     var emittedAnything = false;
 
     Future<void> emitCached() async {
+      if (key == null) return;
       try {
         final file = await _fileFor(key);
         if (!await file.exists()) return;
@@ -89,7 +107,7 @@ Stream<Rows> cachedRows({
       writeTimer?.cancel();
       writeTimer = Timer(const Duration(seconds: 2), () async {
         final rows = latest;
-        if (rows == null || !_writesEnabled) return;
+        if (key == null || rows == null || !_writesEnabled) return;
         try {
           final file = await _fileFor(key);
           await file.writeAsString(jsonEncode(rows));
@@ -123,10 +141,31 @@ Stream<Rows> cachedRows({
       );
     }
 
+    // Wake-up: the socket is deliberately dropped while the app sits in the
+    // background, so on return the data on screen can be minutes stale (and
+    // a half-open socket looks alive while delivering nothing). Re-subscribe
+    // right away instead of waiting out the backoff — a fresh subscription
+    // re-reads the table over HTTP, so the screen catches up even if realtime
+    // is still limping. Throttled: app switching fires resumes in bursts.
+    DateTime? lastWake;
+    final wake = LiveRefresh.stream.listen((_) {
+      final now = DateTime.now();
+      if (lastWake != null &&
+          now.difference(lastWake!) < const Duration(seconds: 2)) {
+        return;
+      }
+      lastWake = now;
+      retryTimer?.cancel();
+      retrySeconds = 5;
+      sub?.cancel();
+      subscribe();
+    });
+
     emitCached();
     subscribe();
 
     controller.onCancel = () {
+      wake.cancel();
       sub?.cancel();
       writeTimer?.cancel();
       retryTimer?.cancel();

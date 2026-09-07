@@ -12,6 +12,7 @@ import 'core/offline_banner.dart';
 import 'core/text_size.dart';
 import 'core/theme_choice.dart';
 import 'core/ui.dart';
+import 'data/live_refresh.dart';
 import 'data/local_prefs.dart';
 import 'features/auth/auth_gate.dart';
 import 'push/push.dart';
@@ -104,11 +105,34 @@ Future<void> _bootstrap() async {
   runApp(const ProviderScope(child: TerminatorApp()));
 }
 
-class TerminatorApp extends ConsumerWidget {
+class TerminatorApp extends ConsumerStatefulWidget {
   const TerminatorApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TerminatorApp> createState() => _TerminatorAppState();
+}
+
+class _TerminatorAppState extends ConsumerState<TerminatorApp> {
+  AppLifecycleListener? _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    // Návrat z pozadí = data na obrazovce můžou být stará: Supabase při
+    // pauze socket odpojí, takže co přišlo mezitím (třeba zprávy, kvůli
+    // kterým notifikaci otevíráš) v běžícím streamu chybí. Tohle nechá
+    // živé streamy přetáhnout data hned, místo čekání na backoff.
+    _lifecycle = AppLifecycleListener(onResume: LiveRefresh.request);
+  }
+
+  @override
+  void dispose() {
+    _lifecycle?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // Vzhled z Nastavení: Termínátor = podle systému s běžným kontrastem
     // (dosavadní chování), Světlý/Tmavý vynutí jas s maximálním kontrastem.
     final plan = themePlanFor(ref.watch(themeChoiceProvider));

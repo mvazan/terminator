@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/live_refresh.dart';
 import '../data/providers.dart';
 
 /// Shows a slim banner above [child] while the realtime socket is down for
@@ -26,11 +27,25 @@ class OfflineBanner extends ConsumerStatefulWidget {
 }
 
 class _OfflineBannerState extends ConsumerState<OfflineBanner> {
+  /// Kolik socketu tolerujeme, než přiznáme offline: při běžném výpadku
+  /// krátce, po probuzení appky víc — tam je odpojení normální stav
+  /// (Supabase socket v pozadí vědomě zavírá) a spojení se teprve navazuje.
+  static const _dropGrace = Duration(seconds: 3);
+  static const _wakeGrace = Duration(seconds: 6);
+
   bool _show = false;
   Timer? _debounce;
+  StreamSubscription<void>? _wake;
+
+  @override
+  void initState() {
+    super.initState();
+    _wake = LiveRefresh.stream.listen((_) => _onWake());
+  }
 
   @override
   void dispose() {
+    _wake?.cancel();
     _debounce?.cancel();
     super.dispose();
   }
@@ -40,10 +55,22 @@ class _OfflineBannerState extends ConsumerState<OfflineBanner> {
     if (connected) {
       if (_show) setState(() => _show = false);
     } else {
-      _debounce = Timer(const Duration(seconds: 3), () {
-        if (mounted) setState(() => _show = true);
-      });
+      _debounce = Timer(_dropGrace, _showIfStillDown);
     }
+  }
+
+  /// Appka se vrátila do popředí: schovej případný banner z doby, kdy byla
+  /// v pozadí, a dej socketu čas se vrátit, než budeme něco tvrdit.
+  void _onWake() {
+    _debounce?.cancel();
+    if (_show) setState(() => _show = false);
+    _debounce = Timer(_wakeGrace, _showIfStillDown);
+  }
+
+  void _showIfStillDown() {
+    if (!mounted) return;
+    final connected = ref.read(realtimeConnectedProvider).value ?? true;
+    if (!connected && !_show) setState(() => _show = true);
   }
 
   @override

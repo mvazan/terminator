@@ -412,12 +412,17 @@ final dayChatMembershipProvider =
 final messagesProvider =
     StreamProvider.family<List<ChatMessage>, String>((ref, tournamentId) {
   if (ref.watch(_userIdProvider) == null) return Stream.value(const []);
-  return _db
-      .from('messages')
-      .stream(primaryKey: ['id'])
-      .eq('tournament_id', tournamentId)
-      .order('created_at', ascending: true)
-      .map((rows) => rows.map(ChatMessage.fromJson).toList());
+  // liveRows, ne holý .stream(): ten umře se socketem (a ten se odpojuje
+  // při každém přechodu do pozadí), takže chat otevřený z notifikace
+  // zamrzl na starých zprávách. Disk cache tenhle nepotřebuje — celou
+  // tabulku už drží allMessagesProvider.
+  return liveRows(
+    live: () => _db
+        .from('messages')
+        .stream(primaryKey: ['id'])
+        .eq('tournament_id', tournamentId)
+        .order('created_at', ascending: true),
+  ).map((rows) => rows.map(ChatMessage.fromJson).toList());
 });
 
 /// All messages — the chat list needs last-activity and unread counts across
