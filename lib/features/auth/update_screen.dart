@@ -4,6 +4,8 @@ import '../../core/ui.dart';
 
 /// Blocking screen shown when this build is older than the backend's
 /// app_config.min_build — the force-update lever for breaking releases.
+/// The auth gate swaps the whole app for it the moment the bump arrives
+/// (live stream), so an outdated build stops calling the server at once.
 class UpdateScreen extends StatelessWidget {
   const UpdateScreen({super.key});
 
@@ -20,7 +22,8 @@ class UpdateScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('🆕', style: TextStyle(fontSize: 48)),
+              Icon(Icons.system_update, size: 56,
+                  color: Theme.of(context).colorScheme.primary),
               const SizedBox(height: 16),
               Text('Je potřeba aktualizace',
                   style: Theme.of(context).textTheme.headlineSmall),
